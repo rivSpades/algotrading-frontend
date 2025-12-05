@@ -3,19 +3,22 @@
  * Displays symbol information, OHLCV data, and charts
  */
 
-import { useLoaderData, useNavigate, useParams } from 'react-router-dom';
+import { useLoaderData, useNavigate, useParams, useRevalidator } from 'react-router-dom';
 import { ArrowLeft, Calendar, RefreshCw, Trash2, Download, RotateCcw } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import CandlestickChart from '../components/CandlestickChart';
 import DataTable from '../components/DataTable';
 import TaskProgress from '../components/TaskProgress';
 import DateRangeModal from '../components/DateRangeModal';
+import ToolAssignmentManager from '../components/ToolAssignmentManager';
 import { updateSymbolOHLCV, refetchSymbolOHLCV, fetchOHLCVData, deleteSymbol } from '../data/symbols';
+import { getSymbolAssignments } from '../data/tools';
 
 export default function SymbolDetail() {
   const { symbol, ohlcv, ohlcvCount } = useLoaderData();
   const navigate = useNavigate();
   const { ticker } = useParams();
+  const revalidator = useRevalidator();
   const [timeframe, setTimeframe] = useState('daily');
   const [isUpdating, setIsUpdating] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
@@ -25,9 +28,74 @@ export default function SymbolDetail() {
   const [showProgress, setShowProgress] = useState(false);
   const [showDateModal, setShowDateModal] = useState(false);
   const [dateModalMode, setDateModalMode] = useState(null); // 'fetch' or 'refetch'
+  // Extract indicators from OHLCV data (indicators come embedded in OHLCV response)
+  const [indicators, setIndicators] = useState([]);
   
   // Check if symbol has OHLCV data
   const hasOHLCVData = ohlcv && Array.isArray(ohlcv) && ohlcv.length > 0;
+
+  // Extract indicators from OHLCV response
+  useEffect(() => {
+    const extractIndicators = async () => {
+      if (!ticker) return;
+      
+      if (ohlcv && Array.isArray(ohlcv) && ohlcv.length > 0) {
+        // Get assignments to map indicator keys to tool info
+        try {
+          const assignments = await getSymbolAssignments(ticker);
+          const enabledAssignments = assignments.filter(a => a.enabled);
+          
+          if (enabledAssignments.length === 0) {
+            setIndicators([]);
+            return;
+          }
+          
+          // Get first result to check for indicator keys
+          const firstResult = ohlcv[0];
+          
+          const indicatorsList = enabledAssignments.map(assignment => {
+            const toolName = assignment.tool.name;
+            const period = assignment.parameters?.period || assignment.tool.default_parameters?.period || '';
+            const indicatorKey = period ? `${toolName}_${period}` : toolName;
+            
+            // Check if this indicator exists in OHLCV data
+            if (firstResult[indicatorKey] === undefined) {
+              return null;
+            }
+            
+            // Extract values from OHLCV data
+            const values = ohlcv
+              .map(item => ({
+                timestamp: item.timestamp,
+                value: item[indicatorKey] !== null && item[indicatorKey] !== undefined ? parseFloat(item[indicatorKey]) : null
+              }))
+              .filter(item => item.value !== null && !isNaN(item.value));
+            
+            return {
+              ...assignment,
+              toolName: toolName,
+              values: values,
+              subchart: assignment.subchart || false, // Include subchart flag
+            };
+          }).filter(item => item !== null);
+          
+          setIndicators(indicatorsList);
+        } catch (error) {
+          console.error('Error extracting indicators:', error);
+          setIndicators([]);
+        }
+      } else {
+        setIndicators([]);
+      }
+    };
+    
+    extractIndicators();
+  }, [ohlcv, ticker]);
+
+  const handleAssignmentChange = () => {
+    // Revalidate loader data to get updated OHLCV with indicators
+    revalidator.revalidate();
+  };
 
   if (!symbol) {
     return (
@@ -270,7 +338,12 @@ export default function SymbolDetail() {
 
         {/* Chart */}
         <div className="mb-6">
-          <CandlestickChart data={ohlcv} ticker={ticker} />
+          <CandlestickChart data={ohlcv} ticker={ticker} indicators={indicators} />
+        </div>
+
+        {/* Analytical Tools */}
+        <div className="mb-6">
+          <ToolAssignmentManager symbolTicker={ticker} onAssignmentChange={handleAssignmentChange} />
         </div>
 
         {/* Data Table */}

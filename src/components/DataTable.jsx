@@ -16,27 +16,30 @@ export default function DataTable({ initialData = [], ticker, totalCount = 0 }) 
   const [count, setCount] = useState(totalCount || initialData.length);
 
   useEffect(() => {
-    // Always load data from backend for proper pagination
     if (ticker) {
-      setLoading(true);
-      getSymbolOHLCV(ticker, 'daily', null, null, currentPage, ITEMS_PER_PAGE)
-        .then((result) => {
-          setData(result.results || []);
-          setCount(result.count || 0);
-        })
-        .catch((error) => {
-          console.error('Error loading OHLCV data:', error);
-          // Fallback to initial data if API fails
-          if (currentPage === 1 && initialData.length > 0) {
-            // Paginate initial data locally for first page
-            const paginated = initialData.slice(0, ITEMS_PER_PAGE);
-            setData(paginated);
-            setCount(initialData.length);
-          }
-        })
-        .finally(() => {
-          setLoading(false);
-        });
+      // For first page, use initial data if available (from loader - single API call)
+      if (currentPage === 1 && initialData.length > 0) {
+        const paginated = initialData.slice(0, ITEMS_PER_PAGE);
+        setData(paginated);
+        setCount(totalCount || initialData.length);
+        setLoading(false);
+      } else {
+        // For other pages, make API call
+        setLoading(true);
+        getSymbolOHLCV(ticker, 'daily', null, null, currentPage, ITEMS_PER_PAGE)
+          .then((result) => {
+            setData(result.results || []);
+            setCount(result.count || 0);
+          })
+          .catch((error) => {
+            console.error('Error loading OHLCV data:', error);
+            setData([]);
+            setCount(0);
+          })
+          .finally(() => {
+            setLoading(false);
+          });
+      }
     } else if (initialData.length > 0) {
       // If no ticker, paginate initial data locally
       const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;

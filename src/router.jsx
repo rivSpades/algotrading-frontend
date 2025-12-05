@@ -37,11 +37,18 @@ Home.loader = async ({ request }) => {
  */
 SymbolDetail.loader = async ({ params }) => {
   const { ticker } = params;
+  // Load enough data for chart (1000 records) - includes indicators computed on-the-fly
+  // Table will use this for first page, reducing API calls
   const [symbol, ohlcv] = await Promise.all([
     getSymbolDetails(ticker),
-    getSymbolOHLCV(ticker, 'daily', null, null, 1, 1000), // Load up to 1000 records for chart
+    getSymbolOHLCV(ticker, 'daily', null, null, 1, 1000),
   ]);
-  return { symbol, ohlcv: ohlcv.results || [], ohlcvCount: ohlcv.count || 0 };
+  return { 
+    symbol, 
+    ohlcv: ohlcv.results || [], 
+    ohlcvCount: ohlcv.count || 0,
+    indicators: ohlcv.indicators || {} // Indicator metadata from API
+  };
 };
 
 const router = createBrowserRouter([

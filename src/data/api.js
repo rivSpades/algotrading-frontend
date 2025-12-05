@@ -318,3 +318,113 @@ export const marketDataAPI = {
   },
 };
 
+/**
+ * Analytical Tools API
+ */
+export const analyticalToolsAPI = {
+  /**
+   * Get all available tools
+   */
+  async getTools(search = '') {
+    let endpoint = '/tools/';
+    if (search) {
+      endpoint += `?search=${encodeURIComponent(search)}`;
+    }
+    return apiRequest(endpoint);
+  },
+
+  /**
+   * Get tool by ID
+   */
+  async getTool(toolId) {
+    return apiRequest(`/tools/${toolId}/`);
+  },
+
+  /**
+   * Get all tool assignments
+   */
+  async getAssignments(symbolTicker = null) {
+    let endpoint = '/assignments/';
+    if (symbolTicker) {
+      endpoint += `?symbol_ticker=${encodeURIComponent(symbolTicker)}`;
+    }
+    return apiRequest(endpoint);
+  },
+
+  /**
+   * Get tool assignments for a specific symbol
+   */
+  async getSymbolAssignments(symbolTicker) {
+    return apiRequest(`/assignments/symbol/${encodeURIComponent(symbolTicker)}/`);
+  },
+
+  /**
+   * Create a tool assignment
+   */
+  async createAssignment(assignmentData) {
+    return apiRequest('/assignments/', {
+      method: 'POST',
+      body: JSON.stringify(assignmentData),
+    });
+  },
+
+  /**
+   * Update tool assignment
+   */
+  async updateAssignment(assignmentId, assignmentData) {
+    return apiRequest(`/assignments/${assignmentId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(assignmentData),
+    });
+  },
+
+  /**
+   * Delete tool assignment
+   */
+  async deleteAssignment(assignmentId) {
+    return apiRequest(`/assignments/${assignmentId}/`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Compute indicator for an assignment
+   */
+  async computeIndicator(assignmentId) {
+    return apiRequest(`/assignments/${assignmentId}/compute/`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Compute all enabled indicators for a symbol
+   */
+  async computeAllForSymbol(symbolTicker) {
+    return apiRequest(`/assignments/symbol/${encodeURIComponent(symbolTicker)}/compute/`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Get indicator values
+   */
+  async getIndicatorValues(assignmentId = null, symbolTicker = null, toolName = null) {
+    let endpoint = '/values/';
+    const params = new URLSearchParams();
+    if (assignmentId) params.append('assignment_id', assignmentId);
+    if (symbolTicker) params.append('symbol_ticker', symbolTicker);
+    if (toolName) params.append('tool_name', toolName);
+    if (params.toString()) {
+      endpoint += `?${params.toString()}`;
+    }
+    return apiRequest(endpoint);
+  },
+
+  /**
+   * Get indicator values for a specific symbol and tool
+   */
+  async getSymbolToolValues(symbolTicker, toolName) {
+    return apiRequest(`/values/symbol/${encodeURIComponent(symbolTicker)}/tool/${encodeURIComponent(toolName)}/`);
+  },
+};
+
