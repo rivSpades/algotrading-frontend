@@ -187,7 +187,7 @@ export default function CandlestickChart({ data = [], ticker, indicators = [] })
     // Add main chart indicator series (overlay on price chart)
     // Only add indicators that are NOT subchart indicators
     if (mainChartIndicators && mainChartIndicators.length > 0) {
-      mainChartIndicators.forEach(ind => {
+      mainChartIndicators.forEach((ind, index) => {
         if (ind && ind.data && ind.data.length > 0 && ind.type === 'line') {
           series.push({
             name: ind.name,
@@ -207,35 +207,91 @@ export default function CandlestickChart({ data = [], ticker, indicators = [] })
     return series;
   }, [seriesData, mainChartIndicators]);
 
-  // Subchart series: subchart indicators only (separate chart)
-  const subchartSeries = useMemo(() => {
-    return subchartIndicators.map(ind => ({
-      name: ind.name,
-      type: 'line',
-      data: ind.data,
-    }));
-  }, [subchartIndicators]);
-
-  // Calculate subchart y-axis min/max if there are subchart indicators
-  const subchartYAxisMin = useMemo(() => {
-    if (subchartIndicators.length === 0) return 0;
-    const allValues = subchartIndicators.flatMap(ind => ind.data.map(d => d[1]));
-    if (allValues.length === 0) return 0;
-    const minValue = Math.min(...allValues);
-    const maxValue = Math.max(...allValues);
-    const range = maxValue - minValue;
-    return Math.max(0, minValue - range * 0.1);
-  }, [subchartIndicators]);
-
-  const subchartYAxisMax = useMemo(() => {
-    if (subchartIndicators.length === 0) return 100;
-    const allValues = subchartIndicators.flatMap(ind => ind.data.map(d => d[1]));
-    if (allValues.length === 0) return 100;
-    const minValue = Math.min(...allValues);
-    const maxValue = Math.max(...allValues);
-    const range = maxValue - minValue;
-    return maxValue + range * 0.1;
-  }, [subchartIndicators]);
+  // Create separate subchart configurations for each indicator
+  // Each indicator gets its own subchart
+  const subchartConfigs = useMemo(() => {
+    return subchartIndicators.map((ind, index) => {
+      // Calculate y-axis min/max for this specific indicator
+      const allValues = ind.data.map(d => d[1]);
+      const minValue = allValues.length > 0 ? Math.min(...allValues) : 0;
+      const maxValue = allValues.length > 0 ? Math.max(...allValues) : 100;
+      const range = maxValue - minValue;
+      const yAxisMin = Math.max(0, minValue - range * 0.1);
+      const yAxisMax = maxValue + range * 0.1;
+      
+      // Create series for this single indicator
+      const series = [{
+        name: ind.name,
+        type: 'line',
+        data: ind.data,
+      }];
+      
+      // Create options for this specific subchart
+      const chartId = `subchart-${chartKey}-${index}`;
+      const options = {
+        chart: {
+          id: chartId,
+          type: 'line',
+          height: 200,
+          toolbar: {
+            show: false, // Hide toolbar on subchart
+          },
+          zoom: {
+            enabled: false, // Disable zoom on subchart
+          },
+          animations: {
+            enabled: false,
+          },
+        },
+        xaxis: {
+          type: 'datetime',
+          labels: {
+            format: 'MMM dd, yyyy',
+            rotate: -45,
+            rotateAlways: false,
+          },
+        },
+        yaxis: {
+          labels: {
+            formatter: function (value) {
+              return value.toFixed(2);
+            },
+          },
+          min: yAxisMin,
+          max: yAxisMax,
+          title: {
+            text: ind.name,
+          },
+        },
+        tooltip: {
+          x: {
+            format: 'MMM dd, yyyy',
+          },
+          shared: true,
+        },
+        stroke: {
+          curve: 'smooth',
+          width: ind.strokeWidth || 2,
+        },
+        colors: [ind.color],
+        grid: {
+          borderColor: '#e5e7eb',
+          strokeDashArray: 4,
+        },
+        legend: {
+          show: true,
+          position: 'top',
+        },
+      };
+      
+      return {
+        id: chartId,
+        series,
+        options,
+        indicator: ind,
+      };
+    });
+  }, [subchartIndicators, chartKey]);
 
   // Main chart configuration (candlestick + main chart indicators)
   const mainChartOptions = useMemo(() => {
@@ -356,7 +412,7 @@ export default function CandlestickChart({ data = [], ticker, indicators = [] })
         curve: 'smooth',
         width: strokeWidths,
       },
-      colors: colors,
+      colors: colors, // Colors array: first for candlestick, then for each indicator in order
       grid: {
         borderColor: '#e5e7eb',
         strokeDashArray: 4,
@@ -368,77 +424,6 @@ export default function CandlestickChart({ data = [], ticker, indicators = [] })
     };
   }, [seriesData, yAxisMin, yAxisMax, mainChartIndicators, mainChartSeries, chartKey]);
 
-  // Subchart configuration (subchart indicators only)
-  const subchartOptions = useMemo(() => {
-    if (subchartIndicators.length === 0) return null;
-    
-    const colors = subchartIndicators.map(ind => ind.color);
-    const strokeWidths = subchartIndicators.map(ind => ind.strokeWidth || 2);
-    
-    // Use stable chart ID based on ticker only
-    const chartId = `subchart-${chartKey}`;
-    const groupName = `priceChart-${chartKey}`;
-    
-    return {
-      chart: {
-        id: chartId,
-        type: 'line',
-        height: 200,
-        // Removed group to prevent chart swapping - will use manual synchronization
-        toolbar: {
-          show: false, // Hide toolbar on subchart
-        },
-        zoom: {
-          enabled: false, // Disable zoom on subchart (controlled by main chart)
-        },
-        animations: {
-          enabled: false,
-        },
-        events: {
-          // Subchart should not control main chart - only main chart controls subchart
-        },
-      },
-      xaxis: {
-        type: 'datetime',
-        labels: {
-          format: 'MMM dd, yyyy',
-          rotate: -45,
-          rotateAlways: false,
-        },
-      },
-      yaxis: {
-        labels: {
-          formatter: function (value) {
-            return value.toFixed(2);
-          },
-        },
-        min: subchartYAxisMin,
-        max: subchartYAxisMax,
-        title: {
-          text: subchartIndicators.map(ind => ind.name).join(', '),
-        },
-      },
-      tooltip: {
-        x: {
-          format: 'MMM dd, yyyy',
-        },
-        shared: true,
-      },
-      stroke: {
-        curve: 'smooth',
-        width: strokeWidths,
-      },
-      colors: colors,
-      grid: {
-        borderColor: '#e5e7eb',
-        strokeDashArray: 4,
-      },
-      legend: {
-        show: true,
-        position: 'top',
-      },
-    };
-  }, [subchartIndicators, subchartSeries, subchartYAxisMin, subchartYAxisMax, chartKey]);
 
   if (seriesData.length === 0) {
     return (
@@ -492,21 +477,22 @@ export default function CandlestickChart({ data = [], ticker, indicators = [] })
         </div>
       )}
       
-      {/* Subchart - Separate chart below main chart - Only line charts, never candlestick */}
-      {subchartIndicators.length > 0 && 
-       subchartOptions && 
-       subchartSeries.length > 0 && 
-       subchartSeries.every(s => s.type === 'line') && (
-        <div key={`subchart-container-${chartKey}`} className="mt-4" style={{ height: '200px', position: 'relative' }}>
+      {/* Subcharts - One separate chart for each indicator below main chart */}
+      {subchartConfigs.map((subchartConfig, index) => (
+        <div 
+          key={`subchart-container-${subchartConfig.id}`} 
+          className="mt-4" 
+          style={{ height: '200px', position: 'relative' }}
+        >
           <Chart
-            key={`subchart-${chartKey}`}
-            options={subchartOptions}
-            series={subchartSeries}
+            key={subchartConfig.id}
+            options={subchartConfig.options}
+            series={subchartConfig.series}
             type="line"
             height={200}
           />
         </div>
-      )}
+      ))}
       
       {/* Indicator Legend */}
       {(mainChartIndicators.length > 0 || subchartIndicators.length > 0) && (

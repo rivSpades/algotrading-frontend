@@ -4,18 +4,28 @@
  */
 
 import { useLoaderData, useNavigate, useParams, useRevalidator } from 'react-router-dom';
-import { ArrowLeft, Calendar, RefreshCw, Trash2, Download, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Calendar, RefreshCw, Trash2, Download, RotateCcw, TrendingUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import CandlestickChart from '../components/CandlestickChart';
 import DataTable from '../components/DataTable';
 import TaskProgress from '../components/TaskProgress';
 import DateRangeModal from '../components/DateRangeModal';
 import ToolAssignmentManager from '../components/ToolAssignmentManager';
+import StatisticsCard from '../components/StatisticsCard';
 import { updateSymbolOHLCV, refetchSymbolOHLCV, fetchOHLCVData, deleteSymbol } from '../data/symbols';
 import { getSymbolAssignments } from '../data/tools';
 
 export default function SymbolDetail() {
-  const { symbol, ohlcv, ohlcvCount } = useLoaderData();
+  const { symbol, ohlcv, ohlcvCount, indicators: indicatorsMetadata, statistics } = useLoaderData();
+  
+  // Debug: Log statistics to see what we're receiving
+  useEffect(() => {
+    if (statistics) {
+      console.log('Statistics received:', statistics);
+      console.log('Bollinger phase:', statistics.bollinger_phase);
+      console.log('Statistics keys:', Object.keys(statistics));
+    }
+  }, [statistics]);
   const navigate = useNavigate();
   const { ticker } = useParams();
   const revalidator = useRevalidator();
@@ -53,31 +63,123 @@ export default function SymbolDetail() {
           // Get first result to check for indicator keys
           const firstResult = ohlcv[0];
           
-          const indicatorsList = enabledAssignments.map(assignment => {
+          const indicatorsList = [];
+          
+          enabledAssignments.forEach(assignment => {
             const toolName = assignment.tool.name;
             const period = assignment.parameters?.period || assignment.tool.default_parameters?.period || '';
-            const indicatorKey = period ? `${toolName}_${period}` : toolName;
+            const baseKey = period ? `${toolName}_${period}` : toolName;
             
-            // Check if this indicator exists in OHLCV data
-            if (firstResult[indicatorKey] === undefined) {
-              return null;
+            // Special handling for Bollinger Bands (multiple series)
+            if (toolName === 'BollingerBands') {
+              // Check for Bollinger Bands keys
+              const upperKey = `${baseKey}_upper`;
+              const middleKey = `${baseKey}_middle`;
+              const lowerKey = `${baseKey}_lower`;
+              const bandwidthKey = `${baseKey}_bandwidth`;
+              
+              // Check if Bollinger Bands exist in OHLCV data
+              if (firstResult[upperKey] === undefined) {
+                return;
+              }
+              
+              // Get metadata for display names
+              const upperMetadata = indicatorsMetadata?.[upperKey];
+              const middleMetadata = indicatorsMetadata?.[middleKey];
+              const lowerMetadata = indicatorsMetadata?.[lowerKey];
+              const bandwidthMetadata = indicatorsMetadata?.[bandwidthKey];
+              
+              // Extract values for each band
+              const extractValues = (key) => {
+                return ohlcv
+                  .map(item => ({
+                    timestamp: item.timestamp,
+                    value: item[key] !== null && item[key] !== undefined ? parseFloat(item[key]) : null
+                  }))
+                  .filter(item => item.value !== null && !isNaN(item.value));
+              };
+              
+              // Add upper band (main chart)
+              indicatorsList.push({
+                ...assignment,
+                toolName: upperMetadata?.display_name || `${baseKey} Upper`,
+                values: extractValues(upperKey),
+                subchart: false,
+                indicatorKey: upperKey,
+                style: {
+                  color: upperMetadata?.color || assignment.style?.upper_color || assignment.style?.color || '#EF4444',
+                  line_width: upperMetadata?.line_width || assignment.style?.line_width || 2,
+                },
+              });
+              
+              // Add middle band (main chart)
+              indicatorsList.push({
+                ...assignment,
+                toolName: middleMetadata?.display_name || `${baseKey} Middle`,
+                values: extractValues(middleKey),
+                subchart: false,
+                indicatorKey: middleKey,
+                style: {
+                  color: middleMetadata?.color || assignment.style?.middle_color || assignment.style?.color || '#3B82F6',
+                  line_width: middleMetadata?.line_width || assignment.style?.line_width || 2,
+                },
+              });
+              
+              // Add lower band (main chart)
+              indicatorsList.push({
+                ...assignment,
+                toolName: lowerMetadata?.display_name || `${baseKey} Lower`,
+                values: extractValues(lowerKey),
+                subchart: false,
+                indicatorKey: lowerKey,
+                style: {
+                  color: lowerMetadata?.color || assignment.style?.lower_color || assignment.style?.color || '#10B981',
+                  line_width: lowerMetadata?.line_width || assignment.style?.line_width || 2,
+                },
+              });
+              
+              // Add bandwidth (subchart)
+              indicatorsList.push({
+                ...assignment,
+                toolName: bandwidthMetadata?.display_name || `${baseKey} Bandwidth`,
+                values: extractValues(bandwidthKey),
+                subchart: true, // Bandwidth goes in subchart
+                indicatorKey: bandwidthKey,
+                style: {
+                  color: bandwidthMetadata?.color || assignment.style?.bandwidth_color || assignment.style?.color || '#8B5CF6',
+                  line_width: bandwidthMetadata?.line_width || assignment.style?.line_width || 2,
+                },
+              });
+            } else {
+              // Regular indicator handling
+              const indicatorKey = baseKey;
+              
+              // Check if this indicator exists in OHLCV data
+              if (firstResult[indicatorKey] === undefined) {
+                return;
+              }
+              
+              // Get display name from indicators metadata (e.g., "SMA15" instead of "SMA")
+              const indicatorMetadata = indicatorsMetadata?.[indicatorKey];
+              const displayName = indicatorMetadata?.display_name || toolName;
+              
+              // Extract values from OHLCV data
+              const values = ohlcv
+                .map(item => ({
+                  timestamp: item.timestamp,
+                  value: item[indicatorKey] !== null && item[indicatorKey] !== undefined ? parseFloat(item[indicatorKey]) : null
+                }))
+                .filter(item => item.value !== null && !isNaN(item.value));
+              
+              indicatorsList.push({
+                ...assignment,
+                toolName: displayName, // Use display name (e.g., "SMA15")
+                values: values,
+                subchart: assignment.subchart || false, // Include subchart flag
+                indicatorKey: indicatorKey,
+              });
             }
-            
-            // Extract values from OHLCV data
-            const values = ohlcv
-              .map(item => ({
-                timestamp: item.timestamp,
-                value: item[indicatorKey] !== null && item[indicatorKey] !== undefined ? parseFloat(item[indicatorKey]) : null
-              }))
-              .filter(item => item.value !== null && !isNaN(item.value));
-            
-            return {
-              ...assignment,
-              toolName: toolName,
-              values: values,
-              subchart: assignment.subchart || false, // Include subchart flag
-            };
-          }).filter(item => item !== null);
+          });
           
           setIndicators(indicatorsList);
         } catch (error) {
@@ -316,6 +418,39 @@ export default function SymbolDetail() {
             </button>
           </div>
         </div>
+
+        {/* Volatility Section */}
+        {hasOHLCVData && statistics && Object.keys(statistics).length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Volatility</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {statistics.volatility !== undefined && (
+                <StatisticsCard
+                  title="Standard deviation"
+                  value={statistics.volatility}
+                  unit="%"
+                  additionalInfo={
+                    statistics.mean_price && statistics.volatility
+                      ? `Mean price: $${statistics.mean_price.toFixed(2)} | SD in $: $${(statistics.mean_price * statistics.volatility / 100).toFixed(2)}`
+                      : statistics.mean_price
+                      ? `Mean price: $${statistics.mean_price.toFixed(2)}`
+                      : null
+                  }
+                  description="Standard deviation of returns - measures price variability"
+                  icon={TrendingUp}
+                />
+              )}
+              <StatisticsCard
+                title="Bollinger Band Phase"
+                value={statistics.bollinger_phase || 'No phase detected'}
+                unit=""
+                description="Current market phase based on Bollinger Bands analysis"
+                icon={TrendingUp}
+              />
+              {/* More statistics cards can be added here */}
+            </div>
+          </div>
+        )}
 
         {/* Timeframe Selector */}
         <div className="mb-6 bg-white rounded-lg shadow p-4">

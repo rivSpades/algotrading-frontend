@@ -47,7 +47,8 @@ SymbolDetail.loader = async ({ params }) => {
     symbol, 
     ohlcv: ohlcv.results || [], 
     ohlcvCount: ohlcv.count || 0,
-    indicators: ohlcv.indicators || {} // Indicator metadata from API
+    indicators: ohlcv.indicators || {}, // Indicator metadata from API
+    statistics: ohlcv.statistics || {} // Statistics (volatility, etc.)
   };
 };
 
