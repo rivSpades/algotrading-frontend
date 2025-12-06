@@ -9,6 +9,13 @@ import Home from './pages/Home';
 import SymbolDetail from './pages/SymbolDetail';
 import Tasks from './pages/Tasks';
 import ActiveTasks from './pages/ActiveTasks';
+import Strategies from './pages/Strategies';
+import StrategyDetail from './pages/StrategyDetail';
+import StrategySymbolDetail from './pages/StrategySymbolDetail';
+import StrategyBacktestSymbols from './pages/StrategyBacktestSymbols';
+import StrategyBacktestSymbolDetail from './pages/StrategyBacktestSymbolDetail';
+import Backtests from './pages/Backtests';
+import BacktestDetail from './pages/BacktestDetail';
 import ErrorPage from './pages/ErrorPage';
 import { getSymbols } from './data/symbols';
 import { getSymbolDetails, getSymbolOHLCV } from './data/symbols';
@@ -79,6 +86,34 @@ const router = createBrowserRouter([
       {
         path: 'active-tasks',
         element: <ActiveTasks />,
+      },
+      {
+        path: 'strategies',
+        element: <Strategies />,
+      },
+      {
+        path: 'strategies/:id',
+        element: <StrategyDetail />,
+      },
+      {
+        path: 'strategies/:id/:ticker',
+        element: <StrategySymbolDetail />,
+      },
+      {
+        path: 'strategies/:id/backtests/:backtestId',
+        element: <StrategyBacktestSymbols />,
+      },
+      {
+        path: 'strategies/:id/backtests/:backtestId/:ticker',
+        element: <StrategyBacktestSymbolDetail />,
+      },
+      {
+        path: 'backtests',
+        element: <Backtests />,
+      },
+      {
+        path: 'backtests/:id',
+        element: <BacktestDetail />,
       },
     ],
   },

@@ -1,0 +1,530 @@
+/**
+ * Backtest Configuration Component
+ * Allows users to configure and start a new backtest
+ */
+
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { X, Play, Plus, Trash2 } from 'lucide-react';
+import { getStrategies } from '../data/strategies';
+import { getSymbolDetails } from '../data/symbols';
+import { createBacktest } from '../data/backtests';
+import { marketDataAPI } from '../data/api';
+import TaskProgress from './TaskProgress';
+
+export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = null }) {
+  const navigate = useNavigate();
+  const [showModal, setShowModal] = useState(false);
+  const [strategies, setStrategies] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [validatingTicker, setValidatingTicker] = useState(false);
+  const [taskId, setTaskId] = useState(null);
+  const [showProgress, setShowProgress] = useState(false);
+  
+  // Form state
+  const [name, setName] = useState('');
+  const [selectedStrategy, setSelectedStrategy] = useState(null);
+  const [selectedSymbols, setSelectedSymbols] = useState([]); // Array of ticker strings
+  const [tickerInput, setTickerInput] = useState('');
+  const [selectAllActive, setSelectAllActive] = useState(false);
+  const [splitRatio, setSplitRatio] = useState(0.7);
+  const [initialCapital, setInitialCapital] = useState(10000.0);
+  const [betSizePercentage, setBetSizePercentage] = useState(100.0);
+  const [strategyParameters, setStrategyParameters] = useState({});
+
+  useEffect(() => {
+    if (showModal) {
+      loadData();
+    }
+  }, [showModal]);
+
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const strategiesData = await getStrategies();
+      setStrategies(strategiesData);
+      
+      // If defaultStrategyId is provided, automatically select it
+      if (defaultStrategyId) {
+        const strategy = strategiesData.find(s => s.id === defaultStrategyId || s.id === parseInt(defaultStrategyId));
+        if (strategy) {
+          setSelectedStrategy(strategy);
+          setStrategyParameters(strategy.default_parameters || {});
+        }
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStrategySelect = (strategyId) => {
+    const strategy = strategies.find(s => s.id === strategyId);
+    setSelectedStrategy(strategy);
+    // Initialize parameters with default values
+    setStrategyParameters(strategy?.default_parameters || {});
+  };
+
+  const handleAddTicker = async () => {
+    const ticker = tickerInput.trim().toUpperCase();
+    if (!ticker) return;
+    
+    // Check if already added
+    if (selectedSymbols.includes(ticker)) {
+      alert(`${ticker} is already in the list`);
+      setTickerInput('');
+      return;
+    }
+    
+    setValidatingTicker(true);
+    try {
+      // Validate ticker by fetching symbol details
+      const symbol = await getSymbolDetails(ticker);
+      if (symbol && symbol.status === 'active') {
+        setSelectedSymbols(prev => [...prev, ticker]);
+        setTickerInput('');
+      } else {
+        alert(`${ticker} is not an active symbol. Only active symbols can be added.`);
+      }
+    } catch (error) {
+      console.error('Error validating ticker:', error);
+      alert(`${ticker} is not a valid symbol or is not active.`);
+    } finally {
+      setValidatingTicker(false);
+    }
+  };
+
+  const handleRemoveTicker = (ticker) => {
+    setSelectedSymbols(prev => prev.filter(t => t !== ticker));
+    setSelectAllActive(false);
+  };
+
+  const handleSelectAllActive = () => {
+    if (selectAllActive) {
+      setSelectedSymbols([]);
+      setSelectAllActive(false);
+    } else {
+      // Just set the flag - will fetch active tickers when starting backtest
+      setSelectAllActive(true);
+    }
+  };
+
+  const updateParameter = (key, value) => {
+    setStrategyParameters(prev => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const handleBacktestCreated = (backtest) => {
+    // Call the callback if provided
+    if (onBacktestCreated) {
+      onBacktestCreated(backtest);
+    }
+  };
+
+  const handleTaskComplete = (data) => {
+    setShowProgress(false);
+    setTaskId(null);
+    if (data.status === 'completed' && onBacktestCreated) {
+      // Reload or navigate if needed
+    }
+  };
+
+  const handleTaskClose = () => {
+    setShowProgress(false);
+    setTaskId(null);
+  };
+
+  const handleCreateBacktest = async () => {
+    if (!selectedStrategy) {
+      alert('Please select a strategy');
+      return;
+    }
+
+    let symbolTickers = [...selectedSymbols];
+
+    // If "Select All Active" is checked, fetch all active tickers
+    if (selectAllActive) {
+      setCreating(true);
+      try {
+        // Fetch all active symbols
+        let allActiveTickers = [];
+        let page = 1;
+        let hasMore = true;
+        const MAX_PAGES = 50; // Increased limit for "select all"
+        
+        while (hasMore && page <= MAX_PAGES) {
+          const response = await marketDataAPI.getSymbols('', page, null, 'active');
+          if (response.success && response.data) {
+            const pageTickers = (response.data.results || [])
+              .filter(s => s.status === 'active')
+              .map(s => s.ticker);
+            allActiveTickers = [...allActiveTickers, ...pageTickers];
+            hasMore = !!response.data.next;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+        
+        symbolTickers = allActiveTickers;
+      } catch (error) {
+        console.error('Error fetching all active symbols:', error);
+        alert('Failed to fetch all active symbols. Please try again.');
+        setCreating(false);
+        return;
+      }
+    }
+
+    if (symbolTickers.length === 0) {
+      alert('Please add at least one symbol or select "Select All Active"');
+      setCreating(false);
+      return;
+    }
+
+    setCreating(true);
+    try {
+      // Get current date for end_date, and a very old date for start_date to get all data
+      const endDate = new Date().toISOString();
+      const startDate = new Date('1900-01-01').toISOString(); // Very old date to get all available data
+
+      const backtestData = {
+        name: name || undefined,
+        strategy_id: selectedStrategy.id,
+        symbol_tickers: symbolTickers,
+        start_date: startDate,
+        end_date: endDate,
+        split_ratio: splitRatio,
+        initial_capital: initialCapital,
+        bet_size_percentage: betSizePercentage,
+        strategy_parameters: strategyParameters,
+      };
+
+      const backtest = await createBacktest(backtestData);
+      setShowModal(false);
+      resetForm();
+      
+      // Call the handler which will navigate to backtest detail page
+      handleBacktestCreated(backtest);
+    } catch (error) {
+      console.error('Error creating backtest:', error);
+      alert('Failed to create backtest: ' + (error.message || 'Unknown error'));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const resetForm = () => {
+    setName('');
+    setSelectedStrategy(null);
+    setSelectedSymbols([]);
+    setTickerInput('');
+    setSelectAllActive(false);
+    setSplitRatio(0.7);
+    setInitialCapital(10000.0);
+    setBetSizePercentage(100.0);
+    setStrategyParameters({});
+  };
+
+  return (
+    <>
+      {/* Task Progress Overlay */}
+      {showProgress && taskId && (
+        <TaskProgress
+          taskId={taskId}
+          onComplete={handleTaskComplete}
+          onClose={handleTaskClose}
+        />
+      )}
+
+      <button
+        onClick={() => setShowModal(true)}
+        className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2"
+      >
+        <Play className="w-5 h-5" />
+        Run Backtest
+      </button>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Configure Backtest</h2>
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  resetForm();
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-8">Loading...</div>
+            ) : (
+              <div className="space-y-6">
+                {/* Backtest Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Backtest Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g., SMA Crossover Test - Jan 2024"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Strategy Selection */}
+                {!defaultStrategyId && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Strategy <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={selectedStrategy?.id || ''}
+                      onChange={(e) => handleStrategySelect(parseInt(e.target.value))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    >
+                      <option value="">Select a strategy</option>
+                      {strategies.map((strategy) => (
+                        <option key={strategy.id} value={strategy.id}>
+                          {strategy.name}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedStrategy && (
+                      <div className="mt-2 bg-gray-50 p-3 rounded-lg">
+                        <p className="text-sm text-gray-700">{selectedStrategy.description_short}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {defaultStrategyId && selectedStrategy && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Strategy
+                    </label>
+                    <div className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg">
+                      <p className="text-gray-900 font-medium">{selectedStrategy.name}</p>
+                      {selectedStrategy.description_short && (
+                        <p className="text-sm text-gray-600 mt-1">{selectedStrategy.description_short}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Symbols Selection */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Symbols <span className="text-red-500">*</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectAllActive}
+                        onChange={handleSelectAllActive}
+                        className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-gray-700 font-medium">Select All Active</span>
+                    </label>
+                  </div>
+                  
+                  {!selectAllActive && (
+                    <>
+                      <div className="flex gap-2 mb-3">
+                        <input
+                          type="text"
+                          value={tickerInput}
+                          onChange={(e) => setTickerInput(e.target.value.toUpperCase())}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              handleAddTicker();
+                            }
+                          }}
+                          placeholder="Enter ticker (e.g., AAPL)"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          disabled={validatingTicker}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddTicker}
+                          disabled={validatingTicker || !tickerInput.trim()}
+                          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          {validatingTicker ? (
+                            'Validating...'
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4" />
+                              Add
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      
+                      {selectedSymbols.length > 0 && (
+                        <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto">
+                          <div className="flex flex-wrap gap-2">
+                            {selectedSymbols.map((ticker) => (
+                              <span
+                                key={ticker}
+                                className="inline-flex items-center gap-2 px-3 py-1 bg-primary-50 text-primary-700 rounded-lg text-sm"
+                              >
+                                {ticker}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveTicker(ticker)}
+                                  className="text-primary-600 hover:text-primary-800"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {selectedSymbols.length === 0 && (
+                        <p className="text-sm text-gray-500 italic">
+                          No symbols added. Enter a ticker and click "Add" to add symbols.
+                        </p>
+                      )}
+                    </>
+                  )}
+                  
+                  {selectAllActive && (
+                    <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
+                      <p className="text-sm text-blue-700">
+                        <strong>All active symbols</strong> will be included in the backtest. Active tickers will be fetched when you start the backtest.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {selectedSymbols.length > 0 && !selectAllActive && (
+                    <p className="mt-2 text-sm text-gray-600">
+                      {selectedSymbols.length} symbol(s) added
+                    </p>
+                  )}
+                </div>
+
+                {/* Split Ratio */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Training/Test Split Ratio: {Math.round(splitRatio * 100)}% / {Math.round((1 - splitRatio) * 100)}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="0.9"
+                    step="0.1"
+                    value={splitRatio}
+                    onChange={(e) => setSplitRatio(parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Initial Capital */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Initial Capital ($)
+                  </label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={initialCapital}
+                    onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 10000.0)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="10000.00"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Starting capital for the backtest</p>
+                </div>
+
+                {/* Bet Size Percentage */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Bet Size Per Trade (%): {betSizePercentage}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="100"
+                    step="0.1"
+                    value={betSizePercentage}
+                    onChange={(e) => setBetSizePercentage(parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Percentage of available capital to bet per trade (0.1% - 100%)</p>
+                </div>
+
+                {/* Strategy Parameters */}
+                {selectedStrategy && Object.keys(selectedStrategy.default_parameters || {}).length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Strategy Parameters
+                    </label>
+                    <div className="grid grid-cols-2 gap-4">
+                      {Object.entries(selectedStrategy.default_parameters || {}).map(([key, defaultValue]) => (
+                        <div key={key}>
+                          <label className="block text-xs text-gray-600 mb-1 capitalize">
+                            {key.replace(/_/g, ' ')}
+                          </label>
+                          <input
+                            type={typeof defaultValue === 'number' ? 'number' : 'text'}
+                            value={strategyParameters[key] !== undefined ? strategyParameters[key] : defaultValue}
+                            onChange={(e) => {
+                              const value = typeof defaultValue === 'number' ? parseFloat(e.target.value) : e.target.value;
+                              updateParameter(key, value);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            step={typeof defaultValue === 'number' ? 'any' : undefined}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex justify-end gap-3 pt-4 border-t">
+                  <button
+                    onClick={() => {
+                      setShowModal(false);
+                      resetForm();
+                    }}
+                    className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    disabled={creating}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateBacktest}
+                    disabled={creating || !selectedStrategy || (!selectAllActive && selectedSymbols.length === 0)}
+                    className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {creating ? 'Creating...' : (
+                      <>
+                        <Play className="w-4 h-4" />
+                        Start Backtest
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+

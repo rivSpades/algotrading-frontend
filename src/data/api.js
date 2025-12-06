@@ -74,7 +74,7 @@ const handleResponse = async (response) => {
 /**
  * Base API request function
  */
-const apiRequest = async (endpoint, options = {}) => {
+export const apiRequest = async (endpoint, options = {}) => {
   try {
     const url = `${API_BASE_URL}${endpoint}`;
     const config = {
@@ -170,10 +170,12 @@ export const marketDataAPI = {
   /**
    * Get OHLCV data for a symbol with pagination
    */
-  async getOHLCVData(ticker, timeframe = 'daily', startDate = null, endDate = null, page = 1, pageSize = 50) {
+  async getOHLCVData(ticker, timeframe = 'daily', startDate = null, endDate = null, page = 1, pageSize = 50, backtestId = null, strategyId = null) {
     let endpoint = `/symbols/${encodeURIComponent(ticker)}/ohlcv/?timeframe=${timeframe}&page=${page}&page_size=${pageSize}`;
     if (startDate) endpoint += `&start_date=${startDate}`;
     if (endDate) endpoint += `&end_date=${endDate}`;
+    if (backtestId) endpoint += `&backtest_id=${backtestId}`;
+    if (strategyId) endpoint += `&strategy_id=${strategyId}`;
     return apiRequest(endpoint);
   },
 

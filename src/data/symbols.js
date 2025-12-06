@@ -40,9 +40,9 @@ export async function getSymbolDetails(ticker) {
 /**
  * Get OHLCV data for symbol with pagination
  */
-export async function getSymbolOHLCV(ticker, timeframe = 'daily', startDate = null, endDate = null, page = 1, pageSize = 50) {
+export async function getSymbolOHLCV(ticker, timeframe = 'daily', startDate = null, endDate = null, page = 1, pageSize = 50, backtestId = null, strategyId = null) {
   try {
-    const response = await marketDataAPI.getOHLCVData(ticker, timeframe, startDate, endDate, page, pageSize);
+    const response = await marketDataAPI.getOHLCVData(ticker, timeframe, startDate, endDate, page, pageSize, backtestId, strategyId);
     if (response.success) {
       return response.data;
     }

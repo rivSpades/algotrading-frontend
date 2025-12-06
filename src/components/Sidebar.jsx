@@ -4,7 +4,7 @@
  */
 
 import { NavLink } from 'react-router-dom';
-import { BarChart3, Calendar, Play } from 'lucide-react';
+import { BarChart3, Calendar, Play, TrendingUp } from 'lucide-react';
 
 export default function Sidebar() {
   const navItems = [
@@ -25,6 +25,12 @@ export default function Sidebar() {
       path: '/active-tasks',
       icon: Play,
       description: 'Running tasks and history'
+    },
+    {
+      name: 'Strategies',
+      path: '/strategies',
+      icon: TrendingUp,
+      description: 'Trading strategies'
     },
   ];
 

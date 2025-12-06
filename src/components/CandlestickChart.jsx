@@ -15,7 +15,7 @@ const TIMEFRAME_OPTIONS = [
   { label: 'All', days: null },
 ];
 
-export default function CandlestickChart({ data = [], ticker, indicators = [] }) {
+export default function CandlestickChart({ data = [], ticker, indicators = [], signals = [] }) {
   const [selectedTimeframe, setSelectedTimeframe] = useState('All');
   const [chartData, setChartData] = useState(data);
   // Use a stable key that only changes with ticker to prevent unnecessary remounts
@@ -421,8 +421,93 @@ export default function CandlestickChart({ data = [], ticker, indicators = [] })
         show: true,
         position: 'top',
       },
+      annotations: signals && signals.length > 0 && seriesData.length > 0 ? {
+        points: signals
+          .filter(signal => {
+            // Basic validation - just check that timestamp and price exist
+            // Don't filter by time range - show all signals (they should all be within the data range)
+            return signal.timestamp && signal.price && !isNaN(signal.timestamp) && !isNaN(signal.price);
+          })
+          .map((signal, idx) => {
+            // Debug logging
+            if (idx === 0) {
+              const validSignals = signals.filter(s => s.timestamp && s.price && !isNaN(s.timestamp) && !isNaN(s.price));
+              console.log('CandlestickChart: Processing signals', {
+                totalSignals: signals.length,
+                filteredSignals: validSignals.length,
+                firstSignal: signal,
+                seriesDataLength: seriesData.length,
+                dataTimeRange: {
+                  min: new Date(Math.min(...seriesData.map(d => d[0]))).toISOString(),
+                  max: new Date(Math.max(...seriesData.map(d => d[0]))).toISOString(),
+                },
+                sampleSignalTime: new Date(signal.timestamp).toISOString(),
+              });
+            }
+            
+            // Determine color and triangle direction based on signal type and position
+            // Colors must match the badge colors in the datatable exactly:
+            // Long entry: bg-green-100 text-green-800 -> Green #10b981 or #22c55e
+            // Short entry: bg-blue-100 text-blue-800 -> Blue #3b82f6 or #2563eb
+            // Long exit: bg-red-100 text-red-800 -> Red #ef4444 or #dc2626
+            // Short exit: bg-orange-100 text-orange-800 -> Orange #f97316 or #ea580c
+            let fillColor;
+            let triangleDirection; // 'up' for entry, 'down' for exit
+            
+            if (signal.type === 'entry') {
+              triangleDirection = 'up';
+              if (signal.positionType === 'long') {
+                fillColor = '#22c55e'; // Green for long entry (matches bg-green-100 text-green-800)
+              } else {
+                fillColor = '#2563eb'; // Blue for short entry (matches bg-blue-100 text-blue-800)
+              }
+            } else { // exit
+              triangleDirection = 'down';
+              if (signal.positionType === 'long') {
+                fillColor = '#dc2626'; // Red for long exit (matches bg-red-100 text-red-800)
+              } else {
+                fillColor = '#ea580c'; // Orange for short exit (matches bg-orange-100 text-orange-800)
+              }
+            }
+            
+            // Create triangle SVG
+            // Triangle pointing up: for entry signals
+            // Triangle pointing down: for exit signals
+            const triangleSize = 24; // Increased size for better visibility
+            let svgContent;
+            if (triangleDirection === 'up') {
+              // Upward triangle (entry) - points up
+              svgContent = `<svg width="${triangleSize}" height="${triangleSize}" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="${triangleSize/2},2 ${triangleSize-2},${triangleSize-2} 2,${triangleSize-2}" fill="${fillColor}" stroke="#fff" stroke-width="1.5"/>
+              </svg>`;
+            } else {
+              // Downward triangle (exit) - points down
+              svgContent = `<svg width="${triangleSize}" height="${triangleSize}" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="2,2 ${triangleSize-2},2 ${triangleSize/2},${triangleSize-2}" fill="${fillColor}" stroke="#fff" stroke-width="1.5"/>
+              </svg>`;
+            }
+            
+            // Encode SVG as data URI
+            const svgDataUri = `data:image/svg+xml;base64,${btoa(svgContent)}`;
+            
+            return {
+              x: signal.timestamp,
+              y: signal.price,
+              marker: {
+                size: 0, // Hide default circular marker
+              },
+              image: {
+                path: svgDataUri,
+                width: triangleSize,
+                height: triangleSize,
+                offsetX: -triangleSize/2,
+                offsetY: -triangleSize/2,
+              },
+            };
+          }),
+      } : {},
     };
-  }, [seriesData, yAxisMin, yAxisMax, mainChartIndicators, mainChartSeries, chartKey]);
+  }, [seriesData, yAxisMin, yAxisMax, mainChartIndicators, mainChartSeries, chartKey, signals]);
 
 
   if (seriesData.length === 0) {
