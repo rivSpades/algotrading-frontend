@@ -334,7 +334,7 @@ export default function StrategyDetail() {
                         {formatDate(backtest.start_date)} - {formatDate(backtest.end_date)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">
-                        {backtest.symbols_info?.length || backtest.symbols?.length || 0} symbol(s)
+                        {backtest.symbols_count ?? backtest.symbols_info?.length ?? backtest.symbols?.length ?? 0} symbol(s)
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <div className="flex items-center gap-2">

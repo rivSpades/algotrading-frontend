@@ -147,26 +147,36 @@ export default function BacktestDetail() {
         </div>
       </div>
 
-      {/* Symbol Selector (if multiple symbols) */}
-      {backtest.symbols_info && backtest.symbols_info.length > 1 && (
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Symbol
-          </label>
-          <select
-            value={selectedSymbol || ''}
-            onChange={(e) => setSelectedSymbol(e.target.value || null)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          >
-            <option value="">All Symbols (Portfolio)</option>
-            {backtest.symbols_info.map((symbol) => (
-              <option key={symbol.ticker} value={symbol.ticker}>
-                {symbol.ticker}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      {/* Symbol Selector - get symbols from statistics */}
+      {(() => {
+        // Extract unique symbols from statistics
+        const symbolsFromStats = (statistics || [])
+          .map(s => s?.symbol_info)
+          .filter(Boolean)
+          .filter((symbol, index, self) => 
+            index === self.findIndex(s => s?.ticker === symbol?.ticker)
+          );
+        
+        return symbolsFromStats.length > 1 && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Symbol
+            </label>
+            <select
+              value={selectedSymbol || ''}
+              onChange={(e) => setSelectedSymbol(e.target.value || null)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">All Symbols (Portfolio)</option>
+              {symbolsFromStats.map((symbol) => (
+                <option key={symbol.ticker} value={symbol.ticker}>
+                  {symbol.ticker}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      })()}
 
       {/* Statistics Cards */}
       {selectedStats && (

@@ -140,19 +140,6 @@ export default function StrategyBacktestSymbols() {
       setStrategy(strategyData);
       setBacktest(backtestData);
       
-      // Get symbols from backtest - handle different response formats
-      let symbolsList = [];
-      if (backtestData?.symbols_info && Array.isArray(backtestData.symbols_info)) {
-        symbolsList = backtestData.symbols_info;
-      } else if (backtestData?.symbols && Array.isArray(backtestData.symbols)) {
-        symbolsList = backtestData.symbols;
-      } else if (backtestData?.symbols && typeof backtestData.symbols === 'object') {
-        // Handle paginated response
-        symbolsList = backtestData.symbols.results || backtestData.symbols.data || [];
-      }
-      
-      setSymbols(symbolsList);
-      
       // Process statistics from backtest response - statistics are already included
       let statsArray = [];
       if (backtestData?.statistics) {
@@ -166,6 +153,16 @@ export default function StrategyBacktestSymbols() {
             : [backtestData.statistics.data];
         }
       }
+      
+      // Extract unique symbols from statistics (each stat has symbol_info)
+      // If no statistics yet (backtest still running), symbols will be empty
+      const symbolsFromStats = statsArray
+        .map(s => s?.symbol_info)
+        .filter(Boolean)
+        .filter((symbol, index, self) => 
+          index === self.findIndex(s => s?.ticker === symbol?.ticker)
+        );
+      setSymbols(symbolsFromStats);
       
       // Separate portfolio stats (symbol is null) from symbol-specific stats
       const portfolio = statsArray.find(s => {

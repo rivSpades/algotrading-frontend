@@ -46,10 +46,22 @@ export const backtestsAPI = {
   },
 
   /**
-   * Get trades for a backtest (with pagination)
+   * Get trades for a backtest (with pagination and filtering)
+   * @param {number} backtestId - Backtest ID
+   * @param {number} page - Page number (default: 1)
+   * @param {number} pageSize - Page size (default: 20)
+   * @param {string} symbol - Optional: Filter by symbol ticker
+   * @param {string} mode - Optional: Filter by mode ('all', 'long', 'short')
    */
-  async getBacktestTrades(backtestId, page = 1, pageSize = 20) {
-    return apiRequest(`/backtests/${backtestId}/trades/?page=${page}&page_size=${pageSize}`);
+  async getBacktestTrades(backtestId, page = 1, pageSize = 20, symbol = null, mode = 'all') {
+    let url = `/backtests/${backtestId}/trades/?page=${page}&page_size=${pageSize}`;
+    if (symbol) {
+      url += `&symbol=${encodeURIComponent(symbol)}`;
+    }
+    if (mode && mode !== 'all') {
+      url += `&mode=${encodeURIComponent(mode)}`;
+    }
+    return apiRequest(url);
   },
 
   /**
@@ -64,6 +76,24 @@ export const backtestsAPI = {
    */
   async getBacktestStatistics(backtestId) {
     return apiRequest(`/backtests/${backtestId}/statistics/`);
+  },
+
+  /**
+   * Get optimized statistics for a backtest (organized by mode: ALL/LONG/SHORT)
+   */
+  async getBacktestStatisticsOptimized(backtestId) {
+    return apiRequest(`/backtests/${backtestId}/statistics/optimized/`);
+  },
+
+  /**
+   * Get paginated list of symbols for a backtest (with search support)
+   */
+  async getBacktestSymbols(backtestId, page = 1, pageSize = 20, search = '') {
+    let url = `/backtests/${backtestId}/symbols/?page=${page}&page_size=${pageSize}`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    return apiRequest(url);
   },
 
   /**
@@ -140,12 +170,16 @@ export async function createBacktest(backtestData) {
 }
 
 /**
- * Get trades for a backtest (with pagination)
+ * Get trades for a backtest (with pagination and filtering)
+ * @param {number} backtestId - Backtest ID
+ * @param {number} page - Page number (default: 1)
+ * @param {number} pageSize - Page size (default: 20)
+ * @param {string} symbol - Optional: Filter by symbol ticker
+ * @param {string} mode - Optional: Filter by mode ('all', 'long', 'short')
  */
-export async function getBacktestTrades(backtestId, page = 1, pageSize = 20) {
+export async function getBacktestTrades(backtestId, page = 1, pageSize = 20, symbol = null, mode = 'all') {
   try {
-    const response = await backtestsAPI.getBacktestTrades(backtestId, page, pageSize);
-    console.log('getBacktestTrades response:', response);
+    const response = await backtestsAPI.getBacktestTrades(backtestId, page, pageSize, symbol, mode);
     if (response.success && response.data) {
       // Return paginated response (with count, next, previous, results)
       return response.data;
@@ -189,6 +223,76 @@ export async function getBacktestStatistics(backtestId) {
   } catch (error) {
     console.error('Error fetching backtest statistics:', error);
     throw error;
+  }
+}
+
+/**
+ * Get optimized statistics for a backtest (organized by mode: ALL/LONG/SHORT)
+ */
+export async function getBacktestStatisticsOptimized(backtestId) {
+  try {
+    const response = await backtestsAPI.getBacktestStatisticsOptimized(backtestId);
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { portfolio: null, symbols: [] };
+  } catch (error) {
+    console.error('Error fetching optimized backtest statistics:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get paginated list of symbols for a backtest (with search support)
+ */
+export async function getBacktestSymbols(backtestId, page = 1, pageSize = 20, search = '') {
+  try {
+    console.log(`=== getBacktestSymbols CALLED ===`);
+    console.log(`Fetching symbols for backtest ${backtestId}, page ${page}, pageSize ${pageSize}, search: ${search}`);
+    const response = await backtestsAPI.getBacktestSymbols(backtestId, page, pageSize, search);
+    console.log('getBacktestSymbols API response:', response);
+    
+    if (!response) {
+      console.error('getBacktestSymbols: No response received');
+      return { results: [], count: 0, next: null, previous: null };
+    }
+    
+    if (response.success && response.data) {
+      // DRF paginated response format: { results: [], count: X, next: url, previous: url }
+      if (response.data.results && Array.isArray(response.data.results)) {
+        console.log(`getBacktestSymbols: Found ${response.data.results.length} symbols`);
+        // Results should be full symbol objects now, not just tickers
+        return response.data;
+      }
+      // If it's an array, wrap it
+      if (Array.isArray(response.data)) {
+        console.log(`getBacktestSymbols: Response is array with ${response.data.length} items`);
+        // Check if array contains tickers (strings) or symbol objects
+        if (response.data.length > 0 && typeof response.data[0] === 'string') {
+          // Convert tickers to minimal symbol objects
+          return { 
+            results: response.data.map(ticker => ({ ticker, exchange: '', status: 'active' })), 
+            count: response.data.length, 
+            next: null, 
+            previous: null 
+          };
+        }
+        return { results: response.data, count: response.data.length, next: null, previous: null };
+      }
+      // Fallback
+      console.log('getBacktestSymbols: Using response.data as-is');
+      return response.data;
+    }
+    
+    if (!response.success) {
+      console.error('getBacktestSymbols: API request failed:', response.error);
+    } else {
+      console.warn('getBacktestSymbols: No data in response');
+    }
+    return { results: [], count: 0, next: null, previous: null };
+  } catch (error) {
+    console.error('Error fetching backtest symbols:', error);
+    return { results: [], count: 0, next: null, previous: null };
   }
 }
 

@@ -119,18 +119,32 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
     }));
   };
 
+  const [pendingBacktest, setPendingBacktest] = useState(null);
+
   const handleBacktestCreated = (backtest) => {
-    // Call the callback if provided
-    if (onBacktestCreated) {
-      onBacktestCreated(backtest);
-    }
+    // Store backtest info for navigation after task completes
+    setPendingBacktest(backtest);
+    // Don't navigate immediately - wait for task to complete
   };
 
   const handleTaskComplete = (data) => {
     setShowProgress(false);
     setTaskId(null);
-    if (data.status === 'completed' && onBacktestCreated) {
-      // Reload or navigate if needed
+    setShowModal(false);
+    resetForm();
+    
+    // Navigate to backtest detail page and refresh when task completes
+    if (data.status === 'completed' && pendingBacktest && onBacktestCreated) {
+      // Navigate to the backtest detail page
+      onBacktestCreated(pendingBacktest);
+      // The detail page will refresh automatically when loaded
+      setPendingBacktest(null);
+    } else if (data.status === 'failed') {
+      // If failed, still navigate so user can see the error
+      if (pendingBacktest && onBacktestCreated) {
+        onBacktestCreated(pendingBacktest);
+        setPendingBacktest(null);
+      }
     }
   };
 
@@ -205,10 +219,17 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
       };
 
       const backtest = await createBacktest(backtestData);
-      setShowModal(false);
-      resetForm();
       
-      // Call the handler which will navigate to backtest detail page
+      // Capture task_id if available and show progress
+      if (backtest.task_id) {
+        setTaskId(backtest.task_id);
+        setShowProgress(true);
+        // Close modal - progress will show in overlay
+        setShowModal(false);
+      }
+      
+      // Store backtest info for navigation after task completion
+      // Don't navigate immediately - wait for task to complete
       handleBacktestCreated(backtest);
     } catch (error) {
       console.error('Error creating backtest:', error);

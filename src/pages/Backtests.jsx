@@ -83,7 +83,9 @@ export default function Backtests() {
           {backtests.map((backtest) => {
             const StatusIcon = STATUS_ICONS[backtest.status] || Clock;
             const statusColor = STATUS_COLORS[backtest.status] || STATUS_COLORS.pending;
-            const symbolsList = backtest.symbols_info?.map(s => s.ticker).join(', ') || 'N/A';
+            // Get symbols count from list serializer (symbols_count field)
+            const symbolsCount = backtest.symbols_count || 0;
+            const symbolsList = symbolsCount > 0 ? `${symbolsCount} symbol(s)` : 'N/A';
 
             return (
               <div

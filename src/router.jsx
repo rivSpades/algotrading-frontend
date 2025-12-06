@@ -13,6 +13,7 @@ import Strategies from './pages/Strategies';
 import StrategyDetail from './pages/StrategyDetail';
 import StrategySymbolDetail from './pages/StrategySymbolDetail';
 import StrategyBacktestSymbols from './pages/StrategyBacktestSymbols';
+import StrategyBacktestDetail from './pages/StrategyBacktestDetail';
 import StrategyBacktestSymbolDetail from './pages/StrategyBacktestSymbolDetail';
 import Backtests from './pages/Backtests';
 import BacktestDetail from './pages/BacktestDetail';
@@ -101,7 +102,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'strategies/:id/backtests/:backtestId',
-        element: <StrategyBacktestSymbols />,
+        element: <StrategyBacktestDetail />,
       },
       {
         path: 'strategies/:id/backtests/:backtestId/:ticker',

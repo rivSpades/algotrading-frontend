@@ -7,11 +7,15 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export default function SymbolCard({ symbol }) {
+export default function SymbolCard({ symbol, onClick }) {
   const navigate = useNavigate();
 
   const handleClick = () => {
-    navigate(`/symbols/${symbol.ticker}`);
+    if (onClick) {
+      onClick(symbol);
+    } else {
+      navigate(`/symbols/${symbol.ticker}`);
+    }
   };
 
   const statusColor = symbol.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
