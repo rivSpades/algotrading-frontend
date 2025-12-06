@@ -362,6 +362,19 @@ export default function SymbolDetail() {
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusBg}`}>
                 {symbol.status}
               </span>
+              {symbol.validation_status && (
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  symbol.validation_status === 'valid' 
+                    ? 'bg-green-100 text-green-800' 
+                    : symbol.validation_status === 'invalid'
+                    ? 'bg-red-100 text-red-800'
+                    : 'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {symbol.validation_status === 'valid' ? 'Valid Data' : 
+                   symbol.validation_status === 'invalid' ? 'Invalid Data' : 
+                   'Pending Validation'}
+                </span>
+              )}
             </div>
           </div>
 
@@ -371,6 +384,12 @@ export default function SymbolDetail() {
               <span>Last updated: {new Date(symbol.last_updated).toLocaleString()}</span>
             </div>
           </div>
+          {symbol.validation_reason && symbol.validation_status === 'invalid' && (
+            <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm font-medium text-red-800 mb-1">Data Validation Failed:</p>
+              <p className="text-sm text-red-700">{symbol.validation_reason}</p>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-3 flex-wrap">
@@ -437,6 +456,15 @@ export default function SymbolDetail() {
                       : null
                   }
                   description="Standard deviation of returns - measures price variability"
+                  icon={TrendingUp}
+                />
+              )}
+              {statistics.beta !== undefined && (
+                <StatisticsCard
+                  title="Beta"
+                  value={statistics.beta}
+                  unit=""
+                  description="Beta measures stock volatility relative to market benchmark (S&P 500 for US stocks)"
                   icon={TrendingUp}
                 />
               )}

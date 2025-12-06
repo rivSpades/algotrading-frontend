@@ -49,7 +49,26 @@ const handleResponse = async (response) => {
     const errorData = await response.json().catch(() => ({ message: response.statusText }));
     throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
   }
-  return response.json();
+  
+  // Handle empty responses (e.g., 204 No Content for DELETE requests)
+  const contentType = response.headers.get('content-type');
+  if (response.status === 204 || !contentType || !contentType.includes('application/json')) {
+    // Return empty object for successful empty responses
+    return {};
+  }
+  
+  // Try to parse JSON, but handle empty body gracefully
+  const text = await response.text();
+  if (!text || text.trim() === '') {
+    return {};
+  }
+  
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    // If parsing fails, return empty object
+    return {};
+  }
 };
 
 /**
@@ -80,9 +99,9 @@ const apiRequest = async (endpoint, options = {}) => {
  */
 export const marketDataAPI = {
   /**
-   * Get all symbols with optional search and pagination
+   * Get all symbols with optional search, pagination, and filters
    */
-  async getSymbols(search = '', page = 1) {
+  async getSymbols(search = '', page = 1, exchange = null, status = null) {
     let endpoint = '/symbols/';
     const params = new URLSearchParams();
     if (search) {
@@ -90,6 +109,12 @@ export const marketDataAPI = {
     }
     if (page > 1) {
       params.append('page', page);
+    }
+    if (exchange) {
+      params.append('exchange', exchange);
+    }
+    if (status) {
+      params.append('status', status);
     }
     if (params.toString()) {
       endpoint += `?${params.toString()}`;

@@ -58,12 +58,12 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
       }
       
       const assignmentData = {
-        symbol_ticker: symbolTicker,
         tool_name: selectedTool.name, // Use tool name instead of ID
         parameters: parameters,
         enabled: true,
         subchart: subchart, // Include subchart flag
-        style: style
+        style: style,
+        is_global: true  // Always create global assignments
       };
 
       await createAssignment(assignmentData);
@@ -142,10 +142,23 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
 
     try {
       await deleteAssignment(assignmentId);
+      // Reload data to reflect changes
       await loadData();
-      if (onAssignmentChange) onAssignmentChange();
+      // Trigger parent component to refresh OHLCV data and indicators
+      if (onAssignmentChange) {
+        onAssignmentChange();
+      }
     } catch (error) {
-      alert(`Failed to delete assignment: ${error.message}`);
+      // Only show error if it's not a successful deletion
+      if (error.message && !error.message.includes('Unexpected end of JSON')) {
+        alert(`Failed to delete assignment: ${error.message}`);
+      } else {
+        // Deletion was successful, just refresh
+        await loadData();
+        if (onAssignmentChange) {
+          onAssignmentChange();
+        }
+      }
     }
   };
 
@@ -216,6 +229,11 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
               <div className="flex-1">
                 <div className="flex items-center gap-3">
                   <h3 className="font-semibold text-gray-900">{assignment.tool.name}</h3>
+                  {!assignment.symbol && (
+                    <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800">
+                      Global
+                    </span>
+                  )}
                   <button
                     onClick={() => handleToggleEnabled(assignment)}
                     className="text-gray-500 hover:text-gray-700"

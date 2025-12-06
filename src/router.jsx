@@ -20,10 +20,14 @@ Home.loader = async ({ request }) => {
   const url = new URL(request.url);
   const search = url.searchParams.get('search') || '';
   const page = parseInt(url.searchParams.get('page') || '1', 10);
-  const data = await getSymbols(search, page);
+  const exchange = url.searchParams.get('exchange') || null;
+  const status = url.searchParams.get('status') || null;
+  const data = await getSymbols(search, page, exchange, status);
   return { 
     symbols: data.results || [], 
     search,
+    exchange,
+    status,
     count: data.count || 0,
     next: data.next,
     previous: data.previous,

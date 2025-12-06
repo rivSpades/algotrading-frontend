@@ -5,7 +5,7 @@
 
 import { useLoaderData, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
-import { Search, Download, ChevronLeft, ChevronRight, Trash2, BarChart3 } from 'lucide-react';
+import { Search, Download, ChevronLeft, ChevronRight, Trash2, BarChart3, X } from 'lucide-react';
 import SymbolCard from '../components/SymbolCard';
 import FetchSymbolsModal from '../components/FetchSymbolsModal';
 import FetchOHLCVModal from '../components/FetchOHLCVModal';
@@ -16,9 +16,13 @@ import { fetchOHLCVData } from '../data/symbols';
 import { motion } from 'framer-motion';
 
 export default function Home() {
-  const { symbols, search: initialSearch, count, next, previous, currentPage } = useLoaderData();
+  const { symbols, search: initialSearch, exchange: initialExchange, status: initialStatus, count, next, previous, currentPage } = useLoaderData();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(initialSearch || '');
+  const [selectedExchange, setSelectedExchange] = useState(initialExchange || '');
+  const [selectedStatus, setSelectedStatus] = useState(initialStatus || '');
+  const [exchanges, setExchanges] = useState([]);
+  const [loadingExchanges, setLoadingExchanges] = useState(false);
   const navigate = useNavigate();
   const [showFetchModal, setShowFetchModal] = useState(false);
   const [showFetchOHLCVModal, setShowFetchOHLCVModal] = useState(false);
@@ -29,27 +33,110 @@ export default function Home() {
   const [deleting, setDeleting] = useState(false);
   const isUserTypingRef = useRef(false);
 
+  // Load exchanges on mount
+  useEffect(() => {
+    const loadExchanges = async () => {
+      setLoadingExchanges(true);
+      try {
+        const response = await marketDataAPI.getExchanges();
+        if (response.success && response.data) {
+          const exchangesData = Array.isArray(response.data) ? response.data : (response.data.results || []);
+          setExchanges(exchangesData);
+        }
+      } catch (error) {
+        console.error('Error loading exchanges:', error);
+      } finally {
+        setLoadingExchanges(false);
+      }
+    };
+    loadExchanges();
+  }, []);
+
   // Update search term only when URL params change from external sources (pagination, etc.)
   // Don't interfere while user is typing
   useEffect(() => {
     // Only sync if user is not actively typing
     if (!isUserTypingRef.current) {
       const urlSearch = searchParams.get('search') || '';
+      const urlExchange = searchParams.get('exchange') || '';
+      const urlStatus = searchParams.get('status') || '';
       if (urlSearch !== searchTerm) {
         setSearchTerm(urlSearch);
+      }
+      if (urlExchange !== selectedExchange) {
+        setSelectedExchange(urlExchange);
+      }
+      if (urlStatus !== selectedStatus) {
+        setSelectedStatus(urlStatus);
       }
     }
   }, [searchParams.toString()]); // Only depend on searchParams string
 
-  const handleSearch = (e) => {
-    e.preventDefault();
+  const applyFilters = () => {
+    const params = {};
     const trimmedSearch = searchTerm.trim();
     if (trimmedSearch) {
-      setSearchParams({ search: trimmedSearch, page: '1' });
-    } else {
-      setSearchParams({ page: '1' });
+      params.search = trimmedSearch;
     }
+    if (selectedExchange) {
+      params.exchange = selectedExchange;
+    }
+    if (selectedStatus) {
+      params.status = selectedStatus;
+    }
+    params.page = '1';
+    setSearchParams(params);
   };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    applyFilters();
+  };
+
+  const handleExchangeChange = (e) => {
+    setSelectedExchange(e.target.value);
+    // Apply filters immediately
+    const params = {};
+    const trimmedSearch = searchTerm.trim();
+    if (trimmedSearch) {
+      params.search = trimmedSearch;
+    }
+    if (e.target.value) {
+      params.exchange = e.target.value;
+    }
+    if (selectedStatus) {
+      params.status = selectedStatus;
+    }
+    params.page = '1';
+    setSearchParams(params);
+  };
+
+  const handleStatusChange = (e) => {
+    setSelectedStatus(e.target.value);
+    // Apply filters immediately
+    const params = {};
+    const trimmedSearch = searchTerm.trim();
+    if (trimmedSearch) {
+      params.search = trimmedSearch;
+    }
+    if (selectedExchange) {
+      params.exchange = selectedExchange;
+    }
+    if (e.target.value) {
+      params.status = e.target.value;
+    }
+    params.page = '1';
+    setSearchParams(params);
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedExchange('');
+    setSelectedStatus('');
+    setSearchParams({ page: '1' });
+  };
+
+  const hasActiveFilters = selectedExchange || selectedStatus || searchTerm.trim();
 
   const handleFetchSymbols = async (exchangeCodes, fetchAll) => {
     try {
@@ -211,36 +298,90 @@ export default function Home() {
         </div>
 
 
-        {/* Search Bar */}
-        <form onSubmit={handleSearch} className="mb-8">
-          <div className="flex gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => {
-                  isUserTypingRef.current = true;
-                  setSearchTerm(e.target.value);
-                }}
-                onBlur={() => {
-                  // Reset flag after user finishes typing
-                  setTimeout(() => {
-                    isUserTypingRef.current = false;
-                  }, 100);
-                }}
-                placeholder="Search symbols by ticker..."
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
+        {/* Filters and Search Bar */}
+        <div className="mb-8">
+          <form onSubmit={handleSearch} className="mb-4">
+            <div className="flex gap-4 flex-wrap">
+              <div className="flex-1 min-w-[200px] relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    isUserTypingRef.current = true;
+                    setSearchTerm(e.target.value);
+                  }}
+                  onBlur={() => {
+                    // Reset flag after user finishes typing
+                    setTimeout(() => {
+                      isUserTypingRef.current = false;
+                    }, 100);
+                  }}
+                  placeholder="Search symbols by ticker..."
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+              <div className="flex gap-3">
+                <select
+                  value={selectedExchange}
+                  onChange={handleExchangeChange}
+                  className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white min-w-[150px]"
+                >
+                  <option value="">All Exchanges</option>
+                  {loadingExchanges ? (
+                    <option disabled>Loading...</option>
+                  ) : (
+                    exchanges.map((exchange) => (
+                      <option key={exchange.code} value={exchange.code}>
+                        {exchange.name || exchange.code}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <select
+                  value={selectedStatus}
+                  onChange={handleStatusChange}
+                  className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white min-w-[120px]"
+                >
+                  <option value="">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="disabled">Disabled</option>
+                </select>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 text-gray-700"
+                    title="Clear all filters"
+                  >
+                    <X className="w-5 h-5" />
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
-            <button
-              type="submit"
-              className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
-            >
-              Search
-            </button>
-          </div>
-        </form>
+          </form>
+          {hasActiveFilters && (
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span>Active filters:</span>
+              {selectedExchange && (
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                  Exchange: {exchanges.find(e => e.code === selectedExchange)?.name || selectedExchange}
+                </span>
+              )}
+              {selectedStatus && (
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                  Status: {selectedStatus}
+                </span>
+              )}
+              {searchTerm.trim() && (
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                  Search: {searchTerm.trim()}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Results Count and Pagination Info */}
         <div className="mb-4 flex items-center justify-between">
@@ -266,8 +407,12 @@ export default function Home() {
                     const url = new URL(previous);
                     const page = url.searchParams.get('page') || '1';
                     const search = url.searchParams.get('search') || '';
+                    const exchange = url.searchParams.get('exchange') || '';
+                    const status = url.searchParams.get('status') || '';
                     const newParams = { page };
                     if (search) newParams.search = search;
+                    if (exchange) newParams.exchange = exchange;
+                    if (status) newParams.status = status;
                     setSearchParams(newParams);
                   }
                 }}
@@ -286,8 +431,12 @@ export default function Home() {
                     const url = new URL(next);
                     const page = url.searchParams.get('page') || '1';
                     const search = url.searchParams.get('search') || '';
+                    const exchange = url.searchParams.get('exchange') || '';
+                    const status = url.searchParams.get('status') || '';
                     const newParams = { page };
                     if (search) newParams.search = search;
+                    if (exchange) newParams.exchange = exchange;
+                    if (status) newParams.status = status;
                     setSearchParams(newParams);
                   }
                 }}

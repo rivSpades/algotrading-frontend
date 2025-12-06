@@ -6,11 +6,11 @@
 import { marketDataAPI } from './api';
 
 /**
- * Get symbols list with search and pagination
+ * Get symbols list with search, pagination, and filters
  */
-export async function getSymbols(search = '', page = 1) {
+export async function getSymbols(search = '', page = 1, exchange = null, status = null) {
   try {
-    const response = await marketDataAPI.getSymbols(search, page);
+    const response = await marketDataAPI.getSymbols(search, page, exchange, status);
     if (response.success) {
       return response.data;
     }
