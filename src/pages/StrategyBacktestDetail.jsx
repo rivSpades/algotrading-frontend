@@ -31,6 +31,7 @@ export default function StrategyBacktestDetail() {
   const [taskId, setTaskId] = useState(null);
   const [showTaskProgress, setShowTaskProgress] = useState(false);
   const [tradesPage, setTradesPage] = useState(1);
+  const [tradesPageInput, setTradesPageInput] = useState('1');
   const [symbolsPage, setSymbolsPage] = useState(1);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [symbolsLoading, setSymbolsLoading] = useState(false);
@@ -38,7 +39,6 @@ export default function StrategyBacktestDetail() {
   const searchTimeoutRef = useRef(null);
 
   useEffect(() => {
-    console.log('=== useEffect triggered ===', { id, backtestId });
     loadData();
     
     return () => {
@@ -74,7 +74,6 @@ export default function StrategyBacktestDetail() {
     }
     
     const timeoutId = setTimeout(() => {
-      console.log('useEffect: Loading symbols with search:', symbolSearch, 'page:', symbolsPage);
       loadSymbols(symbolsPage, symbolSearch);
     }, symbolSearch ? 300 : 0); // 300ms debounce only when searching
     
@@ -97,7 +96,6 @@ export default function StrategyBacktestDetail() {
         const tradesData = await getBacktestTrades(backtestId, tradesPage, 20, selectedSymbol || null, selectedMode);
         setTrades(tradesData || { results: [], count: 0, next: null, previous: null });
       } catch (error) {
-        console.error('Error loading trades:', error);
         setTrades({ results: [], count: 0, next: null, previous: null });
       } finally {
         setTradesLoading(false);
@@ -108,20 +106,15 @@ export default function StrategyBacktestDetail() {
   }, [backtestId, tradesPage, selectedSymbol, selectedMode]);
 
   const loadData = async () => {
-    console.log('=== loadData START ===', { id, backtestId });
     setLoading(true);
     try {
       // Load initial symbols (will be reloaded by useEffect if search/page changes)
-      console.log('loadData: Loading initial symbols for backtestId:', backtestId);
       let symbolsData;
       try {
-        console.log('loadData: Calling getBacktestSymbols...');
         symbolsData = await getBacktestSymbols(backtestId, 1, 20, ''); // Always load without search initially
-        console.log('loadData: Symbols loaded successfully:', symbolsData);
         // Set symbols here so they appear immediately on mount
         setSymbols(symbolsData || { results: [], count: 0, next: null, previous: null });
       } catch (symbolError) {
-        console.error('loadData: Error loading symbols:', symbolError);
         symbolsData = { results: [], count: 0, next: null, previous: null };
         setSymbols(symbolsData);
       }
@@ -135,58 +128,31 @@ export default function StrategyBacktestDetail() {
           getBacktestStatisticsOptimized(backtestId),
         ]);
       } catch (error) {
-        console.error('Error loading other data in Promise.all:', error);
+        // Error loading data
       }
       
       setStrategy(strategyData);
       setBacktest(backtestData);
       setStatistics(statsData || { portfolio: null, symbols: [] });
       
-      // Debug: Log what we received
-      console.log('=== SYMBOLS DEBUG START ===');
-      console.log('symbolsData received:', symbolsData);
-      console.log('symbolsData type:', typeof symbolsData);
-      console.log('Is symbolsData truthy?', !!symbolsData);
-      console.log('symbolsData.results:', symbolsData?.results);
-      console.log('symbolsData.results type:', typeof symbolsData?.results);
-      console.log('symbolsData.results isArray?', Array.isArray(symbolsData?.results));
-      console.log('symbolsData.results length:', symbolsData?.results?.length);
-      console.log('symbolsData.count:', symbolsData?.count);
-      
-      // Use symbols from API if available, otherwise try multiple fallbacks
-      let finalSymbolsData = symbolsData;
-      
+      // Use symbols from API if available, otherwise try fallback
       if (!symbolsData || !symbolsData.results || symbolsData.results.length === 0) {
-        console.log('Symbols endpoint returned empty, trying fallbacks...');
-        
-        // Fallback 1: Extract from statistics
+        // Fallback: Extract from statistics
         if (statsData?.symbols && statsData.symbols.length > 0) {
           const tickersFromStats = statsData.symbols
             .map(s => s.symbol_ticker)
             .filter(Boolean);
           if (tickersFromStats.length > 0) {
-            console.log(`Found ${tickersFromStats.length} symbols from statistics`);
-            finalSymbolsData = {
+            const finalSymbolsData = {
               results: tickersFromStats,
               count: tickersFromStats.length,
               next: null,
               previous: null
             };
+            setSymbols(finalSymbolsData);
           }
         }
-        
-        // Fallback 2: Skip - trades are loaded separately with pagination, can't use them here
       }
-      
-      // Only use fallback if the API call failed
-      if (!symbolsData || !symbolsData.results || symbolsData.results.length === 0) {
-        setSymbols(finalSymbolsData || { results: [], count: 0, next: null, previous: null });
-      }
-      
-      // Debug logging
-      console.log('=== SYMBOLS DEBUG END ===');
-      console.log('Final symbols data:', finalSymbolsData);
-      console.log('symbolsData from API:', symbolsData);
       
       // Set first symbol as default if available (but don't override if already set)
       // Note: We don't set selectedSymbol here to avoid interfering with user selection
@@ -212,12 +178,12 @@ export default function StrategyBacktestDetail() {
               }
             }
           } catch (error) {
-            console.error('Error finding task ID:', error);
+            // Error finding task ID
           }
         }
       }
     } catch (error) {
-      console.error('Error loading backtest data:', error);
+      // Error loading backtest data
     } finally {
       setLoading(false);
     }
@@ -229,17 +195,29 @@ export default function StrategyBacktestDetail() {
   const hasNextPage = !!trades.next;
   const hasPreviousPage = !!trades.previous;
 
+  // Handle page navigation from input
+  const handleTradesPageChange = (newPage) => {
+    const page = parseInt(newPage, 10);
+    if (isNaN(page) || page < 1 || page > totalPages || totalPages === 0) {
+      // Invalid page, reset to current page
+      setTradesPageInput(tradesPage.toString());
+      return;
+    }
+    setTradesPage(page);
+    setTradesPageInput(page.toString());
+  };
+
+  // Sync input value with current page
+  useEffect(() => {
+    setTradesPageInput(tradesPage.toString());
+  }, [tradesPage]);
+
   const loadSymbols = async (page = 1, search = '') => {
     setSymbolsLoading(true);
     try {
-      console.log('loadSymbols called with:', { page, search, backtestId });
       const symbolsData = await getBacktestSymbols(backtestId, page, 20, search);
-      console.log('loadSymbols: Received symbols data:', symbolsData);
-      console.log('loadSymbols: Symbols count:', symbolsData?.count || symbolsData?.results?.length || 0);
-      console.log('loadSymbols: Symbols results:', symbolsData?.results);
       setSymbols(symbolsData || { results: [], count: 0, next: null, previous: null });
     } catch (error) {
-      console.error('Error loading symbols:', error);
       setSymbols({ results: [], count: 0, next: null, previous: null });
     } finally {
       setSymbolsLoading(false);
@@ -679,10 +657,14 @@ export default function StrategyBacktestDetail() {
           </>
         ) : (
           <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <p className="text-gray-500 text-lg">No symbols found</p>
+            <p className="text-gray-500 text-lg">
+              {symbolSearch 
+                ? `No symbols found matching "${symbolSearch}"` 
+                : 'No symbols found in this backtest'}
+            </p>
             {symbolSearch && (
               <p className="text-gray-400 text-sm mt-2">
-                Try a different search term
+                Try a different search term or clear the search to see all symbols
               </p>
             )}
           </div>
@@ -721,9 +703,29 @@ export default function StrategyBacktestDetail() {
                     <ChevronLeft className="w-4 h-4" />
                     Previous
                   </button>
-                  <span className="text-sm text-gray-600 px-2">
-                    Page {tradesPage} {totalPages > 0 && `of ${totalPages}`}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">Page</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max={totalPages || 1}
+                      value={tradesPageInput}
+                      onChange={(e) => setTradesPageInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleTradesPageChange(e.target.value);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        handleTradesPageChange(e.target.value);
+                      }}
+                      className="w-16 px-2 py-1 text-sm text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                    <span className="text-sm text-gray-600">
+                      {totalPages > 0 && `of ${totalPages}`}
+                    </span>
+                  </div>
                   <button
                     onClick={() => setTradesPage(prev => prev + 1)}
                     disabled={!hasNextPage}

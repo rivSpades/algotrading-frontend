@@ -89,9 +89,11 @@ export const backtestsAPI = {
    * Get paginated list of symbols for a backtest (with search support)
    */
   async getBacktestSymbols(backtestId, page = 1, pageSize = 20, search = '') {
-    let url = `/backtests/${backtestId}/symbols/?page=${page}&page_size=${pageSize}`;
-    if (search) {
-      url += `&search=${encodeURIComponent(search)}`;
+    let url = `/backtests/${backtestId}/symbol-list/?page=${page}&page_size=${pageSize}`;
+    // Trim search term and only add if not empty
+    const trimmedSearch = search ? search.trim() : '';
+    if (trimmedSearch) {
+      url += `&search=${encodeURIComponent(trimmedSearch)}`;
     }
     return apiRequest(url);
   },
@@ -247,26 +249,20 @@ export async function getBacktestStatisticsOptimized(backtestId) {
  */
 export async function getBacktestSymbols(backtestId, page = 1, pageSize = 20, search = '') {
   try {
-    console.log(`=== getBacktestSymbols CALLED ===`);
-    console.log(`Fetching symbols for backtest ${backtestId}, page ${page}, pageSize ${pageSize}, search: ${search}`);
-    const response = await backtestsAPI.getBacktestSymbols(backtestId, page, pageSize, search);
-    console.log('getBacktestSymbols API response:', response);
+    const trimmedSearch = search ? search.trim() : '';
+    const response = await backtestsAPI.getBacktestSymbols(backtestId, page, pageSize, trimmedSearch);
     
     if (!response) {
-      console.error('getBacktestSymbols: No response received');
       return { results: [], count: 0, next: null, previous: null };
     }
     
     if (response.success && response.data) {
       // DRF paginated response format: { results: [], count: X, next: url, previous: url }
       if (response.data.results && Array.isArray(response.data.results)) {
-        console.log(`getBacktestSymbols: Found ${response.data.results.length} symbols`);
-        // Results should be full symbol objects now, not just tickers
         return response.data;
       }
       // If it's an array, wrap it
       if (Array.isArray(response.data)) {
-        console.log(`getBacktestSymbols: Response is array with ${response.data.length} items`);
         // Check if array contains tickers (strings) or symbol objects
         if (response.data.length > 0 && typeof response.data[0] === 'string') {
           // Convert tickers to minimal symbol objects
@@ -280,18 +276,11 @@ export async function getBacktestSymbols(backtestId, page = 1, pageSize = 20, se
         return { results: response.data, count: response.data.length, next: null, previous: null };
       }
       // Fallback
-      console.log('getBacktestSymbols: Using response.data as-is');
       return response.data;
     }
     
-    if (!response.success) {
-      console.error('getBacktestSymbols: API request failed:', response.error);
-    } else {
-      console.warn('getBacktestSymbols: No data in response');
-    }
     return { results: [], count: 0, next: null, previous: null };
   } catch (error) {
-    console.error('Error fetching backtest symbols:', error);
     return { results: [], count: 0, next: null, previous: null };
   }
 }
