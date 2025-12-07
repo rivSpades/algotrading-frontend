@@ -58,7 +58,9 @@ export const backtestsAPI = {
     if (symbol) {
       url += `&symbol=${encodeURIComponent(symbol)}`;
     }
-    if (mode && mode !== 'all') {
+    // Always pass mode parameter to ensure correct filtering by position_mode
+    // This ensures each mode (ALL/LONG/SHORT) has its own independent bankroll
+    if (mode) {
       url += `&mode=${encodeURIComponent(mode)}`;
     }
     return apiRequest(url);

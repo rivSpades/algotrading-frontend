@@ -782,9 +782,18 @@ export default function StrategyBacktestDetail() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        {trade.entry_price && trade.quantity
-                          ? formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity))
-                          : 'N/A'}
+                        {(() => {
+                          // Use bet_amount from metadata if available (actual amount invested from portfolio capital)
+                          // Otherwise fall back to entry_price * quantity for backward compatibility
+                          const betAmount = trade.metadata?.bet_amount;
+                          if (betAmount !== undefined && betAmount !== null) {
+                            return formatCurrency(parseFloat(betAmount));
+                          }
+                          if (trade.entry_price && trade.quantity) {
+                            return formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity));
+                          }
+                          return 'N/A';
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
                       <td className="px-4 py-3 text-sm text-gray-900">

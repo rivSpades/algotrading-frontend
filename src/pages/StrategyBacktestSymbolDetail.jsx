@@ -8,7 +8,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, TrendingUp, TrendingDown, BarChart3, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getStrategy } from '../data/strategies';
-import { getBacktest, getAllBacktestTrades } from '../data/backtests';
+import { getBacktest, getAllBacktestTrades, getBacktestStatisticsOptimized } from '../data/backtests';
 import { getSymbolOHLCV } from '../data/symbols';
 import StatisticsCard from '../components/StatisticsCard';
 import CandlestickChart from '../components/CandlestickChart';
@@ -44,11 +44,12 @@ export default function StrategyBacktestSymbolDetail() {
     setLoading(true);
     try {
       // Load all data in parallel - use endpoint without pagination
-      const [strategyData, backtestData, ohlcvResponse, allTradesList] = await Promise.all([
+      const [strategyData, backtestData, ohlcvResponse, allTradesList, statsData] = await Promise.all([
         getStrategy(id),
         getBacktest(backtestId),
         getSymbolOHLCV(ticker, 'daily', null, null, 1, 1000, parseInt(backtestId), parseInt(id)),
         getAllBacktestTrades(backtestId), // Get ALL trades without pagination
+        getBacktestStatisticsOptimized(backtestId), // Get optimized statistics with stats_by_mode
       ]);
       
       console.log(`Loaded ${allTradesList.length} total trades from single endpoint`);
@@ -56,24 +57,15 @@ export default function StrategyBacktestSymbolDetail() {
       setStrategy(strategyData);
       setBacktest(backtestData);
 
-      // Get symbol statistics from backend (only 'all' mode stats)
-      let statsArray = [];
-      if (backtestData?.statistics) {
-        if (Array.isArray(backtestData.statistics)) {
-          statsArray = backtestData.statistics;
-        } else if (backtestData.statistics.results) {
-          statsArray = backtestData.statistics.results;
-        } else if (backtestData.statistics.data) {
-          statsArray = Array.isArray(backtestData.statistics.data)
-            ? backtestData.statistics.data
-            : [backtestData.statistics.data];
-        }
+      // Get symbol statistics from optimized statistics endpoint
+      // This endpoint provides stats_by_mode structure with equity curves for ALL/LONG/SHORT
+      let symbolStatsEntry = null;
+      if (statsData?.symbols && Array.isArray(statsData.symbols)) {
+        symbolStatsEntry = statsData.symbols.find(s => {
+          const symbolTicker = s?.symbol_ticker;
+          return symbolTicker === ticker;
+        });
       }
-
-      const symbolStatsEntry = statsArray.find(s => {
-        const symbolTicker = s?.symbol_info?.ticker || s?.symbol?.ticker || s?.symbol_ticker;
-        return symbolTicker === ticker;
-      });
 
       setStatistics(symbolStatsEntry || null);
 
@@ -127,45 +119,26 @@ export default function StrategyBacktestSymbolDetail() {
   // NO CALCULATIONS IN FRONTEND - All statistics come from backend
 
   // Extract statistics from backend for each tab
-  // Backend stores symbol stats: main fields = 'all' mode, additional_stats = long/short modes
+  // Backend optimized statistics endpoint provides stats_by_mode structure
+  // Each mode (ALL, LONG, SHORT) has complete stats including equity_curve
   // NO CALCULATIONS - All stats come from backend
   const allSymbolStatistics = useMemo(() => {
     if (!statistics) return null;
     
-    // Backend structure:
-    // - Main fields: 'all' mode stats (total_trades, cagr, equity_curve, etc.)
-    // - additional_stats: { 'long': {...}, 'short': {...} }
-    //   Each mode has its own complete stats including equity_curve
+    // Backend optimized statistics structure:
+    // statistics.stats_by_mode = {
+    //   'all': { total_trades, equity_curve, equity_curve_x, equity_curve_y, ... },
+    //   'long': { total_trades, equity_curve, equity_curve_x, equity_curve_y, ... },
+    //   'short': { total_trades, equity_curve, equity_curve_x, equity_curve_y, ... }
+    // }
     
-    // 'all' mode stats are in main fields
-    const allStats = {
-      total_trades: statistics.total_trades,
-      winning_trades: statistics.winning_trades,
-      losing_trades: statistics.losing_trades,
-      win_rate: statistics.win_rate,
-      total_pnl: statistics.total_pnl,
-      total_pnl_percentage: statistics.total_pnl_percentage,
-      average_pnl: statistics.average_pnl,
-      average_winner: statistics.average_winner,
-      average_loser: statistics.average_loser,
-      profit_factor: statistics.profit_factor,
-      max_drawdown: statistics.max_drawdown,
-      max_drawdown_duration: statistics.max_drawdown_duration,
-      sharpe_ratio: statistics.sharpe_ratio,
-      cagr: statistics.cagr,
-      total_return: statistics.total_return,
-      equity_curve: statistics.equity_curve || [],
-    };
+    const statsByMode = statistics.stats_by_mode || {};
     
-    // Get long and short stats from additional_stats (complete stats from backend)
-    const additionalStats = statistics.additional_stats || {};
-    const longStats = additionalStats.long || {};
-    const shortStats = additionalStats.short || {};
-    
+    // Return stats organized by mode - each mode has complete stats including equity_curve
     return {
-      all: allStats,
-      long: longStats, // Complete stats from backend (no calculations)
-      short: shortStats, // Complete stats from backend (no calculations)
+      all: statsByMode.all || {},
+      long: statsByMode.long || {},
+      short: statsByMode.short || {},
     };
   }, [statistics]);
 
@@ -559,58 +532,82 @@ export default function StrategyBacktestSymbolDetail() {
       </div>
 
       {/* Equity Curve Chart */}
-      {currentStats?.equity_curve && Array.isArray(currentStats.equity_curve) && currentStats.equity_curve.length > 0 && (
-        <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
-            Equity Curve ({positionModeTab.toUpperCase()})
-          </h2>
-          <Chart
-            options={{
-              chart: {
-                type: 'line',
-                toolbar: { show: true },
-                zoom: { enabled: false },
-              },
-              xaxis: {
-                type: 'datetime',
-                title: { text: 'Date' },
-              },
-              yaxis: {
-                title: { text: 'Equity ($)' },
-              },
-              title: {
-                text: `Equity Curve - ${ticker} (${positionModeTab.toUpperCase()})`,
-                align: 'left',
-              },
-              colors: ['#3B82F6'],
-              tooltip: {
-                x: {
-                  format: 'dd MMM yyyy'
+      {(() => {
+        // Get equity curve data from stats_by_mode structure
+        // Backend provides equity_curve_x and equity_curve_y arrays
+        const equityCurveX = currentStats?.equity_curve_x || [];
+        const equityCurveY = currentStats?.equity_curve_y || [];
+        
+        // Fallback: if x/y arrays not available, try equity_curve array
+        let equityCurveData = [];
+        if (equityCurveX.length > 0 && equityCurveY.length > 0) {
+          // Use x/y arrays format (from optimized endpoint)
+          equityCurveData = equityCurveX.map((timestamp, index) => ({
+            x: new Date(timestamp).getTime(),
+            y: parseFloat(equityCurveY[index] || 0),
+          })).filter(point => !isNaN(point.x) && !isNaN(point.y));
+        } else if (currentStats?.equity_curve && Array.isArray(currentStats.equity_curve)) {
+          // Fallback to equity_curve array format
+          equityCurveData = currentStats.equity_curve
+            .filter(point => point && point.timestamp && point.equity !== null && point.equity !== undefined)
+            .map(point => {
+              const timestamp = new Date(point.timestamp).getTime();
+              const equity = parseFloat(point.equity);
+              if (isNaN(timestamp) || isNaN(equity)) {
+                return null;
+              }
+              return {
+                x: timestamp,
+                y: equity,
+              };
+            })
+            .filter(point => point !== null);
+        }
+        
+        if (equityCurveData.length === 0) {
+          return null;
+        }
+        
+        return (
+          <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              Equity Curve ({positionModeTab.toUpperCase()})
+            </h2>
+            <Chart
+              options={{
+                chart: {
+                  type: 'line',
+                  toolbar: { show: true },
+                  zoom: { enabled: false },
                 },
-              },
-            }}
-            series={[{
-              name: 'Equity',
-              data: currentStats.equity_curve
-                .filter(point => point && point.timestamp && point.equity !== null && point.equity !== undefined)
-                .map(point => {
-                  const timestamp = new Date(point.timestamp).getTime();
-                  const equity = parseFloat(point.equity);
-                  if (isNaN(timestamp) || isNaN(equity)) {
-                    return null;
-                  }
-                  return {
-                    x: timestamp,
-                    y: equity,
-                  };
-                })
-                .filter(point => point !== null),
-            }]}
-            type="line"
-            height={350}
-          />
-        </div>
-      )}
+                xaxis: {
+                  type: 'datetime',
+                  title: { text: 'Date' },
+                },
+                yaxis: {
+                  title: { text: 'Equity ($)' },
+                },
+                title: {
+                  text: `Equity Curve - ${ticker} (${positionModeTab.toUpperCase()})`,
+                  align: 'left',
+                },
+                colors: ['#3B82F6'],
+                tooltip: {
+                  x: {
+                    format: 'dd MMM yyyy'
+                  },
+                },
+              }}
+              series={[{
+                name: 'Equity',
+                data: equityCurveData,
+              }]}
+              type="line"
+              height={350}
+            />
+          </div>
+        );
+      })()}
 
       {/* Strategy Analytical Tools */}
       {strategy && strategy.required_tool_configs && strategy.required_tool_configs.length > 0 && (
@@ -774,9 +771,18 @@ export default function StrategyBacktestSymbolDetail() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        {trade.entry_price && trade.quantity
-                          ? formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity))
-                          : 'N/A'}
+                        {(() => {
+                          // Use bet_amount from metadata if available (actual amount invested from portfolio capital)
+                          // Otherwise fall back to entry_price * quantity for backward compatibility
+                          const betAmount = trade.metadata?.bet_amount;
+                          if (betAmount !== undefined && betAmount !== null) {
+                            return formatCurrency(parseFloat(betAmount));
+                          }
+                          if (trade.entry_price && trade.quantity) {
+                            return formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity));
+                          }
+                          return 'N/A';
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
                       <td className="px-4 py-3 text-sm text-gray-900">
