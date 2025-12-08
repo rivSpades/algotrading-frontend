@@ -245,7 +245,10 @@ export default function StrategyBacktestSymbolDetail() {
 
     const indicatorList = [];
     const firstRow = ohlcvData[0];
-    const strategyParams = strategy.default_parameters || {};
+    // Use backtest's strategy_parameters if available, otherwise use strategy's default_parameters
+    // This ensures we use the actual parameters used in the backtest (e.g., short_period=15, long_period=35)
+    // instead of the strategy defaults (e.g., short_period=20, long_period=50)
+    const strategyParams = (backtest?.strategy_parameters || strategy.default_parameters || {});
 
     // Process each tool config - use for loop to ensure all tools are processed
     for (const toolConfig of strategy.required_tool_configs) {
@@ -266,13 +269,16 @@ export default function StrategyBacktestSymbolDetail() {
         : toolName;
 
       // Try to find the indicator key in the data (with and without underscores)
+      // Check if key exists in any row (not just first, since first rows might have null values)
       let foundKey = null;
-      if (firstRow[indicatorKey] !== undefined) {
+      const keyExists = (key) => ohlcvData.some(row => row[key] !== undefined);
+      
+      if (keyExists(indicatorKey)) {
         foundKey = indicatorKey;
       } else {
         // Try without underscores (e.g., SMA_20 -> SMA20)
         const altKey = indicatorKey.replace(/_/g, '');
-        if (firstRow[altKey] !== undefined) {
+        if (keyExists(altKey)) {
           foundKey = altKey;
         } else {
           // Try with sorted parameter values (in case order differs)
@@ -281,11 +287,11 @@ export default function StrategyBacktestSymbolDetail() {
             .map(([, v]) => v);
           if (sortedParams.length > 0) {
             const sortedKey = `${toolName}_${sortedParams.join('_')}`;
-            if (firstRow[sortedKey] !== undefined) {
+            if (keyExists(sortedKey)) {
               foundKey = sortedKey;
             } else {
               const sortedAltKey = sortedKey.replace(/_/g, '');
-              if (firstRow[sortedAltKey] !== undefined) {
+              if (keyExists(sortedAltKey)) {
                 foundKey = sortedAltKey;
               }
             }
@@ -296,12 +302,21 @@ export default function StrategyBacktestSymbolDetail() {
       // Skip this tool if indicator key not found
       if (!foundKey) {
         // Log all available keys for debugging
-        const allKeys = Object.keys(firstRow);
-        const smaKeys = allKeys.filter(k => k.toUpperCase().includes('SMA'));
+        const allKeys = new Set();
+        ohlcvData.forEach(row => {
+          Object.keys(row).forEach(key => allKeys.add(key));
+        });
+        const allKeysArray = Array.from(allKeys);
+        const toolKeys = allKeysArray.filter(k => 
+          k.toUpperCase().includes(toolName.toUpperCase()) || 
+          k.toUpperCase().includes('RETURNS') || 
+          k.toUpperCase().includes('ROLLING') ||
+          k.toUpperCase().includes('STD')
+        );
         console.warn(`Indicator key not found for tool: ${toolName} with params:`, resolvedParams);
         console.warn(`  Tried keys: ${indicatorKey}, ${indicatorKey.replace(/_/g, '')}`);
-        console.warn(`  Available SMA keys:`, smaKeys);
-        console.warn(`  All available keys (first 20):`, allKeys.slice(0, 20));
+        console.warn(`  Available ${toolName} keys:`, toolKeys);
+        console.warn(`  All available keys (first 30):`, allKeysArray.slice(0, 30));
         continue; // Skip to next tool
       }
 
@@ -309,15 +324,48 @@ export default function StrategyBacktestSymbolDetail() {
       const displayName = indicatorMetadata?.display_name || toolConfig.display_name || toolName;
 
       // Extract values for this indicator
+      // Ensure timestamp is in the same format as candlestick data (ISO string or Date object)
       const values = ohlcvData
-        .map(item => ({
-          timestamp: item.timestamp,
-          value: item[foundKey] !== null && item[foundKey] !== undefined ? parseFloat(item[foundKey]) : null
-        }))
+        .map(item => {
+          const rawValue = item[foundKey];
+          // Handle both number and string values
+          let parsedValue = null;
+          if (rawValue !== null && rawValue !== undefined) {
+            if (typeof rawValue === 'number') {
+              parsedValue = rawValue;
+            } else if (typeof rawValue === 'string') {
+              parsedValue = parseFloat(rawValue);
+            } else {
+              parsedValue = parseFloat(rawValue);
+            }
+            // Check if parsing resulted in NaN
+            if (isNaN(parsedValue)) {
+              parsedValue = null;
+            }
+          }
+          
+          // Ensure timestamp is in consistent format (ISO string)
+          let timestamp = item.timestamp;
+          if (timestamp instanceof Date) {
+            timestamp = timestamp.toISOString();
+          } else if (typeof timestamp === 'string') {
+            // Already a string, use as-is
+            timestamp = timestamp;
+          } else if (typeof timestamp === 'number') {
+            // Convert number to ISO string
+            timestamp = new Date(timestamp).toISOString();
+          }
+          
+          return {
+            timestamp: timestamp,
+            value: parsedValue
+          };
+        })
         .filter(item => item.value !== null && !isNaN(item.value));
 
       // Add indicator to list if we have valid values
       if (values.length > 0) {
+        console.log(`✓ Adding indicator: ${foundKey} (${displayName}) - ${values.length} valid values`);
         indicatorList.push({
           toolName: displayName,
           enabled: true,
@@ -330,12 +378,36 @@ export default function StrategyBacktestSymbolDetail() {
           indicatorKey: foundKey,
         });
       } else {
-        console.warn(`No valid values found for indicator: ${foundKey}`);
+        // Check if the key exists but all values are null/NaN
+        const hasKey = ohlcvData.some(item => item[foundKey] !== undefined);
+        if (hasKey) {
+          const sampleValues = ohlcvData.slice(0, 10).map(item => ({
+            timestamp: item.timestamp,
+            rawValue: item[foundKey],
+            type: typeof item[foundKey],
+            parsedValue: item[foundKey] !== null && item[foundKey] !== undefined ? parseFloat(item[foundKey]) : null
+          }));
+          console.warn(`⚠ Indicator key ${foundKey} exists but all values are null/NaN. Sample:`, sampleValues);
+        } else {
+          console.warn(`✗ Indicator key ${foundKey} not found in data`);
+        }
       }
     }
 
+    console.log(`📊 Chart indicators prepared: ${indicatorList.length} indicators`, {
+      indicators: indicatorList.map(ind => ({
+        name: ind.toolName,
+        key: ind.indicatorKey,
+        valuesCount: ind.values.length,
+        enabled: ind.enabled,
+        subchart: ind.subchart,
+        firstValue: ind.values[0],
+        lastValue: ind.values[ind.values.length - 1]
+      }))
+    });
+    
     return indicatorList;
-  }, [strategy, indicatorsMetadata, ohlcvData]);
+  }, [strategy, backtest, indicatorsMetadata, ohlcvData]);
 
   if (loading) {
     return (

@@ -97,7 +97,19 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
 
   // Process indicator data for chart - separate main chart and subchart indicators
   const { mainChartIndicators, subchartIndicators } = useMemo(() => {
+    console.log('🔍 Processing indicators for chart:', {
+      indicatorsCount: indicators?.length || 0,
+      seriesDataCount: seriesData?.length || 0,
+      indicators: indicators?.map(ind => ({
+        name: ind.toolName,
+        valuesCount: ind.values?.length || 0,
+        enabled: ind.enabled,
+        subchart: ind.subchart
+      }))
+    });
+    
     if (!indicators || indicators.length === 0 || !seriesData || seriesData.length === 0) {
+      console.warn('⚠ No indicators or seriesData to process');
       return { mainChartIndicators: [], subchartIndicators: [] };
     }
     
@@ -106,26 +118,100 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
       seriesData.map(item => item[0]) // item[0] is the timestamp
     );
     
+    console.log('📊 Candlestick timestamps:', {
+      count: candlestickTimestamps.size,
+      sample: Array.from(candlestickTimestamps).slice(0, 5).map(ts => ({
+        timestamp: ts,
+        date: new Date(ts).toISOString()
+      }))
+    });
+    
     const processIndicator = (ind) => {
-      // Process indicator values - only include those that match candlestick timestamps
+      // Process indicator values - match with candlestick timestamps
       // Limit to same number of points as candlestick data
+      let matchedCount = 0;
+      let unmatchedCount = 0;
+      
       const indicatorData = ind.values
         .slice(-1000) // Limit to last 1000 points
         .map(item => {
-          const timestamp = new Date(item.timestamp).getTime();
-          const value = parseFloat(item.value);
-          
-          // Only include if timestamp matches a candlestick timestamp and value is valid
-          if (isNaN(timestamp) || isNaN(value) || !candlestickTimestamps.has(timestamp)) {
+          // Convert timestamp to milliseconds (same format as candlestick data)
+          let timestamp;
+          if (typeof item.timestamp === 'string') {
+            timestamp = new Date(item.timestamp).getTime();
+          } else if (typeof item.timestamp === 'number') {
+            // If already a number, assume it's milliseconds
+            timestamp = item.timestamp;
+          } else if (item.timestamp instanceof Date) {
+            timestamp = item.timestamp.getTime();
+          } else {
             return null;
           }
           
-          return [timestamp, value];
+          const value = parseFloat(item.value);
+          
+          // Validate timestamp and value
+          if (isNaN(timestamp) || isNaN(value)) {
+            unmatchedCount++;
+            return null;
+          }
+          
+          // Check if timestamp matches a candlestick timestamp exactly
+          if (candlestickTimestamps.has(timestamp)) {
+            matchedCount++;
+            return [timestamp, value];
+          }
+          
+          // If no exact match, try to find the closest candlestick timestamp (within same day)
+          // This handles timezone or precision differences
+          const dayMs = 24 * 60 * 60 * 1000;
+          let closestTs = null;
+          let minDiff = Infinity;
+          
+          for (const candlestickTs of candlestickTimestamps) {
+            const diff = Math.abs(timestamp - candlestickTs);
+            if (diff < dayMs && diff < minDiff) {
+              minDiff = diff;
+              closestTs = candlestickTs;
+            }
+          }
+          
+          // If found a close match, use the candlestick timestamp for alignment
+          if (closestTs !== null) {
+            matchedCount++;
+            return [closestTs, value];
+          }
+          
+          // No match found
+          unmatchedCount++;
+          return null;
         })
         .filter(item => item !== null)
         .sort((a, b) => a[0] - b[0]); // Sort by timestamp
       
-      if (indicatorData.length === 0) return null;
+      console.log(`🔍 Indicator ${ind.toolName || 'Unknown'} matching: ${matchedCount} matched, ${unmatchedCount} unmatched out of ${ind.values.length} total`);
+      
+      if (indicatorData.length === 0) {
+        console.warn(`⚠ Indicator ${ind.toolName || 'Unknown'} has no matching timestamps.`, {
+          indicatorValuesCount: ind.values.length,
+          candlestickTimestampsCount: candlestickTimestamps.size,
+          matched: matchedCount,
+          unmatched: unmatchedCount,
+          sampleIndicatorTimestamps: ind.values.slice(0, 5).map(v => ({
+            original: v.timestamp,
+            type: typeof v.timestamp,
+            parsed: new Date(v.timestamp).getTime(),
+            value: v.value
+          })),
+          sampleCandlestickTimestamps: Array.from(candlestickTimestamps).slice(0, 5).map(ts => ({
+            timestamp: ts,
+            date: new Date(ts).toISOString()
+          }))
+        });
+        return null;
+      }
+      
+      console.log(`✓ Processed indicator ${ind.toolName || 'Unknown'}: ${indicatorData.length} data points (from ${ind.values.length} indicator values)`);
       
       return {
         name: ind.toolName || ind.tool?.name || 'Unknown',
@@ -139,18 +225,29 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
     const mainChart = [];
     const subchart = [];
     
-    indicators
-      .filter(ind => ind.enabled && ind.values && ind.values.length > 0)
-      .forEach(ind => {
-        const processed = processIndicator(ind);
-        if (processed) {
-          if (ind.subchart) {
-            subchart.push(processed);
-          } else {
-            mainChart.push(processed);
-          }
+    const enabledIndicators = indicators.filter(ind => ind.enabled && ind.values && ind.values.length > 0);
+    console.log(`📈 Processing ${enabledIndicators.length} enabled indicators`);
+    
+    enabledIndicators.forEach(ind => {
+      const processed = processIndicator(ind);
+      if (processed) {
+        console.log(`  ✓ Added ${ind.toolName} to ${ind.subchart ? 'subchart' : 'main chart'}: ${processed.data.length} points`);
+        if (ind.subchart) {
+          subchart.push(processed);
+        } else {
+          mainChart.push(processed);
         }
-      });
+      } else {
+        console.warn(`  ✗ Failed to process ${ind.toolName}`);
+      }
+    });
+    
+    console.log('📊 Final processed indicators:', {
+      mainChart: mainChart.length,
+      subchart: subchart.length,
+      mainChartNames: mainChart.map(ind => ind.name),
+      subchartNames: subchart.map(ind => ind.name)
+    });
     
     return { mainChartIndicators: mainChart, subchartIndicators: subchart };
   }, [indicators, seriesData]);
@@ -158,8 +255,14 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
   // Main chart series: candlestick + main chart indicators only
   // Always ensure candlestick data is first and present
   const mainChartSeries = useMemo(() => {
+    console.log('🔧 Building mainChartSeries:', {
+      seriesDataLength: seriesData?.length || 0,
+      mainChartIndicatorsLength: mainChartIndicators?.length || 0
+    });
+    
     // Always start with candlestick data - this must never be empty
     if (!seriesData || seriesData.length === 0) {
+      console.warn('⚠ No seriesData available');
       return [];
     }
     
@@ -187,16 +290,33 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
     // Add main chart indicator series (overlay on price chart)
     // Only add indicators that are NOT subchart indicators
     if (mainChartIndicators && mainChartIndicators.length > 0) {
+      console.log(`📊 Adding ${mainChartIndicators.length} main chart indicators to series`);
       mainChartIndicators.forEach((ind, index) => {
         if (ind && ind.data && ind.data.length > 0 && ind.type === 'line') {
+          console.log(`  ✓ Adding ${ind.name}: ${ind.data.length} data points, color: ${ind.color}`);
           series.push({
             name: ind.name,
             type: 'line',
             data: ind.data,
           });
+        } else {
+          console.warn(`  ✗ Skipping ${ind?.name || 'unknown'}: invalid data`, {
+            hasInd: !!ind,
+            hasData: !!ind?.data,
+            dataLength: ind?.data?.length || 0,
+            type: ind?.type
+          });
         }
       });
+    } else {
+      console.warn('⚠ No main chart indicators to add');
     }
+    
+    console.log(`📊 Final main chart series: ${series.length} series`, series.map(s => ({
+      name: s.name,
+      type: s.type,
+      dataLength: s.data?.length || 0
+    })));
     
     // Final validation: ensure first series is always candlestick
     if (series.length === 0 || series[0].type !== 'candlestick') {
