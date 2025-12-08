@@ -28,6 +28,9 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
   const [selectedSymbols, setSelectedSymbols] = useState([]); // Array of ticker strings
   const [tickerInput, setTickerInput] = useState('');
   const [selectAllActive, setSelectAllActive] = useState(false);
+  const [randomCountMode, setRandomCountMode] = useState(false);
+  const [randomCount, setRandomCount] = useState(10);
+  const [randomSelectedSymbols, setRandomSelectedSymbols] = useState([]);
   const [splitRatio, setSplitRatio] = useState(0.7);
   const [initialCapital, setInitialCapital] = useState(10000.0);
   const [betSizePercentage, setBetSizePercentage] = useState(100.0);
@@ -109,6 +112,67 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
     } else {
       // Just set the flag - will fetch active tickers when starting backtest
       setSelectAllActive(true);
+      setRandomCountMode(false); // Disable random mode when selecting all
+    }
+  };
+
+  const handleRandomCountMode = () => {
+    if (randomCountMode) {
+      setRandomSelectedSymbols([]);
+      setRandomCountMode(false);
+    } else {
+      setRandomCountMode(true);
+      setSelectAllActive(false); // Disable select all when using random mode
+      setSelectedSymbols([]); // Clear manually selected symbols
+    }
+  };
+
+  const handleSelectRandomSymbols = async () => {
+    if (randomCount <= 0) {
+      alert('Please enter a valid number greater than 0');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Fetch all active symbols
+      let allActiveSymbols = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await marketDataAPI.getSymbols('', page, null, 'active');
+        if (response.success && response.data) {
+          const symbols = response.data.results || [];
+          allActiveSymbols = [...allActiveSymbols, ...symbols];
+          
+          // Check if there are more pages
+          hasMore = response.data.next !== null && response.data.next !== undefined;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      if (allActiveSymbols.length === 0) {
+        alert('No active symbols found');
+        return;
+      }
+
+      if (randomCount > allActiveSymbols.length) {
+        alert(`Only ${allActiveSymbols.length} active symbols available. Selecting all.`);
+        setRandomCount(allActiveSymbols.length);
+      }
+
+      // Randomly select the specified number
+      const shuffled = [...allActiveSymbols].sort(() => 0.5 - Math.random());
+      const selected = shuffled.slice(0, randomCount).map(s => s.ticker);
+      setRandomSelectedSymbols(selected);
+    } catch (error) {
+      console.error('Error fetching active symbols:', error);
+      alert('Failed to fetch active symbols: ' + (error.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -159,10 +223,11 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
       return;
     }
 
-    let symbolTickers = [...selectedSymbols];
+    let symbolTickers = [];
 
-    // If "Select All Active" is checked, fetch all active tickers
+    // Determine which symbols to use based on selection mode
     if (selectAllActive) {
+      // If "Select All Active" is checked, fetch all active tickers
       setCreating(true);
       try {
         // Fetch all active symbols
@@ -192,10 +257,20 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
         setCreating(false);
         return;
       }
+    } else if (randomCountMode) {
+      // Use randomly selected symbols
+      if (randomSelectedSymbols.length === 0) {
+        alert('Please click "Select Random Symbols" to generate random symbols first');
+        return;
+      }
+      symbolTickers = randomSelectedSymbols;
+    } else {
+      // Use manually selected symbols
+      symbolTickers = [...selectedSymbols];
     }
 
     if (symbolTickers.length === 0) {
-      alert('Please add at least one symbol or select "Select All Active"');
+      alert('Please add at least one symbol, select "Select All Active", or use random selection');
       setCreating(false);
       return;
     }
@@ -245,6 +320,9 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
     setSelectedSymbols([]);
     setTickerInput('');
     setSelectAllActive(false);
+    setRandomCountMode(false);
+    setRandomCount(10);
+    setRandomSelectedSymbols([]);
     setSplitRatio(0.7);
     setInitialCapital(10000.0);
     setBetSizePercentage(100.0);
@@ -349,18 +427,29 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                     <label className="block text-sm font-medium text-gray-700">
                       Symbols <span className="text-red-500">*</span>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectAllActive}
-                        onChange={handleSelectAllActive}
-                        className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                      />
-                      <span className="text-sm text-gray-700 font-medium">Select All Active</span>
-                    </label>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectAllActive}
+                          onChange={handleSelectAllActive}
+                          className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                        />
+                        <span className="text-sm text-gray-700 font-medium">Select All Active</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={randomCountMode}
+                          onChange={handleRandomCountMode}
+                          className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                        />
+                        <span className="text-sm text-gray-700 font-medium">Random Selection</span>
+                      </label>
+                    </div>
                   </div>
                   
-                  {!selectAllActive && (
+                  {!selectAllActive && !randomCountMode && (
                     <>
                       <div className="flex gap-2 mb-3">
                         <input
@@ -422,6 +511,57 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                     </>
                   )}
                   
+                  {/* Random Count Mode */}
+                  {randomCountMode && (
+                    <div className="mb-4 p-4 border border-gray-300 rounded-lg bg-gray-50">
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <label className="text-sm text-gray-700 font-medium">
+                            Number of symbols:
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={randomCount}
+                            onChange={(e) => setRandomCount(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSelectRandomSymbols}
+                            disabled={loading || randomCount <= 0}
+                            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                          >
+                            {loading ? 'Loading...' : 'Select Random Symbols'}
+                          </button>
+                        </div>
+                        
+                        {randomSelectedSymbols.length > 0 && (
+                          <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto bg-white">
+                            <p className="text-sm text-gray-600 mb-2">
+                              Selected {randomSelectedSymbols.length} random symbol(s):
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {randomSelectedSymbols.map((ticker) => (
+                                <span
+                                  key={ticker}
+                                  className="inline-flex items-center px-3 py-1 bg-primary-50 text-primary-700 rounded-lg text-sm"
+                                >
+                                  {ticker}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {randomSelectedSymbols.length === 0 && (
+                          <p className="text-sm text-gray-500 italic">
+                            Click "Select Random Symbols" to randomly select {randomCount} active symbol(s).
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {selectAllActive && (
                     <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
                       <p className="text-sm text-blue-700">
@@ -430,7 +570,7 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                     </div>
                   )}
                   
-                  {selectedSymbols.length > 0 && !selectAllActive && (
+                  {selectedSymbols.length > 0 && !selectAllActive && !randomCountMode && (
                     <p className="mt-2 text-sm text-gray-600">
                       {selectedSymbols.length} symbol(s) added
                     </p>
@@ -529,7 +669,7 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                   </button>
                   <button
                     onClick={handleCreateBacktest}
-                    disabled={creating || !selectedStrategy || (!selectAllActive && selectedSymbols.length === 0)}
+                    disabled={creating || !selectedStrategy || (!selectAllActive && !randomCountMode && selectedSymbols.length === 0) || (randomCountMode && randomSelectedSymbols.length === 0)}
                     className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {creating ? 'Creating...' : (

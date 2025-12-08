@@ -62,6 +62,34 @@ export default function StrategyBacktestDetail() {
     }
   }, [backtest?.status]);
 
+  // Auto-switch mode if 'all' mode has no data when statistics or symbol changes
+  useEffect(() => {
+    if (!statistics || selectedMode !== 'all') return;
+    
+    const portfolioOrSymbol = selectedSymbol
+      ? statistics.symbols?.find(s => s.symbol_ticker === selectedSymbol)
+      : statistics.portfolio;
+    
+    if (portfolioOrSymbol) {
+      const statsByMode = portfolioOrSymbol.stats_by_mode || {};
+      const allModeStats = statsByMode.all;
+      
+      // Check if 'all' mode has no meaningful data
+      const allModeEmpty = !allModeStats || 
+        (allModeStats.total_trades === 0 && 
+         (!allModeStats.total_pnl || allModeStats.total_pnl === 0));
+      
+      if (allModeEmpty) {
+        // Auto-switch to 'long' if it has data, otherwise 'short'
+        if (statsByMode.long && statsByMode.long.total_trades > 0) {
+          setSelectedMode('long');
+        } else if (statsByMode.short && statsByMode.short.total_trades > 0) {
+          setSelectedMode('short');
+        }
+      }
+    }
+  }, [statistics, selectedSymbol, selectedMode]);
+
   // Trades are loaded once in loadData, then filtered client-side
 
   useEffect(() => {
@@ -135,6 +163,37 @@ export default function StrategyBacktestDetail() {
       setBacktest(backtestData);
       setStatistics(statsData || { portfolio: null, symbols: [] });
       
+      // Auto-select mode with data if 'all' mode is empty
+      // This handles strategies that don't support 'all' mode (like Moving Average Crossover)
+      if (statsData && selectedMode === 'all') {
+        // Check portfolio stats first, then symbol stats
+        const portfolioStats = statsData.portfolio;
+        const symbolStats = selectedSymbol 
+          ? statsData.symbols?.find(s => s.symbol_ticker === selectedSymbol)
+          : null;
+        
+        const statsToCheck = symbolStats || portfolioStats;
+        
+        if (statsToCheck) {
+          const statsByMode = statsToCheck.stats_by_mode || {};
+          const allModeStats = statsByMode.all;
+          
+          // Check if 'all' mode has no meaningful data (all zeros/null)
+          const allModeEmpty = !allModeStats || 
+            (allModeStats.total_trades === 0 && 
+             (!allModeStats.total_pnl || allModeStats.total_pnl === 0));
+          
+          if (allModeEmpty) {
+            // Auto-switch to 'long' if it has data, otherwise 'short'
+            if (statsByMode.long && statsByMode.long.total_trades > 0) {
+              setSelectedMode('long');
+            } else if (statsByMode.short && statsByMode.short.total_trades > 0) {
+              setSelectedMode('short');
+            }
+          }
+        }
+      }
+      
       // Use symbols from API if available, otherwise try fallback
       if (!symbolsData || !symbolsData.results || symbolsData.results.length === 0) {
         // Fallback: Extract from statistics
@@ -154,8 +213,8 @@ export default function StrategyBacktestDetail() {
         }
       }
       
-      // Set first symbol as default if available (but don't override if already set)
-      // Note: We don't set selectedSymbol here to avoid interfering with user selection
+      // Don't auto-select symbol - the main page should show portfolio stats
+      // Only show symbol stats when user explicitly selects a symbol
       
       // Check for task_id in backtest response or find from active tasks if backtest is running
       if (backtestData?.status === 'running') {
@@ -315,10 +374,18 @@ export default function StrategyBacktestDetail() {
   }, [selectedSymbol, selectedMode, statistics]);
   
   // Get current stats for display
+  // On the main backtest detail page, always show portfolio stats (not symbol-specific)
+  // Only show symbol stats when a symbol is explicitly selected
   const currentStatsForDisplay = useMemo(() => {
-    const portfolioOrSymbol = selectedSymbol
-      ? statistics.symbols?.find(s => s.symbol_ticker === selectedSymbol)
-      : statistics.portfolio;
+    let portfolioOrSymbol = null;
+    
+    if (selectedSymbol) {
+      // If a symbol is selected, show that symbol's stats
+      portfolioOrSymbol = statistics.symbols?.find(s => s.symbol_ticker === selectedSymbol);
+    } else {
+      // If no symbol selected, show portfolio stats (main backtest detail page)
+      portfolioOrSymbol = statistics.portfolio;
+    }
     
     if (!portfolioOrSymbol) return null;
     
