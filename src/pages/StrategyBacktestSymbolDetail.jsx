@@ -8,7 +8,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, TrendingUp, TrendingDown, BarChart3, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getStrategy } from '../data/strategies';
-import { getBacktest, getAllBacktestTrades, getBacktestStatisticsOptimized } from '../data/backtests';
+import { getBacktest, getBacktestStatisticsOptimized, getAllBacktestTrades } from '../data/backtests';
 import { getSymbolOHLCV } from '../data/symbols';
 import StatisticsCard from '../components/StatisticsCard';
 import CandlestickChart from '../components/CandlestickChart';
@@ -22,7 +22,7 @@ export default function StrategyBacktestSymbolDetail() {
   const [backtest, setBacktest] = useState(null);
   const [statistics, setStatistics] = useState(null); // Backend stats for 'all' mode only
   const [allTrades, setAllTrades] = useState([]); // All trades for this symbol (loaded once, used for both signals and table)
-  const [ohlcvData, setOhlcvData] = useState([]);
+  const [allOhlcvData, setAllOhlcvData] = useState([]); // All OHLCV data (will be filtered by mode in useMemo)
   const [indicatorsMetadata, setIndicatorsMetadata] = useState({});
   const [loading, setLoading] = useState(true);
   const [positionModeTab, setPositionModeTab] = useState('all'); // 'all', 'long', 'short'
@@ -43,16 +43,23 @@ export default function StrategyBacktestSymbolDetail() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Load all data in parallel - use endpoint without pagination
-      const [strategyData, backtestData, ohlcvResponse, allTradesList, statsData] = await Promise.all([
+      // Load strategy, backtest, stats, and OHLCV data
+      // OHLCV endpoint will return all data (no pagination) when backtest_id is provided
+      const [strategyData, backtestData, statsData, ohlcvResponse] = await Promise.all([
         getStrategy(id),
         getBacktest(backtestId),
-        getSymbolOHLCV(ticker, 'daily', null, null, 1, 1000, parseInt(backtestId), parseInt(id)),
-        getAllBacktestTrades(backtestId), // Get ALL trades without pagination
         getBacktestStatisticsOptimized(backtestId), // Get optimized statistics with stats_by_mode
+        getSymbolOHLCV(
+          ticker, 
+          'daily', 
+          null, // Start date - will get all data when backtest_id is provided
+          null, // End date - will get all data when backtest_id is provided
+          1, 
+          10000, // Page size (not used when backtest_id is provided - returns all data)
+          parseInt(backtestId), 
+          parseInt(id)
+        ),
       ]);
-      
-      console.log(`Loaded ${allTradesList.length} total trades from single endpoint`);
 
       setStrategy(strategyData);
       setBacktest(backtestData);
@@ -69,24 +76,32 @@ export default function StrategyBacktestSymbolDetail() {
 
       setStatistics(symbolStatsEntry || null);
 
-      // Filter trades for this symbol (all trades - used for both signals and table)
-      const symbolTrades = allTradesList.filter(t => {
-        const tradeSymbolTicker = t?.symbol_info?.ticker || t?.symbol?.ticker || t?.symbol_ticker;
-        return tradeSymbolTicker === ticker;
-      });
-      
-      console.log(`Filtered ${symbolTrades.length} trades for symbol ${ticker} from ${allTradesList.length} total trades`);
-      setAllTrades(symbolTrades);
-
-      // Ensure OHLCV data is set even if response structure is different
-      if (ohlcvResponse && ohlcvResponse.results) {
-        setOhlcvData(ohlcvResponse.results);
-      } else if (Array.isArray(ohlcvResponse)) {
-        setOhlcvData(ohlcvResponse);
-      } else {
-        console.warn('Unexpected OHLCV response format:', ohlcvResponse);
-        setOhlcvData([]);
+      // Load all trades for this symbol FIRST (needed to filter OHLCV data)
+      // Use symbol filter parameter to get only this symbol's trades from backend
+      // This is more efficient than fetching all trades and filtering on frontend
+      let symbolTrades = [];
+      try {
+        symbolTrades = await getAllBacktestTrades(backtestId, ticker); // Get ALL trades for this symbol only
+        setAllTrades(Array.isArray(symbolTrades) ? symbolTrades : []);
+        console.log(`Loaded ${Array.isArray(symbolTrades) ? symbolTrades.length : 0} trades for symbol ${ticker}`);
+      } catch (tradeError) {
+        console.error('Error loading trades:', tradeError);
+        setAllTrades([]);
       }
+
+      // Ensure OHLCV data is set - when backtest_id is provided, backend returns all data
+      // Response can be: {results: [...]} or [...] (array directly)
+      let ohlcvResults = [];
+      if (ohlcvResponse) {
+        if (ohlcvResponse.results && Array.isArray(ohlcvResponse.results)) {
+          ohlcvResults = ohlcvResponse.results;
+        } else if (Array.isArray(ohlcvResponse)) {
+          ohlcvResults = ohlcvResponse;
+        }
+      }
+      // Store all OHLCV data - will be filtered by mode in useMemo based on selected positionModeTab
+      setAllOhlcvData(ohlcvResults);
+      console.log(`Loaded ${ohlcvResults.length} OHLCV data points for ${ticker} (will be filtered by mode)`);
       
       setIndicatorsMetadata(ohlcvResponse?.indicators || {});
 
@@ -185,6 +200,52 @@ export default function StrategyBacktestSymbolDetail() {
   const totalPages = Math.ceil(totalFilteredCount / itemsPerPage);
   const hasNextPage = currentPage < totalPages;
   const hasPreviousPage = currentPage > 1;
+
+  // Filter OHLCV data to match the filtered trades date range (with 30-day buffer)
+  // This ensures the chart shows data aligned with the trading history table for the selected mode
+  const ohlcvData = useMemo(() => {
+    if (!allOhlcvData || allOhlcvData.length === 0) {
+      return [];
+    }
+    
+    if (!allFilteredTrades || allFilteredTrades.length === 0) {
+      return allOhlcvData; // No trades to filter by, show all data
+    }
+    
+    // Calculate trade date range from filtered trades (current mode)
+    const entryTimestamps = allFilteredTrades
+      .filter(t => t.entry_timestamp)
+      .map(t => new Date(t.entry_timestamp).getTime());
+    const exitTimestamps = allFilteredTrades
+      .filter(t => t.exit_timestamp)
+      .map(t => new Date(t.exit_timestamp).getTime());
+    
+    const allTradeTimestamps = [...entryTimestamps, ...exitTimestamps];
+    if (allTradeTimestamps.length === 0) {
+      return allOhlcvData;
+    }
+    
+    const minTimestamp = Math.min(...allTradeTimestamps);
+    const maxTimestamp = Math.max(...allTradeTimestamps);
+    
+    // Add 30-day buffer (in milliseconds)
+    const bufferMs = 30 * 24 * 60 * 60 * 1000;
+    const startTime = minTimestamp - bufferMs;
+    const endTime = maxTimestamp + bufferMs;
+    
+    // Filter OHLCV data to trade date range
+    const filtered = allOhlcvData.filter(ohlcv => {
+      if (!ohlcv.timestamp) return false;
+      const ohlcvTime = new Date(ohlcv.timestamp).getTime();
+      if (isNaN(ohlcvTime)) return false;
+      return ohlcvTime >= startTime && ohlcvTime <= endTime;
+    });
+    
+    console.log(`Filtered OHLCV data to ${positionModeTab} mode trade date range: ${filtered.length} of ${allOhlcvData.length} data points`);
+    console.log(`Trade date range (${positionModeTab}): ${new Date(minTimestamp).toLocaleDateString()} to ${new Date(maxTimestamp).toLocaleDateString()}`);
+    
+    return filtered;
+  }, [allOhlcvData, allFilteredTrades, positionModeTab]);
 
   // Convert filtered trades to signals for chart - FILTER BY POSITION MODE (same as datatable)
   const signals = useMemo(() => {
@@ -577,6 +638,17 @@ export default function StrategyBacktestSymbolDetail() {
                 : 'N/A'}
               unit=""
               description="Ratio of gross profit to gross loss"
+              icon={TrendingUp}
+            />
+            <StatisticsCard
+              title="Sharpe Ratio"
+              value={currentStats.sharpe_ratio !== null && currentStats.sharpe_ratio !== undefined 
+                ? (typeof currentStats.sharpe_ratio === 'number' 
+                  ? currentStats.sharpe_ratio.toFixed(2) 
+                  : parseFloat(currentStats.sharpe_ratio).toFixed(2))
+                : 'N/A'}
+              unit=""
+              description="Risk-adjusted return measure"
               icon={TrendingUp}
             />
             <StatisticsCard

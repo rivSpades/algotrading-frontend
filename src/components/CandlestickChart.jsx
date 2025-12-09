@@ -42,7 +42,7 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
   }, [selectedTimeframe, data]);
 
   // Process data for ApexCharts candlestick format
-  // Limit to 1000 data points max to prevent browser crashes
+  // Show all data points - no limit (filtered data already matches trade date range)
   const seriesData = useMemo(() => {
     if (!chartData || chartData.length === 0) return [];
     
@@ -54,7 +54,6 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
         const dateB = new Date(b.timestamp).getTime();
         return dateA - dateB; // Ascending: oldest first
       })
-      .slice(-1000) // Limit to last 1000 points for performance
       .map((item) => {
         const open = parseFloat(item.open);
         const high = parseFloat(item.high);
@@ -128,12 +127,11 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
     
     const processIndicator = (ind) => {
       // Process indicator values - match with candlestick timestamps
-      // Limit to same number of points as candlestick data
+      // Show all indicator data points (no limit - matches all candlestick data)
       let matchedCount = 0;
       let unmatchedCount = 0;
       
       const indicatorData = ind.values
-        .slice(-1000) // Limit to last 1000 points
         .map(item => {
           // Convert timestamp to milliseconds (same format as candlestick data)
           let timestamp;
@@ -332,18 +330,53 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
   const subchartConfigs = useMemo(() => {
     return subchartIndicators.map((ind, index) => {
       // Calculate y-axis min/max for this specific indicator
-      const allValues = ind.data.map(d => d[1]);
-      const minValue = allValues.length > 0 ? Math.min(...allValues) : 0;
-      const maxValue = allValues.length > 0 ? Math.max(...allValues) : 100;
-      const range = maxValue - minValue;
-      const yAxisMin = Math.max(0, minValue - range * 0.1);
-      const yAxisMax = maxValue + range * 0.1;
+      // Filter out null, undefined, NaN, and Infinity values
+      const allValues = ind.data
+        .map(d => d[1])
+        .filter(v => v !== null && v !== undefined && !isNaN(v) && isFinite(v));
       
-      // Create series for this single indicator
+      if (allValues.length === 0) {
+        // Fallback if no valid values
+        console.warn(`⚠ Indicator ${ind.name} has no valid values for Y-axis calculation`);
+        return {
+          id: `subchart-${chartKey}-${index}`,
+          series: [],
+          options: {},
+          indicator: ind,
+        };
+      }
+      
+      const minValue = Math.min(...allValues);
+      const maxValue = Math.max(...allValues);
+      const range = maxValue - minValue;
+      
+      // Handle case where all values are the same (range = 0)
+      const padding = range > 0 ? range * 0.1 : Math.abs(minValue) * 0.1 || 1;
+      
+      // Don't force minimum to 0 - allow negative values for indicators like gap returns
+      const yAxisMin = minValue - padding;
+      const yAxisMax = maxValue + padding;
+      
+      console.log(`📊 Y-axis calculation for ${ind.name}:`, {
+        minValue,
+        maxValue,
+        range,
+        yAxisMin,
+        yAxisMax,
+        validValuesCount: allValues.length,
+        sampleValues: allValues.slice(0, 5)
+      });
+      
+      // Create series for this single indicator (filter out invalid data points)
+      const validData = ind.data.filter(d => {
+        const value = d[1];
+        return value !== null && value !== undefined && !isNaN(value) && isFinite(value);
+      });
+      
       const series = [{
         name: ind.name,
         type: 'line',
-        data: ind.data,
+        data: validData,
       }];
       
       // Create options for this specific subchart
@@ -374,7 +407,16 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
         yaxis: {
           labels: {
             formatter: function (value) {
-              return value.toFixed(2);
+              // Use more decimal places for small values, fewer for large values
+              if (Math.abs(value) < 0.01) {
+                return value.toFixed(4);
+              } else if (Math.abs(value) < 1) {
+                return value.toFixed(3);
+              } else if (Math.abs(value) < 100) {
+                return value.toFixed(2);
+              } else {
+                return value.toFixed(1);
+              }
             },
           },
           min: yAxisMin,

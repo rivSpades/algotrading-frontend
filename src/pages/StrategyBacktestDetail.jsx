@@ -531,7 +531,11 @@ export default function StrategyBacktestDetail() {
             />
             <StatisticsCard
               title="Sharpe Ratio"
-              value={currentStatsForDisplay.sharpe_ratio !== null && currentStatsForDisplay.sharpe_ratio !== undefined ? currentStatsForDisplay.sharpe_ratio : 'N/A'}
+              value={currentStatsForDisplay.sharpe_ratio !== null && currentStatsForDisplay.sharpe_ratio !== undefined 
+                ? (typeof currentStatsForDisplay.sharpe_ratio === 'number' 
+                  ? currentStatsForDisplay.sharpe_ratio.toFixed(2) 
+                  : parseFloat(currentStatsForDisplay.sharpe_ratio).toFixed(2))
+                : 'N/A'}
               unit=""
               description="Risk-adjusted return measure"
               icon={TrendingUp}
@@ -556,6 +560,20 @@ export default function StrategyBacktestDetail() {
               unit=""
               description="Average profit/loss per trade"
               icon={TrendingUp}
+            />
+            <StatisticsCard
+              title="Average Winner"
+              value={currentStatsForDisplay.average_winner !== null && currentStatsForDisplay.average_winner !== undefined ? formatCurrency(currentStatsForDisplay.average_winner) : 'N/A'}
+              unit=""
+              description="Average profit from winning trades"
+              icon={TrendingUp}
+            />
+            <StatisticsCard
+              title="Average Loser"
+              value={currentStatsForDisplay.average_loser !== null && currentStatsForDisplay.average_loser !== undefined ? formatCurrency(currentStatsForDisplay.average_loser) : 'N/A'}
+              unit=""
+              description="Average loss from losing trades"
+              icon={TrendingDown}
             />
           </div>
         </div>
