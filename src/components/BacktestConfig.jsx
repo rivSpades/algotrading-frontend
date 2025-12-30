@@ -10,7 +10,7 @@ import { getStrategies } from '../data/strategies';
 import { getSymbolDetails } from '../data/symbols';
 import { createBacktest } from '../data/backtests';
 import { marketDataAPI } from '../data/api';
-import { getBrokers, liveTradingAPI } from '../data/liveTrading';
+import { getBrokers } from '../data/liveTrading';
 import TaskProgress from './TaskProgress';
 
 export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = null }) {
@@ -42,8 +42,6 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
   const [brokers, setBrokers] = useState([]);
   const [selectedBroker, setSelectedBroker] = useState(null);
   const [brokerExchangeCode, setBrokerExchangeCode] = useState('');
-  const [brokerSymbols, setBrokerSymbols] = useState([]); // Symbols available from broker
-  const [loadingBrokerSymbols, setLoadingBrokerSymbols] = useState(false);
 
   useEffect(() => {
     if (showModal) {
@@ -76,81 +74,6 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
       setLoading(false);
     }
   };
-  
-  // Load broker symbols when broker is selected
-  useEffect(() => {
-    if (useBrokerFilter && selectedBroker) {
-      loadBrokerSymbols();
-    } else {
-      setBrokerSymbols([]);
-    }
-  }, [useBrokerFilter, selectedBroker, brokerExchangeCode]);
-  
-  const loadBrokerSymbols = async () => {
-    if (!selectedBroker) return;
-    
-    setLoadingBrokerSymbols(true);
-    try {
-      // Fetch all broker symbols (with large page_size to get all at once)
-      // The API returns paginated response, so we need to handle the results array
-      const associationsResponse = await liveTradingAPI.brokers.getBrokerSymbols(selectedBroker.id, 1, '');
-      if (associationsResponse.success) {
-        // Handle paginated response structure: {count, next, previous, results: [...]}
-        const responseData = associationsResponse.data || {};
-        let associations = Array.isArray(responseData) ? responseData : (responseData.results || []);
-        
-        // If paginated and there are more pages, fetch all pages
-        if (!Array.isArray(responseData) && responseData.next) {
-          let nextPage = 2;
-          let allAssociations = [...associations];
-          let hasMore = responseData.next;
-          
-          while (hasMore && (responseData.count ? allAssociations.length < responseData.count : true)) {
-            const nextResponse = await liveTradingAPI.brokers.getBrokerSymbols(selectedBroker.id, nextPage, '');
-            if (nextResponse.success && nextResponse.data && nextResponse.data.results) {
-              allAssociations = [...allAssociations, ...nextResponse.data.results];
-              hasMore = nextResponse.data.next;
-              nextPage++;
-            } else {
-              break;
-            }
-          }
-          
-          associations = allAssociations;
-        }
-        
-        // Filter by exchange if provided
-        if (brokerExchangeCode) {
-          associations = associations.filter(a => 
-            a.symbol_info?.exchange?.code === brokerExchangeCode
-          );
-        }
-        
-        // Get all symbols with at least one active flag (long_active or short_active)
-        // The backend will handle filtering by position mode automatically
-        const filtered = associations.filter(assoc => 
-          assoc.long_active || assoc.short_active
-        );
-        
-        setBrokerSymbols(filtered.map(a => a.symbol_info));
-      }
-    } catch (error) {
-      console.error('Error loading broker symbols:', error);
-      setBrokerSymbols([]);
-    } finally {
-      setLoadingBrokerSymbols(false);
-    }
-  };
-  
-  // Load broker symbols when broker is selected
-  useEffect(() => {
-    if (useBrokerFilter && selectedBroker) {
-      loadBrokerSymbols();
-    } else {
-      setBrokerSymbols([]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useBrokerFilter, selectedBroker, brokerExchangeCode]);
 
   const handleStrategySelect = (strategyId) => {
     const strategy = strategies.find(s => s.id === strategyId);
@@ -173,17 +96,9 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
     setValidatingTicker(true);
     try {
       // Validate ticker by fetching symbol details
+      // Backend will validate broker linkage when creating the backtest
       const symbol = await getSymbolDetails(ticker);
       if (symbol && symbol.status === 'active') {
-        // If broker filtering is enabled, check if symbol is linked to the broker
-        if (useBrokerFilter && selectedBroker) {
-          const isLinked = brokerSymbols.some(s => s.ticker === ticker);
-          if (!isLinked) {
-            alert(`${ticker} is not linked to broker ${selectedBroker.name}. Only symbols linked to this broker can be added.`);
-            setValidatingTicker(false);
-            return;
-          }
-        }
         setSelectedSymbols(prev => [...prev, ticker]);
         setTickerInput('');
       } else {
@@ -232,99 +147,36 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
 
     setLoading(true);
     try {
-      let allSymbols = [];
+      // Use backend endpoint to get random symbols (much more efficient than fetching all)
+      // Pass broker_id if broker filtering is enabled
+      const brokerId = useBrokerFilter && selectedBroker ? selectedBroker.id : null;
+      const response = await marketDataAPI.getRandomSymbols(randomCount, 'active', null, brokerId);
       
-      if (useBrokerFilter && selectedBroker) {
-        // Reload broker symbols to ensure we have the latest data
-        // Get broker's associated symbols directly (fetch all pages)
-        const associationsResponse = await liveTradingAPI.brokers.getBrokerSymbols(selectedBroker.id, 1, '');
-        if (associationsResponse.success) {
-          // Handle paginated response structure: {count, next, previous, results: [...]}
-          const responseData = associationsResponse.data || {};
-          let associations = Array.isArray(responseData) ? responseData : (responseData.results || []);
-          
-          // If paginated and there are more pages, fetch all pages
-          if (!Array.isArray(responseData) && responseData.next) {
-            let nextPage = 2;
-            let allAssociations = [...associations];
-            let hasMore = responseData.next;
-            
-            while (hasMore && (responseData.count ? allAssociations.length < responseData.count : true)) {
-              const nextResponse = await liveTradingAPI.brokers.getBrokerSymbols(selectedBroker.id, nextPage, '');
-              if (nextResponse.success && nextResponse.data && nextResponse.data.results) {
-                allAssociations = [...allAssociations, ...nextResponse.data.results];
-                hasMore = nextResponse.data.next;
-                nextPage++;
-              } else {
-                break;
-              }
-            }
-            
-            associations = allAssociations;
-          }
-          
-          // Filter by exchange if provided
-          if (brokerExchangeCode) {
-            associations = associations.filter(a => 
-              a.symbol_info?.exchange?.code === brokerExchangeCode
-            );
-          }
-          
-          // Get all symbols with at least one active flag (long_active or short_active)
-          // The backend will handle filtering by position mode automatically
-          const filtered = associations.filter(assoc => 
-            assoc.long_active || assoc.short_active
-          );
-          
-          allSymbols = filtered.map(a => a.symbol_info);
-        }
-        
-        // Use broker symbols - these are already filtered by broker linkage
-        if (allSymbols.length === 0) {
-          alert('No symbols are linked to this broker with active trading flags (long_active or short_active). Please link symbols to the broker first and verify their capabilities.');
-          setLoading(false);
-          return;
-        }
-      } else {
-        // Fetch all active symbols (no broker filtering)
-        let page = 1;
-        let hasMore = true;
-
-        while (hasMore) {
-          const response = await marketDataAPI.getSymbols('', page, null, 'active');
-          if (response.success && response.data) {
-            const symbols = response.data.results || [];
-            allSymbols = [...allSymbols, ...symbols];
-            
-            // Check if there are more pages
-            hasMore = response.data.next !== null && response.data.next !== undefined;
-            page++;
-          } else {
-            hasMore = false;
-          }
-        }
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to fetch random symbols');
       }
 
-      if (allSymbols.length === 0) {
-        alert(useBrokerFilter && selectedBroker 
-          ? 'No symbols are linked to this broker. Please link symbols to the broker first.'
-          : 'No active symbols found');
+      const data = response.data;
+      if (!data || !data.results || data.results.length === 0) {
+        const message = brokerId 
+          ? 'No active symbols found linked to this broker'
+          : 'No active symbols found';
+        alert(message);
         setLoading(false);
         return;
       }
 
-      if (randomCount > allSymbols.length) {
-        alert(`Only ${allSymbols.length} ${useBrokerFilter && selectedBroker ? 'broker-linked ' : ''}symbols available. Selecting all.`);
-        setRandomCount(allSymbols.length);
-      }
-
-      // Randomly select the specified number
-      const shuffled = [...allSymbols].sort(() => 0.5 - Math.random());
-      const selected = shuffled.slice(0, randomCount).map(s => s.ticker);
+      // Extract tickers from the random symbols returned by the backend
+      const selected = data.results.map(s => s.ticker);
       setRandomSelectedSymbols(selected);
+
+      // If requested count exceeds available symbols, show a message
+      if (data.total_available && randomCount > data.total_available) {
+        alert(`Only ${data.total_available} symbols available. Selected ${selected.length} symbols.`);
+      }
     } catch (error) {
-      console.error('Error fetching symbols:', error);
-      alert('Failed to fetch symbols: ' + (error.message || 'Unknown error'));
+      console.error('Error fetching random symbols:', error);
+      alert('Failed to fetch random symbols: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -382,128 +234,31 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
     let exchangeCode = null;
 
     // Determine which symbols to use based on selection mode
+    // All symbol filtering and validation is done in the backend using ORM
     if (useBrokerFilter && selectedBroker) {
-      // Broker-based filtering - fetch symbols directly from API
+      // Broker-based filtering - backend will handle all ORM filtering
       brokerId = selectedBroker.id;
       if (brokerExchangeCode) {
         exchangeCode = brokerExchangeCode;
       }
       
-      // Fetch broker's associated symbols directly (fetch all pages)
-      const associationsResponse = await liveTradingAPI.brokers.getBrokerSymbols(selectedBroker.id, 1, '');
-      let availableBrokerSymbols = [];
-      if (associationsResponse.success) {
-        // Handle paginated response structure: {count, next, previous, results: [...]}
-        const responseData = associationsResponse.data || {};
-        let associations = Array.isArray(responseData) ? responseData : (responseData.results || []);
-        
-        // If paginated and there are more pages, fetch all pages
-        if (!Array.isArray(responseData) && responseData.next) {
-          let nextPage = 2;
-          let allAssociations = [...associations];
-          let hasMore = responseData.next;
-          
-          while (hasMore && (responseData.count ? allAssociations.length < responseData.count : true)) {
-            const nextResponse = await liveTradingAPI.brokers.getBrokerSymbols(selectedBroker.id, nextPage, '');
-            if (nextResponse.success && nextResponse.data && nextResponse.data.results) {
-              allAssociations = [...allAssociations, ...nextResponse.data.results];
-              hasMore = nextResponse.data.next;
-              nextPage++;
-            } else {
-              break;
-            }
-          }
-          
-          associations = allAssociations;
-        }
-        
-        // Filter by exchange if provided
-        if (brokerExchangeCode) {
-          associations = associations.filter(a => 
-            a.symbol_info?.exchange?.code === brokerExchangeCode
-          );
-        }
-        
-        // Get all symbols with at least one active flag (long_active or short_active)
-        const filtered = associations.filter(assoc => 
-          assoc.long_active || assoc.short_active
-        );
-        
-        availableBrokerSymbols = filtered.map(a => a.symbol_info);
-      }
-      
-      // Get list of valid broker symbol tickers for validation
-      const validBrokerTickers = new Set(availableBrokerSymbols.map(s => s.ticker));
-      
-      // If specific symbols selected, validate they're all linked to broker with active flags
+      // If specific symbols selected, send them (backend will validate they're linked to broker)
       if (selectedSymbols.length > 0) {
-        const invalidSymbols = selectedSymbols.filter(t => !validBrokerTickers.has(t));
-        if (invalidSymbols.length > 0) {
-          alert(`The following symbols are not linked to broker ${selectedBroker.name} with active trading flags (long_active or short_active): ${invalidSymbols.join(', ')}. Please remove them or link them to the broker first and verify their capabilities.`);
-          setCreating(false);
-          return;
-        }
         symbolTickers = selectedSymbols;
       } else if (selectAllActive) {
-        // Use all broker symbols (already filtered by broker linkage)
-        if (availableBrokerSymbols.length === 0) {
-          alert('No symbols are linked to this broker with active trading flags (long_active or short_active). Please link symbols to the broker first and verify their capabilities.');
-          setCreating(false);
-          return;
-        }
-        symbolTickers = availableBrokerSymbols.map(s => s.ticker);
+        // Empty array means "select all" - backend will fetch all broker symbols
+        symbolTickers = [];
       } else if (randomCountMode && randomSelectedSymbols.length > 0) {
-        // Validate random symbols are all linked to broker with active flags
-        const invalidSymbols = randomSelectedSymbols.filter(t => !validBrokerTickers.has(t));
-        if (invalidSymbols.length > 0) {
-          alert(`The following symbols are not linked to broker ${selectedBroker.name} with active trading flags: ${invalidSymbols.join(', ')}. Please select random symbols again.`);
-          setCreating(false);
-          return;
-        }
+        // Use randomly selected symbols (backend will validate)
         symbolTickers = randomSelectedSymbols;
       } else {
         // No symbols selected
         alert('Please select at least one symbol from the broker, or use "Select All" or random selection');
-        setCreating(false);
-        return;
-      }
-      
-      if (symbolTickers.length === 0) {
-        alert('No symbols available for the selected broker and filters');
-        setCreating(false);
         return;
       }
     } else if (selectAllActive) {
-      // If "Select All Active" is checked, fetch all active tickers
-      setCreating(true);
-      try {
-        // Fetch all active symbols
-        let allActiveTickers = [];
-        let page = 1;
-        let hasMore = true;
-        const MAX_PAGES = 50; // Increased limit for "select all"
-        
-        while (hasMore && page <= MAX_PAGES) {
-          const response = await marketDataAPI.getSymbols('', page, null, 'active');
-          if (response.success && response.data) {
-            const pageTickers = (response.data.results || [])
-              .filter(s => s.status === 'active')
-              .map(s => s.ticker);
-            allActiveTickers = [...allActiveTickers, ...pageTickers];
-            hasMore = !!response.data.next;
-            page++;
-          } else {
-            hasMore = false;
-          }
-        }
-        
-        symbolTickers = allActiveTickers;
-      } catch (error) {
-        console.error('Error fetching all active symbols:', error);
-        alert('Failed to fetch all active symbols. Please try again.');
-        setCreating(false);
-        return;
-      }
+      // If "Select All Active" is checked, send empty array (backend will fetch all active symbols)
+      symbolTickers = [];
     } else if (randomCountMode) {
       // Use randomly selected symbols
       if (randomSelectedSymbols.length === 0) {
@@ -513,13 +268,11 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
       symbolTickers = randomSelectedSymbols;
     } else {
       // Use manually selected symbols
+      if (selectedSymbols.length === 0) {
+        alert('Please add at least one symbol, select "Select All Active", or use random selection');
+        return;
+      }
       symbolTickers = [...selectedSymbols];
-    }
-
-    if (symbolTickers.length === 0) {
-      alert('Please add at least one symbol, select "Select All Active", or use random selection');
-      setCreating(false);
-      return;
     }
 
     setCreating(true);
@@ -585,7 +338,6 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
     setUseBrokerFilter(false);
     setSelectedBroker(null);
     setBrokerExchangeCode('');
-    setBrokerSymbols([]);
   };
 
   return (
@@ -691,7 +443,6 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                         if (!e.target.checked) {
                           setSelectedBroker(null);
                           setBrokerExchangeCode('');
-                          setBrokerSymbols([]);
                         }
                       }}
                       className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
@@ -744,18 +495,12 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                             />
                           </div>
                           
-                          {/* Available Symbols Info */}
-                          {loadingBrokerSymbols ? (
-                            <div className="text-sm text-gray-500">Loading broker symbols...</div>
-                          ) : brokerSymbols.length > 0 ? (
+                          {/* Info message */}
+                          {selectedBroker && (
                             <div className="text-sm text-gray-600">
-                              {brokerSymbols.length} symbol(s) available for this broker and filters
+                              Symbol filtering will be handled by the backend when creating the backtest.
                             </div>
-                          ) : selectedBroker ? (
-                            <div className="text-sm text-orange-600">
-                              No symbols found for this broker with the selected filters
-                            </div>
-                          ) : null}
+                          )}
                         </>
                       )}
                     </div>

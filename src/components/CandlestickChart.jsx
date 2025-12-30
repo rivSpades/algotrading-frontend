@@ -146,38 +146,55 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
             return null;
           }
           
-          const value = parseFloat(item.value);
-          
-          // Validate timestamp and value
-          if (isNaN(timestamp) || isNaN(value)) {
+          // Handle null values - ApexCharts can handle nulls (creates gaps in line)
+          // Don't filter out null values, just validate the timestamp
+          if (isNaN(timestamp)) {
             unmatchedCount++;
             return null;
           }
           
-          // Check if timestamp matches a candlestick timestamp exactly
-          if (candlestickTimestamps.has(timestamp)) {
-            matchedCount++;
-            return [timestamp, value];
+          // Parse value - keep null if value is null/undefined
+          let value = null;
+          if (item.value !== null && item.value !== undefined) {
+            const parsed = parseFloat(item.value);
+            // Only use parsed value if it's a valid number
+            if (!isNaN(parsed) && isFinite(parsed)) {
+              value = parsed;
+            }
+            // If parsed is NaN or Infinity, keep value as null (chart will create a gap)
           }
           
-          // If no exact match, try to find the closest candlestick timestamp (within same day)
-          // This handles timezone or precision differences
-          const dayMs = 24 * 60 * 60 * 1000;
-          let closestTs = null;
-          let minDiff = Infinity;
+          // Find matching timestamp (exact match or closest)
+          let matchedTimestamp = null;
           
-          for (const candlestickTs of candlestickTimestamps) {
-            const diff = Math.abs(timestamp - candlestickTs);
-            if (diff < dayMs && diff < minDiff) {
-              minDiff = diff;
-              closestTs = candlestickTs;
+          // Check if timestamp matches a candlestick timestamp exactly
+          if (candlestickTimestamps.has(timestamp)) {
+            matchedTimestamp = timestamp;
+            matchedCount++;
+          } else {
+            // If no exact match, try to find the closest candlestick timestamp (within same day)
+            // This handles timezone or precision differences
+            const dayMs = 24 * 60 * 60 * 1000;
+            let closestTs = null;
+            let minDiff = Infinity;
+            
+            for (const candlestickTs of candlestickTimestamps) {
+              const diff = Math.abs(timestamp - candlestickTs);
+              if (diff < dayMs && diff < minDiff) {
+                minDiff = diff;
+                closestTs = candlestickTs;
+              }
+            }
+            
+            if (closestTs !== null) {
+              matchedTimestamp = closestTs;
+              matchedCount++;
             }
           }
           
-          // If found a close match, use the candlestick timestamp for alignment
-          if (closestTs !== null) {
-            matchedCount++;
-            return [closestTs, value];
+          // Return data point if timestamp matched (even if value is null)
+          if (matchedTimestamp !== null) {
+            return [matchedTimestamp, value]; // value can be null - chart will handle it
           }
           
           // No match found

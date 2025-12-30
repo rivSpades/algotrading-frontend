@@ -386,6 +386,9 @@ export default function StrategyBacktestSymbolDetail() {
 
       // Extract values for this indicator
       // Ensure timestamp is in the same format as candlestick data (ISO string or Date object)
+      // IMPORTANT: Keep null values - don't filter them out! Chart libraries can handle nulls
+      // (they just won't plot those points). Indicators like RollingSTD_90 start with nulls
+      // during warmup period, but we still want to plot the non-null values that come later.
       const values = ohlcvData
         .map(item => {
           const rawValue = item[foundKey];
@@ -399,7 +402,7 @@ export default function StrategyBacktestSymbolDetail() {
             } else {
               parsedValue = parseFloat(rawValue);
             }
-            // Check if parsing resulted in NaN
+            // Check if parsing resulted in NaN - convert to null (chart can handle nulls)
             if (isNaN(parsedValue)) {
               parsedValue = null;
             }
@@ -421,21 +424,26 @@ export default function StrategyBacktestSymbolDetail() {
             timestamp: timestamp,
             value: parsedValue
           };
-        })
-        .filter(item => item.value !== null && !isNaN(item.value));
+        });
+        // DON'T filter out null values - keep them so chart can plot non-null values
+        // Chart libraries handle nulls by simply not plotting those points
 
-      // Add indicator to list if we have valid values
-      if (values.length > 0) {
-        console.log(`✓ Adding indicator: ${foundKey} (${displayName}) - ${values.length} valid values`);
+      // Add indicator to list if we have at least some data points (even if some are null)
+      // Check if there's at least one non-null value
+      const hasValidValues = values.some(item => item.value !== null && !isNaN(item.value));
+      
+      if (values.length > 0 && hasValidValues) {
+        const validCount = values.filter(item => item.value !== null && !isNaN(item.value)).length;
+        console.log(`✓ Adding indicator: ${foundKey} (${displayName}) - ${validCount}/${values.length} valid values`);
         indicatorList.push({
           toolName: displayName,
           enabled: true,
-          subchart: toolConfig.subchart || false,
-          style: toolConfig.style || indicatorMetadata?.style || {
+          subchart: toolConfig.subchart || indicatorMetadata?.subchart || false,
+          style: toolConfig.style || indicatorMetadata || {
             color: '#3B82F6',
             line_width: 2,
           },
-          values: values,
+          values: values, // Keep all values including nulls - chart will handle them
           indicatorKey: foundKey,
         });
       } else {

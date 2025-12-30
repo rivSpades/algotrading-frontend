@@ -139,6 +139,30 @@ export const marketDataAPI = {
   },
 
   /**
+   * Get random symbols
+   * @param {number} count - Number of random symbols to return
+   * @param {string} status - Filter by status (default: 'active')
+   * @param {string} exchange - Filter by exchange code (optional)
+   * @param {number} brokerId - Filter by broker ID (optional)
+   */
+  async getRandomSymbols(count, status = 'active', exchange = null, brokerId = null) {
+    let endpoint = '/symbols/random/';
+    const params = new URLSearchParams();
+    params.append('count', count);
+    if (status) {
+      params.append('status', status);
+    }
+    if (exchange) {
+      params.append('exchange', exchange);
+    }
+    if (brokerId) {
+      params.append('broker_id', brokerId);
+    }
+    endpoint += `?${params.toString()}`;
+    return apiRequest(endpoint);
+  },
+
+  /**
    * Get symbol by ticker
    */
   async getSymbol(ticker) {
