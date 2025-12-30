@@ -3,7 +3,7 @@
  * Displays symbol information, OHLCV data, and charts
  */
 
-import { useLoaderData, useNavigate, useParams, useRevalidator } from 'react-router-dom';
+import { useLoaderData, useNavigate, useParams, useRevalidator, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, RefreshCw, Trash2, Download, RotateCcw, TrendingUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import CandlestickChart from '../components/CandlestickChart';
@@ -16,7 +16,7 @@ import { updateSymbolOHLCV, refetchSymbolOHLCV, fetchOHLCVData, deleteSymbol } f
 import { getSymbolAssignments } from '../data/tools';
 
 export default function SymbolDetail() {
-  const { symbol, ohlcv, ohlcvCount, indicators: indicatorsMetadata, statistics } = useLoaderData();
+  const { symbol, ohlcv, ohlcvCount, indicators: indicatorsMetadata, statistics, range: initialRange } = useLoaderData();
   
   // Debug: Log statistics to see what we're receiving
   useEffect(() => {
@@ -29,6 +29,7 @@ export default function SymbolDetail() {
   const navigate = useNavigate();
   const { ticker } = useParams();
   const revalidator = useRevalidator();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [timeframe, setTimeframe] = useState('daily');
   const [isUpdating, setIsUpdating] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
@@ -317,6 +318,7 @@ export default function SymbolDetail() {
         }}
         onConfirm={handleDateModalConfirm}
         title={dateModalMode === 'fetch' ? 'Fetch OHLCV Data' : 'Refetch OHLCV Data'}
+        showProvider={dateModalMode === 'refetch'}
       />
 
       {/* Task Progress Overlay */}
@@ -356,6 +358,12 @@ export default function SymbolDetail() {
                 )}
                 <span>•</span>
                 <span>Type: {symbol.type}</span>
+                {symbol.provider && (
+                  <>
+                    <span>•</span>
+                    <span>Data Provider: {symbol.provider?.name || symbol.provider?.code || symbol.provider}</span>
+                  </>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -501,7 +509,18 @@ export default function SymbolDetail() {
 
         {/* Chart */}
         <div className="mb-6">
-          <CandlestickChart data={ohlcv} ticker={ticker} indicators={indicators} />
+          <CandlestickChart 
+            data={ohlcv} 
+            ticker={ticker} 
+            indicators={indicators}
+            onTimeframeChange={(newRange) => {
+              // When user clicks "All", refetch with all data
+              if (newRange === 'All') {
+                setSearchParams({ range: 'ALL' });
+                revalidator.revalidate();
+              }
+            }}
+          />
         </div>
 
         {/* Analytical Tools */}

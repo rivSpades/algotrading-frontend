@@ -47,7 +47,23 @@ const getAuthHeaders = () => {
 const handleResponse = async (response) => {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ message: response.statusText }));
-    throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
+    
+    // Handle Django REST Framework validation errors (format: {field: [error1, error2]})
+    if (typeof errorData === 'object' && errorData !== null && !errorData.error && !errorData.message) {
+      const validationErrors = [];
+      for (const [field, errors] of Object.entries(errorData)) {
+        if (Array.isArray(errors)) {
+          validationErrors.push(`${field}: ${errors.join(', ')}`);
+        } else if (typeof errors === 'string') {
+          validationErrors.push(errors);
+        }
+      }
+      if (validationErrors.length > 0) {
+        throw new Error(validationErrors.join('; '));
+      }
+    }
+    
+    throw new Error(errorData.error || errorData.message || errorData.detail || `HTTP error! status: ${response.status}`);
   }
   
   // Handle empty responses (e.g., 204 No Content for DELETE requests)

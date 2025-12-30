@@ -1,15 +1,20 @@
 /**
  * Date Range Modal Component
  * Allows user to select start and end dates for fetching OHLCV data
+ * Optionally allows provider selection for refetch operations
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { marketDataAPI } from '../data/api';
 
-export default function DateRangeModal({ isOpen, onClose, onConfirm, title = 'Select Date Range' }) {
+export default function DateRangeModal({ isOpen, onClose, onConfirm, title = 'Select Date Range', showProvider = false }) {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedProvider, setSelectedProvider] = useState('');
+  const [providers, setProviders] = useState([]);
+  const [loadingProviders, setLoadingProviders] = useState(false);
 
   // Set default dates (1 year ago to today)
   const today = new Date().toISOString().split('T')[0];
@@ -17,22 +22,68 @@ export default function DateRangeModal({ isOpen, onClose, onConfirm, title = 'Se
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
   const defaultStartDate = oneYearAgo.toISOString().split('T')[0];
 
+  const loadProviders = async () => {
+    setLoadingProviders(true);
+    try {
+      const response = await marketDataAPI.getProviders();
+      if (response.success && response.data) {
+        let providersData = [];
+        if (Array.isArray(response.data)) {
+          providersData = response.data;
+        } else if (response.data.results && Array.isArray(response.data.results)) {
+          providersData = response.data.results;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          providersData = response.data.data;
+        }
+        setProviders(providersData);
+        // Set default to first provider or YAHOO if available
+        if (providersData.length > 0) {
+          const yahooProvider = providersData.find(p => p.code === 'YAHOO');
+          if (yahooProvider) {
+            setSelectedProvider('YAHOO');
+          } else {
+            setSelectedProvider(providersData[0].code);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading providers:', error);
+    } finally {
+      setLoadingProviders(false);
+    }
+  };
+
+  // Load providers when modal opens and showProvider is true
+  useEffect(() => {
+    if (isOpen && showProvider) {
+      loadProviders();
+    }
+  }, [isOpen, showProvider]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleConfirm = () => {
+    const params = {};
+    
     if (!startDate && !endDate) {
       // If no dates selected, use period instead
-      onConfirm({ period: '1y' });
+      params.period = '1y';
     } else {
-      onConfirm({
-        start_date: startDate || null,
-        end_date: endDate || null,
-      });
+      params.start_date = startDate || null;
+      params.end_date = endDate || null;
     }
+    
+    // Add provider if provider selection is shown
+    if (showProvider && selectedProvider) {
+      params.provider_code = selectedProvider;
+    }
+    
+    onConfirm(params);
     handleClose();
   };
 
   const handleClose = () => {
     setStartDate('');
     setEndDate('');
+    setSelectedProvider('');
     onClose();
   };
 
@@ -63,6 +114,35 @@ export default function DateRangeModal({ isOpen, onClose, onConfirm, title = 'Se
 
           {/* Content */}
           <div className="p-6 space-y-4">
+            {/* Provider Selection (only shown if showProvider is true) */}
+            {showProvider && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Data Provider
+                </label>
+                {loadingProviders ? (
+                  <div className="text-center py-2 text-gray-500 text-sm">Loading providers...</div>
+                ) : providers.length === 0 ? (
+                  <div className="text-center py-2 text-gray-500 text-sm">No providers available</div>
+                ) : (
+                  <select
+                    value={selectedProvider}
+                    onChange={(e) => setSelectedProvider(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    {providers.map((provider) => (
+                      <option key={provider.code} value={provider.code}>
+                        {provider.name} {provider.code === 'POLYGON' && '(Bulk/Fast)'}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  This will overwrite the existing provider and refetch all data
+                </p>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Start Date (optional)
@@ -118,6 +198,12 @@ export default function DateRangeModal({ isOpen, onClose, onConfirm, title = 'Se
     </AnimatePresence>
   );
 }
+
+
+
+
+
+
 
 
 

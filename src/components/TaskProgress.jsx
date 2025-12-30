@@ -27,16 +27,22 @@ export default function TaskProgress({ taskId, onComplete, onClose }) {
       setMessage(data.message);
     }
 
-    if (data.status === 'completed' || data.status === 'failed') {
+    // Check for completed/finished statuses
+    const isCompleted = data.status === 'completed' || data.status === 'success';
+    const isFailed = data.status === 'failed' || data.status === 'error';
+    
+    if (isCompleted || isFailed) {
       // Stop polling if task is done
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
       
-      if (data.status === 'completed' && onComplete) {
+      if (isCompleted && onComplete) {
+        // Use result data if available, otherwise use the data object
+        const resultData = data.result || data;
         setTimeout(() => {
-          onComplete(data);
+          onComplete(resultData);
         }, 1000);
       }
     }
@@ -110,6 +116,7 @@ export default function TaskProgress({ taskId, onComplete, onClose }) {
   const getStatusIcon = () => {
     switch (status) {
       case 'completed':
+      case 'success':
         return <CheckCircle className="w-5 h-5 text-green-500" />;
       case 'failed':
       case 'error':
@@ -122,6 +129,7 @@ export default function TaskProgress({ taskId, onComplete, onClose }) {
   const getStatusColor = () => {
     switch (status) {
       case 'completed':
+      case 'success':
         return 'bg-green-500';
       case 'failed':
       case 'error':
@@ -169,19 +177,19 @@ export default function TaskProgress({ taskId, onComplete, onClose }) {
           </div>
         </div>
 
-        {!isConnected && status !== 'completed' && status !== 'failed' && (
+        {!isConnected && status !== 'completed' && status !== 'success' && status !== 'failed' && (
           <div className="text-xs text-amber-600 mt-2">
             {connectionError ? 'Using polling fallback' : 'Connecting...'}
           </div>
         )}
 
-        {status === 'completed' && (
+        {(status === 'completed' || status === 'success') && (
           <div className="text-sm text-green-600 mt-2 font-medium">
             Task completed successfully!
           </div>
         )}
 
-        {status === 'failed' && (
+        {(status === 'failed' || status === 'error') && (
           <div className="text-sm text-red-600 mt-2 font-medium">
             Task failed. Please try again.
           </div>

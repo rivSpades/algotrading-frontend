@@ -12,19 +12,19 @@ const TIMEFRAME_OPTIONS = [
   { label: '1W', days: 7 },
   { label: '6M', days: 180 },
   { label: '1Y', days: 365 },
+  { label: '5Y', days: 1825 },
   { label: 'All', days: null },
 ];
 
-export default function CandlestickChart({ data = [], ticker, indicators = [], signals = [] }) {
-  const [selectedTimeframe, setSelectedTimeframe] = useState('All');
-  const [chartData, setChartData] = useState(data);
+export default function CandlestickChart({ data = [], ticker, indicators = [], signals = [], onTimeframeChange }) {
+  const [selectedTimeframe, setSelectedTimeframe] = useState('5Y');
   // Use a stable key that only changes with ticker to prevent unnecessary remounts
   const chartKey = useMemo(() => `${ticker || 'default'}`, [ticker]);
 
-  // Filter data based on selected timeframe
-  useEffect(() => {
-    let filtered = data;
-
+  // Filter data based on selected timeframe - use useMemo for performance
+  const chartData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    
     // Filter by timeframe if not 'All'
     const timeframe = TIMEFRAME_OPTIONS.find(tf => tf.label === selectedTimeframe);
     if (timeframe && timeframe.days) {
@@ -32,13 +32,13 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - timeframe.days);
       
-      filtered = filtered.filter(item => {
+      return data.filter(item => {
         const itemDate = new Date(item.timestamp);
         return itemDate >= startDate && itemDate <= endDate;
       });
     }
-
-    setChartData(filtered);
+    
+    return data;
   }, [selectedTimeframe, data]);
 
   // Process data for ApexCharts candlestick format
@@ -695,7 +695,13 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
             {TIMEFRAME_OPTIONS.map((tf) => (
               <button
                 key={tf.label}
-                onClick={() => setSelectedTimeframe(tf.label)}
+                onClick={() => {
+                  setSelectedTimeframe(tf.label);
+                  // Notify parent if timeframe changed to "All" to trigger data refetch
+                  if (tf.label === 'All' && onTimeframeChange) {
+                    onTimeframeChange('All');
+                  }
+                }}
                 className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
                   selectedTimeframe === tf.label
                     ? 'bg-primary-600 text-white'

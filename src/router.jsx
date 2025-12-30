@@ -5,6 +5,7 @@
 
 import { createBrowserRouter } from 'react-router-dom';
 import Layout from './components/Layout';
+import Dashboard from './pages/Dashboard';
 import Home from './pages/Home';
 import SymbolDetail from './pages/SymbolDetail';
 import Tasks from './pages/Tasks';
@@ -17,12 +18,19 @@ import StrategyBacktestDetail from './pages/StrategyBacktestDetail';
 import StrategyBacktestSymbolDetail from './pages/StrategyBacktestSymbolDetail';
 import Backtests from './pages/Backtests';
 import BacktestDetail from './pages/BacktestDetail';
+import Brokers from './pages/Brokers';
+import BrokerForm from './pages/BrokerForm';
+import BrokerDetail from './pages/BrokerDetail';
+import BrokerSymbols from './pages/BrokerSymbols';
+import LiveTradingDeployments from './pages/LiveTradingDeployments';
+import DeploymentForm from './pages/DeploymentForm';
+import DeploymentDetail from './pages/DeploymentDetail';
 import ErrorPage from './pages/ErrorPage';
 import { getSymbols } from './data/symbols';
 import { getSymbolDetails, getSymbolOHLCV } from './data/symbols';
 
 /**
- * Home page loader
+ * Market Data (Home) page loader
  */
 Home.loader = async ({ request }) => {
   const url = new URL(request.url);
@@ -45,22 +53,37 @@ Home.loader = async ({ request }) => {
 
 /**
  * Symbol detail page loader
- * Loads all OHLCV data (no pagination limit for chart)
+ * Loads OHLCV data with optional date range (default: last 5 years for performance)
  */
-SymbolDetail.loader = async ({ params }) => {
+SymbolDetail.loader = async ({ params, request }) => {
   const { ticker } = params;
-  // Load enough data for chart (1000 records) - includes indicators computed on-the-fly
-  // Table will use this for first page, reducing API calls
+  const url = new URL(request.url);
+  const range = url.searchParams.get('range') || '5Y'; // Default to 5Y for performance
+  
+  // Calculate start date based on range
+  let startDate = null;
+  let pageSize = 10000; // Default page size
+  
+  if (range === '5Y') {
+    const fiveYearsAgo = new Date();
+    fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+    startDate = fiveYearsAgo.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+    // For 5Y, we can use a smaller page size since we know it's limited
+    pageSize = 2000; // 5 years ≈ 1250 trading days, 2000 is safe
+  }
+  // If range is 'ALL', startDate remains null to fetch all data (up to 10000 records)
+  
   const [symbol, ohlcv] = await Promise.all([
     getSymbolDetails(ticker),
-    getSymbolOHLCV(ticker, 'daily', null, null, 1, 1000),
+    getSymbolOHLCV(ticker, 'daily', startDate, null, 1, pageSize),
   ]);
   return { 
     symbol, 
     ohlcv: ohlcv.results || [], 
     ohlcvCount: ohlcv.count || 0,
     indicators: ohlcv.indicators || {}, // Indicator metadata from API
-    statistics: ohlcv.statistics || {} // Statistics (volatility, etc.)
+    statistics: ohlcv.statistics || {}, // Statistics (volatility, etc.)
+    range // Pass range to component
   };
 };
 
@@ -72,6 +95,10 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
+        element: <Dashboard />,
+      },
+      {
+        path: 'market-data',
         element: <Home />,
         loader: Home.loader,
       },
@@ -115,6 +142,42 @@ const router = createBrowserRouter([
       {
         path: 'backtests/:id',
         element: <BacktestDetail />,
+      },
+      {
+        path: 'brokers',
+        element: <Brokers />,
+      },
+      {
+        path: 'brokers/new',
+        element: <BrokerForm />,
+      },
+      {
+        path: 'brokers/:id/edit',
+        element: <BrokerForm />,
+      },
+      {
+        path: 'brokers/:id/symbols',
+        element: <BrokerSymbols />,
+      },
+      {
+        path: 'brokers/:id',
+        element: <BrokerDetail />,
+      },
+      {
+        path: 'deployments',
+        element: <LiveTradingDeployments />,
+      },
+      {
+        path: 'deployments/new',
+        element: <DeploymentForm />,
+      },
+      {
+        path: 'deployments/new/:backtestId',
+        element: <DeploymentForm />,
+      },
+      {
+        path: 'deployments/:id',
+        element: <DeploymentDetail />,
       },
     ],
   },

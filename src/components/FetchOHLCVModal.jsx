@@ -7,11 +7,13 @@ import { useState, useEffect } from 'react';
 import { X, Download, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { marketDataAPI } from '../data/api';
+import { liveTradingAPI } from '../data/liveTrading';
 
 const FETCH_MODES = {
   SINGLE: 'single',
   MULTIPLE: 'multiple',
   EXCHANGE: 'exchange',
+  BROKER: 'broker',
 };
 
 export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
@@ -24,10 +26,19 @@ export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
   const [endDate, setEndDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBroker, setSelectedBroker] = useState('');
+  const [brokers, setBrokers] = useState([]);
+  const [loadingBrokers, setLoadingBrokers] = useState(false);
+  const [brokerSearchTerm, setBrokerSearchTerm] = useState('');
+  const [selectedProvider, setSelectedProvider] = useState('YAHOO');
+  const [providers, setProviders] = useState([]);
+  const [loadingProviders, setLoadingProviders] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       loadExchanges();
+      loadBrokers();
+      loadProviders();
     }
   }, [isOpen]);
 
@@ -53,9 +64,62 @@ export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
     }
   };
 
+  const loadBrokers = async () => {
+    setLoadingBrokers(true);
+    try {
+      const response = await liveTradingAPI.brokers.getBrokers();
+      if (response.success && response.data) {
+        let brokersData = [];
+        if (Array.isArray(response.data)) {
+          brokersData = response.data;
+        } else if (response.data.results && Array.isArray(response.data.results)) {
+          brokersData = response.data.results;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          brokersData = response.data.data;
+        }
+        setBrokers(brokersData);
+      }
+    } catch (error) {
+      console.error('Error loading brokers:', error);
+    } finally {
+      setLoadingBrokers(false);
+    }
+  };
+
+  const loadProviders = async () => {
+    setLoadingProviders(true);
+    try {
+      const response = await marketDataAPI.getProviders();
+      if (response.success && response.data) {
+        let providersData = [];
+        if (Array.isArray(response.data)) {
+          providersData = response.data;
+        } else if (response.data.results && Array.isArray(response.data.results)) {
+          providersData = response.data.results;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          providersData = response.data.data;
+        }
+        setProviders(providersData);
+        // Set default to first provider or YAHOO if available
+        if (providersData.length > 0) {
+          const yahooProvider = providersData.find(p => p.code === 'YAHOO');
+          if (yahooProvider) {
+            setSelectedProvider('YAHOO');
+          } else {
+            setSelectedProvider(providersData[0].code);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading providers:', error);
+    } finally {
+      setLoadingProviders(false);
+    }
+  };
+
   const handleFetch = async () => {
     let fetchData = {
-      provider_code: 'YAHOO',
+      provider_code: selectedProvider || 'YAHOO',
       start_date: startDate || null,
       end_date: endDate || null,
     };
@@ -82,6 +146,12 @@ export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
         return;
       }
       fetchData.exchange_code = selectedExchange;
+    } else if (fetchMode === FETCH_MODES.BROKER) {
+      if (!selectedBroker) {
+        alert('Please select a broker');
+        return;
+      }
+      fetchData.broker_id = parseInt(selectedBroker);
     }
 
     onFetch(fetchData);
@@ -92,6 +162,8 @@ export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
     setSelectedExchange('');
     setStartDate('');
     setEndDate('');
+    setSelectedBroker('');
+    setBrokerSearchTerm('');
   };
 
   const filteredExchanges = exchanges.filter(exchange => {
@@ -126,12 +198,41 @@ export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {/* Provider Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Data Provider
+              </label>
+              {loadingProviders ? (
+                <div className="text-center py-2 text-gray-500">Loading providers...</div>
+              ) : providers.length === 0 ? (
+                <div className="text-center py-2 text-gray-500">No providers available</div>
+              ) : (
+                <select
+                  value={selectedProvider}
+                  onChange={(e) => setSelectedProvider(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  {providers.map((provider) => (
+                    <option key={provider.code} value={provider.code}>
+                      {provider.name} {provider.code === 'POLYGON' && '(Bulk/Fast)'}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {selectedProvider === 'POLYGON' && (
+                <p className="mt-2 text-sm text-blue-600">
+                  💡 Polygon uses bulk flat files for faster data fetching, especially for multiple symbols
+                </p>
+              )}
+            </div>
+
             {/* Fetch Mode Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">
                 Fetch Mode
               </label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setFetchMode(FETCH_MODES.SINGLE)}
                   className={`px-4 py-3 rounded-lg border-2 transition-colors ${
@@ -161,6 +262,16 @@ export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
                   }`}
                 >
                   By Exchange
+                </button>
+                <button
+                  onClick={() => setFetchMode(FETCH_MODES.BROKER)}
+                  className={`px-4 py-3 rounded-lg border-2 transition-colors ${
+                    fetchMode === FETCH_MODES.BROKER
+                      ? 'border-primary-500 bg-primary-50 text-primary-700'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  By Broker
                 </button>
               </div>
             </div>
@@ -257,6 +368,62 @@ export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
                         </label>
                       );
                     })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Broker Selection */}
+            {fetchMode === FETCH_MODES.BROKER && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Broker
+                </label>
+                <div className="mb-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="text"
+                      value={brokerSearchTerm}
+                      onChange={(e) => setBrokerSearchTerm(e.target.value)}
+                      placeholder="Search brokers..."
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                {loadingBrokers ? (
+                  <div className="text-center py-4 text-gray-500">Loading brokers...</div>
+                ) : (
+                  <div className="max-h-64 overflow-y-auto space-y-2">
+                    {brokers
+                      .filter(broker => {
+                        const searchLower = brokerSearchTerm.toLowerCase();
+                        return broker.name.toLowerCase().includes(searchLower) ||
+                               broker.code.toLowerCase().includes(searchLower);
+                      })
+                      .map((broker) => (
+                        <label
+                          key={broker.id}
+                          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                            selectedBroker === broker.id.toString()
+                              ? 'bg-primary-50 border-2 border-primary-500'
+                              : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="broker"
+                            value={broker.id}
+                            checked={selectedBroker === broker.id.toString()}
+                            onChange={(e) => setSelectedBroker(e.target.value)}
+                            className="w-4 h-4 text-primary-600 focus:ring-primary-500"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{broker.name}</div>
+                            <div className="text-sm text-gray-500">Code: {broker.code}</div>
+                          </div>
+                        </label>
+                      ))}
                   </div>
                 )}
               </div>

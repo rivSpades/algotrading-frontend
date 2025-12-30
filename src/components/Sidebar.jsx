@@ -4,13 +4,19 @@
  */
 
 import { NavLink } from 'react-router-dom';
-import { BarChart3, Calendar, Play, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, BarChart3, Calendar, Play, TrendingUp, Key, Rocket } from 'lucide-react';
 
 export default function Sidebar() {
   const navItems = [
     {
-      name: 'Market Data',
+      name: 'Dashboard',
       path: '/',
+      icon: LayoutDashboard,
+      description: 'Trading overview'
+    },
+    {
+      name: 'Market Data',
+      path: '/market-data',
       icon: BarChart3,
       description: 'Symbols and market data'
     },
@@ -31,6 +37,18 @@ export default function Sidebar() {
       path: '/strategies',
       icon: TrendingUp,
       description: 'Trading strategies'
+    },
+    {
+      name: 'Brokers',
+      path: '/brokers',
+      icon: Key,
+      description: 'Broker management'
+    },
+    {
+      name: 'Deployments',
+      path: '/deployments',
+      icon: Rocket,
+      description: 'Live trading'
     },
   ];
 

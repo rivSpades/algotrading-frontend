@@ -12,6 +12,7 @@ const DELETE_MODES = {
   SINGLE: 'single',
   MULTIPLE: 'multiple',
   EXCHANGE: 'exchange',
+  ALL: 'all',
 };
 
 export default function DeleteOHLCVModal({ isOpen, onClose, onDelete }) {
@@ -54,7 +55,9 @@ export default function DeleteOHLCVModal({ isOpen, onClose, onDelete }) {
   const handleDelete = async () => {
     let deleteData = {};
 
-    if (deleteMode === DELETE_MODES.SINGLE) {
+    if (deleteMode === DELETE_MODES.ALL) {
+      deleteData.delete_all = true;
+    } else if (deleteMode === DELETE_MODES.SINGLE) {
       if (!singleTicker.trim()) {
         alert('Please enter a ticker symbol');
         return;
@@ -78,15 +81,28 @@ export default function DeleteOHLCVModal({ isOpen, onClose, onDelete }) {
       deleteData.exchange_code = selectedExchange;
     }
 
-    // Confirm deletion
-    const confirmMessage = deleteMode === DELETE_MODES.SINGLE
-      ? `Are you sure you want to delete all OHLCV data for ${deleteData.ticker}?`
-      : deleteMode === DELETE_MODES.MULTIPLE
-      ? `Are you sure you want to delete OHLCV data for ${deleteData.tickers.length} symbol(s)?`
-      : `Are you sure you want to delete OHLCV data for all symbols in exchange ${selectedExchange}?`;
+    // Confirm deletion with special warning for delete all
+    let confirmMessage;
+    if (deleteMode === DELETE_MODES.ALL) {
+      confirmMessage = '⚠️ WARNING: Are you absolutely sure you want to delete ALL OHLCV data for ALL symbols?\n\nThis will permanently delete:\n- All OHLCV data for all symbols\n- Disable all symbols\n\nThis action CANNOT be undone!';
+      
+      // Double confirmation for delete all
+      if (!window.confirm(confirmMessage)) {
+        return;
+      }
+      if (!window.confirm('This is your LAST chance. Are you REALLY sure you want to delete ALL OHLCV data?')) {
+        return;
+      }
+    } else {
+      confirmMessage = deleteMode === DELETE_MODES.SINGLE
+        ? `Are you sure you want to delete all OHLCV data for ${deleteData.ticker}?`
+        : deleteMode === DELETE_MODES.MULTIPLE
+        ? `Are you sure you want to delete OHLCV data for ${deleteData.tickers.length} symbol(s)?`
+        : `Are you sure you want to delete OHLCV data for all symbols in exchange ${selectedExchange}?`;
 
-    if (!window.confirm(confirmMessage + '\n\nThis action cannot be undone!')) {
-      return;
+      if (!window.confirm(confirmMessage + '\n\nThis action cannot be undone!')) {
+        return;
+      }
     }
 
     onDelete(deleteData);
@@ -140,7 +156,7 @@ export default function DeleteOHLCVModal({ isOpen, onClose, onDelete }) {
               <label className="block text-sm font-medium text-gray-700 mb-3">
                 Delete Mode
               </label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setDeleteMode(DELETE_MODES.SINGLE)}
                   className={`px-4 py-3 rounded-lg border-2 transition-colors ${
@@ -170,6 +186,16 @@ export default function DeleteOHLCVModal({ isOpen, onClose, onDelete }) {
                   }`}
                 >
                   By Exchange
+                </button>
+                <button
+                  onClick={() => setDeleteMode(DELETE_MODES.ALL)}
+                  className={`px-4 py-3 rounded-lg border-2 transition-colors ${
+                    deleteMode === DELETE_MODES.ALL
+                      ? 'border-red-600 bg-red-100 text-red-800 font-semibold'
+                      : 'border-red-300 hover:border-red-400 bg-red-50'
+                  }`}
+                >
+                  Delete All
                 </button>
               </div>
             </div>
@@ -205,6 +231,22 @@ export default function DeleteOHLCVModal({ isOpen, onClose, onDelete }) {
                 />
                 <p className="mt-2 text-sm text-gray-500">
                   Enter ticker symbols separated by commas
+                </p>
+              </div>
+            )}
+
+            {/* Delete All Warning */}
+            {deleteMode === DELETE_MODES.ALL && (
+              <div className="bg-red-100 border-2 border-red-400 rounded-lg p-4">
+                <p className="text-red-900 font-semibold mb-2">
+                  ⚠️ CRITICAL WARNING
+                </p>
+                <p className="text-sm text-red-800">
+                  This will delete <strong>ALL OHLCV data</strong> for <strong>ALL symbols</strong> in the database.
+                  This action will also disable all symbols.
+                </p>
+                <p className="text-sm text-red-800 mt-2 font-medium">
+                  This action cannot be undone!
                 </p>
               </div>
             )}
@@ -292,6 +334,12 @@ export default function DeleteOHLCVModal({ isOpen, onClose, onDelete }) {
     </AnimatePresence>
   );
 }
+
+
+
+
+
+
 
 
 
