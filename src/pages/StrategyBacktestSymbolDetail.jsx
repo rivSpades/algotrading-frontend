@@ -34,6 +34,25 @@ export default function StrategyBacktestSymbolDetail() {
     loadData();
   }, [id, backtestId, ticker]); // Only reload when backtest/symbol changes, not on page change
 
+  // Reload trades when mode changes to ensure correct independent_bet_amounts are injected
+  // Pass mode parameter so backend injects correct mode's independent_bet_amounts, but backend doesn't filter trades
+  useEffect(() => {
+    const reloadTradesForMode = async () => {
+      if (!backtestId || !ticker || !statistics) return; // Wait for statistics to be loaded first
+      try {
+        // Pass current mode so backend injects correct mode's independent_bet_amounts
+        // Backend returns ALL trades (not filtered by mode), but injects the correct mode's independent_bet_amounts
+        // Frontend filters by mode on client side
+        const symbolTrades = await getAllBacktestTrades(backtestId, ticker, positionModeTab);
+        setAllTrades(Array.isArray(symbolTrades) ? symbolTrades : []);
+        console.log(`Reloaded ${Array.isArray(symbolTrades) ? symbolTrades.length : 0} trades for symbol ${ticker} (mode: ${positionModeTab} for independent_bet_amounts)`);
+      } catch (tradeError) {
+        console.error('Error reloading trades for mode:', tradeError);
+      }
+    };
+    reloadTradesForMode();
+  }, [positionModeTab, backtestId, ticker, statistics]); // Reload when mode changes to inject correct independent_bet_amounts
+
   // Update current page when searchParams change (for client-side pagination)
   useEffect(() => {
     const page = parseInt(searchParams.get('page') || '1');
@@ -77,13 +96,14 @@ export default function StrategyBacktestSymbolDetail() {
       setStatistics(symbolStatsEntry || null);
 
       // Load all trades for this symbol FIRST (needed to filter OHLCV data)
+      // Pass current mode so backend injects correct independent_bet_amounts for this mode
       // Use symbol filter parameter to get only this symbol's trades from backend
       // This is more efficient than fetching all trades and filtering on frontend
       let symbolTrades = [];
       try {
-        symbolTrades = await getAllBacktestTrades(backtestId, ticker); // Get ALL trades for this symbol only
+        symbolTrades = await getAllBacktestTrades(backtestId, ticker, positionModeTab); // Pass current mode for correct independent_bet_amount injection
         setAllTrades(Array.isArray(symbolTrades) ? symbolTrades : []);
-        console.log(`Loaded ${Array.isArray(symbolTrades) ? symbolTrades.length : 0} trades for symbol ${ticker}`);
+        console.log(`Loaded ${Array.isArray(symbolTrades) ? symbolTrades.length : 0} trades for symbol ${ticker} (mode: ${positionModeTab})`);
       } catch (tradeError) {
         console.error('Error loading trades:', tradeError);
         setAllTrades([]);
@@ -924,12 +944,18 @@ export default function StrategyBacktestSymbolDetail() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {(() => {
-                          // Use bet_amount from metadata if available (actual amount invested from portfolio capital)
-                          // Otherwise fall back to entry_price * quantity for backward compatibility
+                          // For individual symbols, use independent_bet_amount from metadata (calculated by backend)
+                          // This ensures consistency with the independent equity curve
+                          const independentBetAmount = trade.metadata?.independent_bet_amount;
+                          if (independentBetAmount !== undefined && independentBetAmount !== null) {
+                            return formatCurrency(parseFloat(independentBetAmount));
+                          }
+                          // Fallback to portfolio bet_amount if independent not available
                           const betAmount = trade.metadata?.bet_amount;
                           if (betAmount !== undefined && betAmount !== null) {
                             return formatCurrency(parseFloat(betAmount));
                           }
+                          // Last fallback: entry_price * quantity
                           if (trade.entry_price && trade.quantity) {
                             return formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity));
                           }
@@ -968,9 +994,24 @@ export default function StrategyBacktestSymbolDetail() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {trade.entry_price && trade.quantity
-                            ? formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity))
-                            : 'N/A'}
+                          {(() => {
+                            // For individual symbols, use independent_bet_amount from metadata (calculated by backend)
+                            // This ensures consistency with the independent equity curve
+                            const independentBetAmount = trade.metadata?.independent_bet_amount;
+                            if (independentBetAmount !== undefined && independentBetAmount !== null) {
+                              return formatCurrency(parseFloat(independentBetAmount));
+                            }
+                            // Fallback to portfolio bet_amount if independent not available
+                            const betAmount = trade.metadata?.bet_amount;
+                            if (betAmount !== undefined && betAmount !== null) {
+                              return formatCurrency(parseFloat(betAmount));
+                            }
+                            // Last fallback: entry_price * quantity
+                            if (trade.entry_price && trade.quantity) {
+                              return formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity));
+                            }
+                            return 'N/A';
+                          })()}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
                         <td className="px-4 py-3 text-sm text-gray-900">

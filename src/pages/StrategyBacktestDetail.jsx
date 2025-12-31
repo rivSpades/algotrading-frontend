@@ -14,6 +14,7 @@ import { marketDataAPI } from '../data/api';
 import StatisticsCard from '../components/StatisticsCard';
 import Chart from 'react-apexcharts';
 import TaskProgress from '../components/TaskProgress';
+import TopPerformersChart from '../components/TopPerformersChart';
 import { motion } from 'framer-motion';
 
 export default function StrategyBacktestDetail() {
@@ -583,6 +584,15 @@ export default function StrategyBacktestDetail() {
         </div>
       )}
 
+      {/* Top/Worst Performers Chart - Only show when no symbol is selected (portfolio view) */}
+      {!selectedSymbol && statistics.symbols && statistics.symbols.length > 0 && (
+        <TopPerformersChart 
+          symbols={statistics.symbols} 
+          mode={selectedMode}
+          topCount={10}
+        />
+      )}
+
       {/* Equity Curve Chart */}
       {equityCurveForMode && Array.isArray(equityCurveForMode) && equityCurveForMode.length > 0 && (
         <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
@@ -912,9 +922,18 @@ export default function StrategyBacktestDetail() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {trade.entry_price && trade.quantity
-                            ? formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity))
-                            : 'N/A'}
+                          {(() => {
+                            // Use bet_amount from metadata if available (actual amount invested from portfolio capital)
+                            // Otherwise fall back to entry_price * quantity for backward compatibility
+                            const betAmount = trade.metadata?.bet_amount;
+                            if (betAmount !== undefined && betAmount !== null) {
+                              return formatCurrency(parseFloat(betAmount));
+                            }
+                            if (trade.entry_price && trade.quantity) {
+                              return formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity));
+                            }
+                            return 'N/A';
+                          })()}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
                         <td className="px-4 py-3 text-sm text-gray-900">

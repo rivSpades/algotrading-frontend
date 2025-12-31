@@ -70,11 +70,16 @@ export const backtestsAPI = {
    * Get all trades for a backtest (without pagination)
    * @param {number} backtestId - Backtest ID
    * @param {string} symbol - Optional: Filter by symbol ticker
+   * @param {string} mode - Optional: Filter by mode ('all', 'long', 'short')
    */
-  async getAllBacktestTrades(backtestId, symbol = null) {
+  async getAllBacktestTrades(backtestId, symbol = null, mode = null) {
     let url = `/backtests/${backtestId}/trades/?no_pagination=true`;
     if (symbol) {
       url += `&symbol=${encodeURIComponent(symbol)}`;
+    }
+    // Pass mode parameter to ensure correct independent_bet_amount injection for individual symbol views
+    if (mode) {
+      url += `&mode=${encodeURIComponent(mode)}`;
     }
     return apiRequest(url);
   },
@@ -203,10 +208,13 @@ export async function getBacktestTrades(backtestId, page = 1, pageSize = 20, sym
 
 /**
  * Get all trades for a backtest (without pagination)
+ * @param {number} backtestId - Backtest ID
+ * @param {string} symbol - Optional: Filter by symbol ticker
+ * @param {string} mode - Optional: Filter by mode ('all', 'long', 'short')
  */
-export async function getAllBacktestTrades(backtestId, symbol = null) {
+export async function getAllBacktestTrades(backtestId, symbol = null, mode = null) {
   try {
-    const response = await backtestsAPI.getAllBacktestTrades(backtestId, symbol);
+    const response = await backtestsAPI.getAllBacktestTrades(backtestId, symbol, mode);
     if (response.success && response.data) {
       // Return array of trades directly
       return Array.isArray(response.data) ? response.data : [];
