@@ -13,6 +13,7 @@ import { getSymbolOHLCV } from '../data/symbols';
 import StatisticsCard from '../components/StatisticsCard';
 import CandlestickChart from '../components/CandlestickChart';
 import Chart from 'react-apexcharts';
+import { buildChronologicalTradeTableRows } from '../utils/chronologicalTradeTableRows';
 
 export default function StrategyBacktestSymbolDetail() {
   const { id, backtestId, ticker } = useParams();
@@ -213,6 +214,11 @@ export default function StrategyBacktestSymbolDetail() {
     const endIndex = startIndex + itemsPerPage;
     return allFilteredTrades.slice(startIndex, endIndex);
   }, [allFilteredTrades, currentPage]);
+
+  const chronologicalSymbolTradeRows = useMemo(
+    () => buildChronologicalTradeTableRows(filteredTrades),
+    [filteredTrades]
+  );
 
   // Calculate pagination info for client-side pagination
   const totalFilteredCount = allFilteredTrades.length;
@@ -918,122 +924,90 @@ export default function StrategyBacktestSymbolDetail() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredTrades.flatMap((trade) => {
+                {chronologicalSymbolTradeRows.map(({ key, rowType, trade }) => {
                   const positionType = trade.trade_type === 'buy' ? 'Long' : 'Short';
                   const maxDrawdown = trade.max_drawdown;
-                  const rows = [];
+                  const investedCell = () => {
+                    const independentBetAmount = trade.metadata?.independent_bet_amount;
+                    if (independentBetAmount !== undefined && independentBetAmount !== null) {
+                      return formatCurrency(parseFloat(independentBetAmount));
+                    }
+                    const betAmount = trade.metadata?.bet_amount;
+                    if (betAmount !== undefined && betAmount !== null) {
+                      return formatCurrency(parseFloat(betAmount));
+                    }
+                    if (trade.entry_price && trade.quantity) {
+                      return formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity));
+                    }
+                    return 'N/A';
+                  };
 
-                  // Entry signal row
-                  rows.push(
-                    <tr
-                      key={`${trade.id}-entry`}
-                      className="hover:bg-gray-50"
-                    >
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
-                      </td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{ticker}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          positionType === 'Long'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {positionType}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        {(() => {
-                          // For individual symbols, use independent_bet_amount from metadata (calculated by backend)
-                          // This ensures consistency with the independent equity curve
-                          const independentBetAmount = trade.metadata?.independent_bet_amount;
-                          if (independentBetAmount !== undefined && independentBetAmount !== null) {
-                            return formatCurrency(parseFloat(independentBetAmount));
-                          }
-                          // Fallback to portfolio bet_amount if independent not available
-                          const betAmount = trade.metadata?.bet_amount;
-                          if (betAmount !== undefined && betAmount !== null) {
-                            return formatCurrency(parseFloat(betAmount));
-                          }
-                          // Last fallback: entry_price * quantity
-                          if (trade.entry_price && trade.quantity) {
-                            return formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity));
-                          }
-                          return 'N/A';
-                        })()}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">-</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">-</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">-</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">-</td>
-                    </tr>
-                  );
-
-                  // Exit signal row (only if exit exists)
-                  if (trade.exit_timestamp) {
-                    rows.push(
-                      <tr
-                        key={`${trade.id}-exit`}
-                        className={`hover:bg-gray-50 ${trade.is_winner ? 'bg-green-50' : 'bg-red-50'}`}
-                      >
+                  if (rowType === 'entry') {
+                    return (
+                      <tr key={key} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {new Date(trade.exit_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
                         </td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">{ticker}</td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                             positionType === 'Long'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-orange-100 text-orange-800'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-blue-100 text-blue-800'
                           }`}>
-                            Exit
+                            {positionType}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {(() => {
-                            // For individual symbols, use independent_bet_amount from metadata (calculated by backend)
-                            // This ensures consistency with the independent equity curve
-                            const independentBetAmount = trade.metadata?.independent_bet_amount;
-                            if (independentBetAmount !== undefined && independentBetAmount !== null) {
-                              return formatCurrency(parseFloat(independentBetAmount));
-                            }
-                            // Fallback to portfolio bet_amount if independent not available
-                            const betAmount = trade.metadata?.bet_amount;
-                            if (betAmount !== undefined && betAmount !== null) {
-                              return formatCurrency(parseFloat(betAmount));
-                            }
-                            // Last fallback: entry_price * quantity
-                            if (trade.entry_price && trade.quantity) {
-                              return formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity));
-                            }
-                            return 'N/A';
-                          })()}
-                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{investedCell()}</td>
                         <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {new Date(trade.exit_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                        </td>
-                        <td className={`px-4 py-3 text-sm font-medium ${trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(trade.pnl)}
-                        </td>
-                        <td className={`px-4 py-3 text-sm font-medium ${trade.pnl_percentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatPercentage(trade.pnl_percentage)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {maxDrawdown !== null ? formatPercentage(maxDrawdown) : 'N/A'}
-                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">-</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">-</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">-</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">-</td>
                       </tr>
                     );
                   }
 
-                  return rows;
+                  return (
+                    <tr
+                      key={key}
+                      className={`hover:bg-gray-50 ${trade.is_winner ? 'bg-green-50' : 'bg-red-50'}`}
+                    >
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {new Date(trade.exit_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{ticker}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          positionType === 'Long'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-orange-100 text-orange-800'
+                        }`}>
+                          Exit
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{investedCell()}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {new Date(trade.exit_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </td>
+                      <td className={`px-4 py-3 text-sm font-medium ${trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(trade.pnl)}
+                      </td>
+                      <td className={`px-4 py-3 text-sm font-medium ${trade.pnl_percentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatPercentage(trade.pnl_percentage)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {maxDrawdown !== null ? formatPercentage(maxDrawdown) : 'N/A'}
+                      </td>
+                    </tr>
+                  );
                 })}
               </tbody>
             </table>
