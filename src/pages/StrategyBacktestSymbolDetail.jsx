@@ -9,6 +9,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, TrendingUp, TrendingDown, BarChart3, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getStrategy } from '../data/strategies';
 import { getBacktest, getBacktestStatisticsOptimized, getAllBacktestTrades } from '../data/backtests';
+import { exportTradesToCsvFile } from '../utils/tradeHistoryExport';
+import { downloadJson } from '../utils/exportCsv';
+import ExportTableToolbar from '../components/ExportTableToolbar';
 import { getSymbolOHLCV } from '../data/symbols';
 import StatisticsCard from '../components/StatisticsCard';
 import CandlestickChart from '../components/CandlestickChart';
@@ -28,6 +31,7 @@ export default function StrategyBacktestSymbolDetail() {
   const [loading, setLoading] = useState(true);
   const [positionModeTab, setPositionModeTab] = useState('all'); // 'all', 'long', 'short'
   const [currentPage, setCurrentPage] = useState(1);
+  const [exportingSymbolTrades, setExportingSymbolTrades] = useState(false);
 
   useEffect(() => {
     const page = parseInt(searchParams.get('page') || '1');
@@ -219,6 +223,39 @@ export default function StrategyBacktestSymbolDetail() {
     () => buildChronologicalTradeTableRows(filteredTrades),
     [filteredTrades]
   );
+
+  const handleExportSymbolTradesCsv = async () => {
+    setExportingSymbolTrades(true);
+    try {
+      const all = await getAllBacktestTrades(parseInt(backtestId, 10), ticker, positionModeTab);
+      exportTradesToCsvFile(all, `backtest-${backtestId}-${ticker}-${positionModeTab}-trades.csv`);
+    } catch (e) {
+      console.error(e);
+      alert(`Export failed: ${e.message || 'Unknown error'}`);
+    } finally {
+      setExportingSymbolTrades(false);
+    }
+  };
+
+  const handleExportSymbolTradesJson = async () => {
+    setExportingSymbolTrades(true);
+    try {
+      const all = await getAllBacktestTrades(parseInt(backtestId, 10), ticker, positionModeTab);
+      downloadJson(`backtest-${backtestId}-${ticker}-${positionModeTab}-trades.json`, {
+        exportedAt: new Date().toISOString(),
+        backtestId: parseInt(backtestId, 10),
+        strategyId: parseInt(id, 10),
+        ticker,
+        positionMode: positionModeTab,
+        trades: all,
+      });
+    } catch (e) {
+      console.error(e);
+      alert(`Export failed: ${e.message || 'Unknown error'}`);
+    } finally {
+      setExportingSymbolTrades(false);
+    }
+  };
 
   // Calculate pagination info for client-side pagination
   const totalFilteredCount = allFilteredTrades.length;
@@ -696,7 +733,7 @@ export default function StrategyBacktestSymbolDetail() {
               title="Max Drawdown"
               value={currentStats.max_drawdown !== null && currentStats.max_drawdown !== undefined ? formatPercentage(currentStats.max_drawdown) : 'N/A'}
               unit=""
-              description="Average maximum drawdown"
+              description="Maximum peak-to-trough decline"
               icon={TrendingDown}
             />
           </div>
@@ -861,9 +898,19 @@ export default function StrategyBacktestSymbolDetail() {
       </div>
 
       {/* Trading History Datatable */}
-      {filteredTrades.length > 0 && (
+      {totalFilteredCount > 0 && (
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Trading History ({positionModeTab.toUpperCase()})</h2>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900">Trading History ({positionModeTab.toUpperCase()})</h2>
+            <ExportTableToolbar
+              onExportCsv={handleExportSymbolTradesCsv}
+              onExportJson={handleExportSymbolTradesJson}
+              csvLabel="Export all trades (CSV)"
+              jsonLabel="Export all trades (JSON)"
+              disabled={backtest?.status === 'running'}
+              loading={exportingSymbolTrades}
+            />
+          </div>
 
           {totalFilteredCount > 0 && (
             <div className="mb-4 flex items-center justify-between">

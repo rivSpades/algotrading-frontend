@@ -14,6 +14,8 @@ import ToolAssignmentManager from '../components/ToolAssignmentManager';
 import StatisticsCard from '../components/StatisticsCard';
 import { updateSymbolOHLCV, refetchSymbolOHLCV, fetchOHLCVData, deleteSymbol } from '../data/symbols';
 import { getSymbolAssignments } from '../data/tools';
+import { exportOhlcvBarsToCsv, downloadJson } from '../utils/exportCsv';
+import ExportTableToolbar from '../components/ExportTableToolbar';
 
 export default function SymbolDetail() {
   const { symbol, ohlcv, ohlcvCount, indicators: indicatorsMetadata, statistics, range: initialRange } = useLoaderData();
@@ -307,6 +309,25 @@ export default function SymbolDetail() {
   const statusColor = symbol.status === 'active' ? 'green' : 'gray';
   const statusBg = symbol.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
 
+  const rangeLabel = searchParams.get('range') || initialRange || '5Y';
+
+  const handleExportOhlcvCsv = () => {
+    if (!ohlcv?.length) return;
+    exportOhlcvBarsToCsv(ohlcv, `${ticker}_ohlcv_${timeframe}_${rangeLabel}.csv`);
+  };
+
+  const handleExportOhlcvJson = () => {
+    if (!ohlcv?.length) return;
+    downloadJson(`${ticker}_ohlcv_${timeframe}_${rangeLabel}.json`, {
+      exportedAt: new Date().toISOString(),
+      ticker,
+      timeframe,
+      range: rangeLabel,
+      barCount: ohlcv.length,
+      bars: ohlcv,
+    });
+  };
+
   return (
     <>
       {/* Date Range Modal */}
@@ -530,7 +551,16 @@ export default function SymbolDetail() {
 
         {/* Data Table */}
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">OHLCV Data</h2>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900">OHLCV Data</h2>
+            <ExportTableToolbar
+              onExportCsv={handleExportOhlcvCsv}
+              onExportJson={handleExportOhlcvJson}
+              csvLabel="Export OHLCV (CSV)"
+              jsonLabel="Export OHLCV (JSON)"
+              disabled={!ohlcv?.length}
+            />
+          </div>
           <DataTable initialData={ohlcv} ticker={ticker} totalCount={ohlcvCount} />
         </div>
       </div>

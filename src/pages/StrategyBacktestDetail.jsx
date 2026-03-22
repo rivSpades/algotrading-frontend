@@ -9,7 +9,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowLeft, TrendingUp, TrendingDown, BarChart3, List, Loader, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import SymbolCard from '../components/SymbolCard';
 import { getStrategy } from '../data/strategies';
-import { getBacktest, getBacktestStatisticsOptimized, getBacktestTrades, getBacktestSymbols } from '../data/backtests';
+import { getBacktest, getBacktestStatisticsOptimized, getBacktestTrades, getBacktestSymbols, getAllBacktestTrades } from '../data/backtests';
 import { marketDataAPI } from '../data/api';
 import StatisticsCard from '../components/StatisticsCard';
 import Chart from 'react-apexcharts';
@@ -17,6 +17,9 @@ import TaskProgress from '../components/TaskProgress';
 import TopPerformersChart from '../components/TopPerformersChart';
 import { motion } from 'framer-motion';
 import { buildChronologicalTradeTableRows } from '../utils/chronologicalTradeTableRows';
+import { exportTradesToCsvFile } from '../utils/tradeHistoryExport';
+import { downloadJson } from '../utils/exportCsv';
+import ExportTableToolbar from '../components/ExportTableToolbar';
 
 export default function StrategyBacktestDetail() {
   const { id, backtestId } = useParams();
@@ -39,6 +42,7 @@ export default function StrategyBacktestDetail() {
   const [symbolsLoading, setSymbolsLoading] = useState(false);
   const pollingIntervalRef = useRef(null);
   const searchTimeoutRef = useRef(null);
+  const [exportingTrades, setExportingTrades] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -290,6 +294,48 @@ export default function StrategyBacktestDetail() {
     setSymbolSearch(value);
     setSymbolsPage(1); // Reset to page 1 when searching
     // Search will trigger via useEffect when symbolSearch changes (with debounce)
+  };
+
+  const handleExportPortfolioTradesCsv = async () => {
+    setExportingTrades(true);
+    try {
+      const all = await getAllBacktestTrades(
+        parseInt(backtestId, 10),
+        selectedSymbol || null,
+        selectedMode
+      );
+      const slug = `${selectedSymbol || 'portfolio'}-${selectedMode}`;
+      exportTradesToCsvFile(all, `backtest-${backtestId}-${slug}-trades.csv`);
+    } catch (e) {
+      console.error(e);
+      alert(`Export failed: ${e.message || 'Unknown error'}`);
+    } finally {
+      setExportingTrades(false);
+    }
+  };
+
+  const handleExportPortfolioTradesJson = async () => {
+    setExportingTrades(true);
+    try {
+      const all = await getAllBacktestTrades(
+        parseInt(backtestId, 10),
+        selectedSymbol || null,
+        selectedMode
+      );
+      downloadJson(`backtest-${backtestId}-${selectedSymbol || 'portfolio'}-${selectedMode}-trades.json`, {
+        exportedAt: new Date().toISOString(),
+        backtestId: parseInt(backtestId, 10),
+        strategyId: parseInt(id, 10),
+        symbol: selectedSymbol || null,
+        positionMode: selectedMode,
+        trades: all,
+      });
+    } catch (e) {
+      console.error(e);
+      alert(`Export failed: ${e.message || 'Unknown error'}`);
+    } finally {
+      setExportingTrades(false);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -809,9 +855,19 @@ export default function StrategyBacktestDetail() {
 
       {/* Trades Table with Pagination */}
       <div className="bg-white rounded-lg shadow-lg p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">
-          Trading History {selectedSymbol ? `- ${selectedSymbol}` : '(All Symbols)'} ({selectedMode.toUpperCase()})
-        </h2>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-900">
+            Trading History {selectedSymbol ? `- ${selectedSymbol}` : '(All Symbols)'} ({selectedMode.toUpperCase()})
+          </h2>
+          <ExportTableToolbar
+            onExportCsv={handleExportPortfolioTradesCsv}
+            onExportJson={handleExportPortfolioTradesJson}
+            csvLabel="Export all trades (CSV)"
+            jsonLabel="Export all trades (JSON)"
+            disabled={totalTradesCount === 0 || backtest?.status === 'running'}
+            loading={exportingTrades}
+          />
+        </div>
 
         {tradesLoading ? (
           <div className="text-center py-12">

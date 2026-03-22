@@ -455,7 +455,7 @@ export default function StrategyBacktestSymbols() {
                   title="Max Drawdown"
                   value={currentStats.max_drawdown !== null && currentStats.max_drawdown !== undefined ? formatPercentage(currentStats.max_drawdown) : 'N/A'}
                   unit=""
-                  description="Average maximum drawdown"
+                  description="Maximum peak-to-trough decline"
                   icon={TrendingDown}
                 />
               </div>
