@@ -24,12 +24,12 @@ export default function StrategyBacktestSymbolDetail() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [strategy, setStrategy] = useState(null);
   const [backtest, setBacktest] = useState(null);
-  const [statistics, setStatistics] = useState(null); // Backend stats for 'all' mode only
+  const [statistics, setStatistics] = useState(null);
   const [allTrades, setAllTrades] = useState([]); // All trades for this symbol (loaded once, used for both signals and table)
   const [allOhlcvData, setAllOhlcvData] = useState([]); // All OHLCV data (will be filtered by mode in useMemo)
   const [indicatorsMetadata, setIndicatorsMetadata] = useState({});
   const [loading, setLoading] = useState(true);
-  const [positionModeTab, setPositionModeTab] = useState('all'); // 'all', 'long', 'short'
+  const [positionModeTab, setPositionModeTab] = useState('long'); // 'long', 'short'
   const [currentPage, setCurrentPage] = useState(1);
   const [exportingSymbolTrades, setExportingSymbolTrades] = useState(false);
 
@@ -89,7 +89,7 @@ export default function StrategyBacktestSymbolDetail() {
       setBacktest(backtestData);
 
       // Get symbol statistics from optimized statistics endpoint
-      // This endpoint provides stats_by_mode structure with equity curves for ALL/LONG/SHORT
+      // stats_by_mode: long (main row) + short
       let symbolStatsEntry = null;
       if (statsData?.symbols && Array.isArray(statsData.symbols)) {
         symbolStatsEntry = statsData.symbols.find(s => {
@@ -160,54 +160,37 @@ export default function StrategyBacktestSymbolDetail() {
 
   // Extract statistics from backend for each tab
   // Backend optimized statistics endpoint provides stats_by_mode structure
-  // Each mode (ALL, LONG, SHORT) has complete stats including equity_curve
-  // NO CALCULATIONS - All stats come from backend
+  // LONG / SHORT stats from backend (including equity_curve)
   const allSymbolStatistics = useMemo(() => {
     if (!statistics) return null;
-    
-    // Backend optimized statistics structure:
-    // statistics.stats_by_mode = {
-    //   'all': { total_trades, equity_curve, equity_curve_x, equity_curve_y, ... },
-    //   'long': { total_trades, equity_curve, equity_curve_x, equity_curve_y, ... },
-    //   'short': { total_trades, equity_curve, equity_curve_x, equity_curve_y, ... }
-    // }
-    
     const statsByMode = statistics.stats_by_mode || {};
-    
-    // Return stats organized by mode - each mode has complete stats including equity_curve
     return {
-      all: statsByMode.all || {},
       long: statsByMode.long || {},
       short: statsByMode.short || {},
     };
   }, [statistics]);
 
-  // Get current stats based on selected tab - ALL FROM BACKEND
   const currentStats = useMemo(() => {
     if (!allSymbolStatistics) return null;
-    return allSymbolStatistics[positionModeTab] || allSymbolStatistics.all || null;
+    return allSymbolStatistics[positionModeTab] || allSymbolStatistics.long || null;
   }, [allSymbolStatistics, positionModeTab]);
 
-  // Filter trades by position mode for table display
   const allFilteredTrades = useMemo(() => {
     return allTrades.filter(trade => {
       const metadata = trade.metadata || {};
-      if (positionModeTab === 'all') {
-        return metadata.position_mode === 'all' || !metadata.position_mode;
-      } else if (positionModeTab === 'long') {
+      if (positionModeTab === 'long') {
         if (metadata.position_mode !== undefined) {
           return metadata.position_mode === 'long';
         }
-        // Backward compatibility
         return (trade.trade_type || trade.tradeType) === 'buy';
-      } else if (positionModeTab === 'short') {
+      }
+      if (positionModeTab === 'short') {
         if (metadata.position_mode !== undefined) {
           return metadata.position_mode === 'short';
         }
-        // Backward compatibility
         return (trade.trade_type || trade.tradeType) === 'sell';
       }
-      return true;
+      return false;
     });
   }, [allTrades, positionModeTab]);
 
@@ -623,16 +606,6 @@ export default function StrategyBacktestSymbolDetail() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-gray-900">Performance Metrics</h2>
           <div className="flex gap-2">
-            <button
-              onClick={() => setPositionModeTab('all')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                positionModeTab === 'all'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              ALL
-            </button>
             <button
               onClick={() => setPositionModeTab('long')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${

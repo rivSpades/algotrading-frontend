@@ -32,7 +32,7 @@ export default function StrategyBacktestDetail() {
   const [symbols, setSymbols] = useState({ results: [], count: 0, next: null, previous: null });
   const [loading, setLoading] = useState(true);
   const [selectedSymbol, setSelectedSymbol] = useState(null);
-  const [selectedMode, setSelectedMode] = useState('all'); // 'all', 'long', 'short'
+  const [selectedMode, setSelectedMode] = useState('long'); // 'long', 'short'
   const [taskId, setTaskId] = useState(null);
   const [showTaskProgress, setShowTaskProgress] = useState(false);
   const [tradesPage, setTradesPage] = useState(1);
@@ -67,34 +67,6 @@ export default function StrategyBacktestDetail() {
       };
     }
   }, [backtest?.status]);
-
-  // Auto-switch mode if 'all' mode has no data when statistics or symbol changes
-  useEffect(() => {
-    if (!statistics || selectedMode !== 'all') return;
-    
-    const portfolioOrSymbol = selectedSymbol
-      ? statistics.symbols?.find(s => s.symbol_ticker === selectedSymbol)
-      : statistics.portfolio;
-    
-    if (portfolioOrSymbol) {
-      const statsByMode = portfolioOrSymbol.stats_by_mode || {};
-      const allModeStats = statsByMode.all;
-      
-      // Check if 'all' mode has no meaningful data
-      const allModeEmpty = !allModeStats || 
-        (allModeStats.total_trades === 0 && 
-         (!allModeStats.total_pnl || allModeStats.total_pnl === 0));
-      
-      if (allModeEmpty) {
-        // Auto-switch to 'long' if it has data, otherwise 'short'
-        if (statsByMode.long && statsByMode.long.total_trades > 0) {
-          setSelectedMode('long');
-        } else if (statsByMode.short && statsByMode.short.total_trades > 0) {
-          setSelectedMode('short');
-        }
-      }
-    }
-  }, [statistics, selectedSymbol, selectedMode]);
 
   // Trades are loaded once in loadData, then filtered client-side
 
@@ -168,37 +140,6 @@ export default function StrategyBacktestDetail() {
       setStrategy(strategyData);
       setBacktest(backtestData);
       setStatistics(statsData || { portfolio: null, symbols: [] });
-      
-      // Auto-select mode with data if 'all' mode is empty
-      // This handles strategies that don't support 'all' mode (like Moving Average Crossover)
-      if (statsData && selectedMode === 'all') {
-        // Check portfolio stats first, then symbol stats
-        const portfolioStats = statsData.portfolio;
-        const symbolStats = selectedSymbol 
-          ? statsData.symbols?.find(s => s.symbol_ticker === selectedSymbol)
-          : null;
-        
-        const statsToCheck = symbolStats || portfolioStats;
-        
-        if (statsToCheck) {
-          const statsByMode = statsToCheck.stats_by_mode || {};
-          const allModeStats = statsByMode.all;
-          
-          // Check if 'all' mode has no meaningful data (all zeros/null)
-          const allModeEmpty = !allModeStats || 
-            (allModeStats.total_trades === 0 && 
-             (!allModeStats.total_pnl || allModeStats.total_pnl === 0));
-          
-          if (allModeEmpty) {
-            // Auto-switch to 'long' if it has data, otherwise 'short'
-            if (statsByMode.long && statsByMode.long.total_trades > 0) {
-              setSelectedMode('long');
-            } else if (statsByMode.short && statsByMode.short.total_trades > 0) {
-              setSelectedMode('short');
-            }
-          }
-        }
-      }
       
       // Use symbols from API if available, otherwise try fallback
       if (!symbolsData || !symbolsData.results || symbolsData.results.length === 0) {
@@ -411,8 +352,8 @@ export default function StrategyBacktestDetail() {
       );
     }
     
-    // Last fallback: use portfolio/symbol level equity_curve_x and equity_curve_y (for 'all' mode)
-    if (selectedMode === 'all') {
+    // Last fallback: top-level equity_curve_x/y match long-mode (main stats row)
+    if (selectedMode === 'long') {
       const x = portfolioOrSymbol.equity_curve_x || [];
       const y = portfolioOrSymbol.equity_curve_y || [];
       if (x.length === 0 || y.length === 0) return null;
@@ -527,7 +468,7 @@ export default function StrategyBacktestDetail() {
       <div className="mb-6 bg-white rounded-lg shadow-lg p-4">
         <h2 className="text-lg font-bold text-gray-900 mb-3">Position Mode</h2>
         <div className="flex gap-3">
-          {['all', 'long', 'short'].map((mode) => (
+          {['long', 'short'].map((mode) => (
             <button
               key={mode}
               onClick={() => {
@@ -550,7 +491,7 @@ export default function StrategyBacktestDetail() {
       {statistics.portfolio && statistics.portfolio.stats_by_mode && statistics.portfolio.stats_by_mode.skipped_trades_insufficient_cash && (
         (() => {
           const skippedTrades = statistics.portfolio.stats_by_mode.skipped_trades_insufficient_cash;
-          const totalSkipped = (skippedTrades.all || 0) + (skippedTrades.long || 0) + (skippedTrades.short || 0);
+          const totalSkipped = (skippedTrades.long || 0) + (skippedTrades.short || 0);
           if (totalSkipped > 0) {
             return (
               <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
@@ -569,7 +510,6 @@ export default function StrategyBacktestDetail() {
                         The bet size ({backtest.bet_size_percentage}%) may be too high for the trading volume. 
                         Consider lowering the bet size to avoid missing trading opportunities.
                       </p>
-                      {skippedTrades.all > 0 && <p className="mt-1">• ALL mode: {skippedTrades.all} skipped</p>}
                       {skippedTrades.long > 0 && <p className="mt-1">• LONG mode: {skippedTrades.long} skipped</p>}
                       {skippedTrades.short > 0 && <p className="mt-1">• SHORT mode: {skippedTrades.short} skipped</p>}
                     </div>

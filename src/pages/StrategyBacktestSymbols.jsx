@@ -28,42 +28,20 @@ export default function StrategyBacktestSymbols() {
   const [tradesPrevious, setTradesPrevious] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [portfolioStatsTab, setPortfolioStatsTab] = useState('all'); // 'all', 'long', 'short'
+  const [portfolioStatsTab, setPortfolioStatsTab] = useState('long'); // 'long', 'short'
   const [searchTerm, setSearchTerm] = useState('');
   const [taskId, setTaskId] = useState(null);
   const [showTaskProgress, setShowTaskProgress] = useState(false);
   const pollingIntervalRef = useRef(null);
   const [searchParams, setSearchParams] = useSearchParams();
   
-  // Filter trades based on selected tab
-  // Each mode (ALL, LONG, SHORT) has its own set of trades stored with position_mode in metadata
+  // Filter trades based on selected tab (long / short runs store position_mode in metadata)
   const filteredTrades = useMemo(() => {
     if (!allTrades || allTrades.length === 0) {
       return [];
     }
     
-    if (portfolioStatsTab === 'all') {
-      // Show trades from 'all' mode execution, or all trades if position_mode not available (backward compatibility)
-      const allModeTrades = allTrades.filter(trade => {
-        const metadata = trade.metadata || {};
-        return metadata.position_mode === 'all' || !metadata.position_mode;
-      });
-      
-      // Debug logging
-      console.log('ALL mode trades filter:', {
-        totalTrades: allTrades.length,
-        allModeTrades: allModeTrades.length,
-        buyTrades: allModeTrades.filter(t => (t.trade_type || t.tradeType) === 'buy').length,
-        sellTrades: allModeTrades.filter(t => (t.trade_type || t.tradeType) === 'sell').length,
-        sampleTrades: allModeTrades.slice(0, 3).map(t => ({
-          id: t.id,
-          trade_type: t.trade_type || t.tradeType,
-          position_mode: t.metadata?.position_mode
-        }))
-      });
-      
-      return allModeTrades;
-    } else if (portfolioStatsTab === 'long') {
+    if (portfolioStatsTab === 'long') {
       // Show trades from 'long' mode execution
       // Fallback to filtering by trade_type for backward compatibility
       return allTrades.filter(trade => {
@@ -92,7 +70,7 @@ export default function StrategyBacktestSymbols() {
         }
       });
     }
-    return allTrades;
+    return [];
   }, [allTrades, portfolioStatsTab]);
   
   // Calculate trades count for current tab
@@ -179,8 +157,7 @@ export default function StrategyBacktestSymbols() {
       // Reconstruct portfolio stats structure from additional_stats
       if (portfolio && portfolio.additional_stats) {
         setPortfolioStats({
-          all: portfolio,
-          long: portfolio.additional_stats.long || {},
+          long: portfolio,
           short: portfolio.additional_stats.short || {},
         });
       } else {
@@ -344,16 +321,6 @@ export default function StrategyBacktestSymbols() {
             {/* Tabs for filtering by trade type */}
             <div className="flex gap-2">
               <button
-                onClick={() => setPortfolioStatsTab('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  portfolioStatsTab === 'all'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                ALL
-              </button>
-              <button
                 onClick={() => setPortfolioStatsTab('long')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   portfolioStatsTab === 'long'
@@ -378,7 +345,7 @@ export default function StrategyBacktestSymbols() {
           
           {/* Get the appropriate stats based on selected tab */}
           {(() => {
-            const currentStats = portfolioStats[portfolioStatsTab] || portfolioStats.all || portfolioStats;
+            const currentStats = portfolioStats[portfolioStatsTab] || portfolioStats.long;
             if (!currentStats || Object.keys(currentStats).length === 0) {
               return (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -466,7 +433,7 @@ export default function StrategyBacktestSymbols() {
 
       {/* Equity Curve Chart */}
       {(() => {
-        const currentStats = portfolioStats?.[portfolioStatsTab] || portfolioStats?.all || portfolioStats;
+        const currentStats = portfolioStats?.[portfolioStatsTab] || portfolioStats?.long;
         const equityCurve = currentStats?.equity_curve;
         
         if (backtest.status === 'completed' && equityCurve && equityCurve.length > 0) {

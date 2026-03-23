@@ -7,7 +7,7 @@ import { useMemo } from 'react';
 import Chart from 'react-apexcharts';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 
-export default function TopPerformersChart({ symbols, mode = 'all', topCount = 10 }) {
+export default function TopPerformersChart({ symbols, mode = 'long', topCount = 10 }) {
   // Calculate top and worst performers by total_pnl for the selected mode
   const performers = useMemo(() => {
     if (!symbols || symbols.length === 0) {

@@ -51,15 +51,13 @@ export const backtestsAPI = {
    * @param {number} page - Page number (default: 1)
    * @param {number} pageSize - Page size (default: 20)
    * @param {string} symbol - Optional: Filter by symbol ticker
-   * @param {string} mode - Optional: Filter by mode ('all', 'long', 'short')
+   * @param {string} mode - Optional: Filter by mode ('long', 'short')
    */
-  async getBacktestTrades(backtestId, page = 1, pageSize = 20, symbol = null, mode = 'all') {
+  async getBacktestTrades(backtestId, page = 1, pageSize = 20, symbol = null, mode = null) {
     let url = `/backtests/${backtestId}/trades/?page=${page}&page_size=${pageSize}`;
     if (symbol) {
       url += `&symbol=${encodeURIComponent(symbol)}`;
     }
-    // Always pass mode parameter to ensure correct filtering by position_mode
-    // This ensures each mode (ALL/LONG/SHORT) has its own independent bankroll
     if (mode) {
       url += `&mode=${encodeURIComponent(mode)}`;
     }
@@ -70,7 +68,7 @@ export const backtestsAPI = {
    * Get all trades for a backtest (without pagination)
    * @param {number} backtestId - Backtest ID
    * @param {string} symbol - Optional: Filter by symbol ticker
-   * @param {string} mode - Optional: Filter by mode ('all', 'long', 'short')
+   * @param {string} mode - Optional: Filter by mode ('long', 'short')
    */
   async getAllBacktestTrades(backtestId, symbol = null, mode = null) {
     let url = `/backtests/${backtestId}/trades/?no_pagination=true`;
@@ -190,9 +188,9 @@ export async function createBacktest(backtestData) {
  * @param {number} page - Page number (default: 1)
  * @param {number} pageSize - Page size (default: 20)
  * @param {string} symbol - Optional: Filter by symbol ticker
- * @param {string} mode - Optional: Filter by mode ('all', 'long', 'short')
+ * @param {string} mode - Optional: Filter by mode ('long', 'short')
  */
-export async function getBacktestTrades(backtestId, page = 1, pageSize = 20, symbol = null, mode = 'all') {
+export async function getBacktestTrades(backtestId, page = 1, pageSize = 20, symbol = null, mode = null) {
   try {
     const response = await backtestsAPI.getBacktestTrades(backtestId, page, pageSize, symbol, mode);
     if (response.success && response.data) {
@@ -210,7 +208,7 @@ export async function getBacktestTrades(backtestId, page = 1, pageSize = 20, sym
  * Get all trades for a backtest (without pagination)
  * @param {number} backtestId - Backtest ID
  * @param {string} symbol - Optional: Filter by symbol ticker
- * @param {string} mode - Optional: Filter by mode ('all', 'long', 'short')
+ * @param {string} mode - Optional: Filter by mode ('long', 'short')
  */
 export async function getAllBacktestTrades(backtestId, symbol = null, mode = null) {
   try {
