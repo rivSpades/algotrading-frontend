@@ -8,7 +8,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowLeft, Search, BarChart3, TrendingUp, TrendingDown, List, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getStrategy } from '../data/strategies';
-import { getBacktest, getBacktestTrades } from '../data/backtests';
+import { getBacktest, getBacktestTrades, getBacktestStatisticsOptimized } from '../data/backtests';
 import { motion } from 'framer-motion';
 import TaskProgress from '../components/TaskProgress';
 import StatisticsCard from '../components/StatisticsCard';
@@ -22,6 +22,8 @@ export default function StrategyBacktestSymbols() {
   const [symbols, setSymbols] = useState([]);
   const [statistics, setStatistics] = useState([]);
   const [portfolioStats, setPortfolioStats] = useState(null);
+  /** From statistics/optimized: benchmark x/y + error for portfolio chart */
+  const [portfolioBenchmark, setPortfolioBenchmark] = useState(null);
   const [allTrades, setAllTrades] = useState([]);
   const [tradesCount, setTradesCount] = useState(0);
   const [tradesNext, setTradesNext] = useState(null);
@@ -110,10 +112,11 @@ export default function StrategyBacktestSymbols() {
   const loadData = async (page = 1) => {
     setLoading(true);
     try {
-      const [strategyData, backtestData, tradesResponse] = await Promise.all([
+      const [strategyData, backtestData, tradesResponse, optStats] = await Promise.all([
         getStrategy(id),
         getBacktest(backtestId),
         getBacktestTrades(backtestId, page),
+        getBacktestStatisticsOptimized(backtestId).catch(() => null),
       ]);
       setStrategy(strategyData);
       setBacktest(backtestData);
@@ -154,14 +157,26 @@ export default function StrategyBacktestSymbols() {
         return hasSymbolInfo || hasSymbol;
       });
       
-      // Reconstruct portfolio stats structure from additional_stats
-      if (portfolio && portfolio.additional_stats) {
+      // Prefer optimized statistics (includes benchmark + stats_by_mode); else legacy embedded stats
+      if (optStats?.portfolio?.stats_by_mode) {
+        setPortfolioStats({
+          long: optStats.portfolio.stats_by_mode.long || {},
+          short: optStats.portfolio.stats_by_mode.short || {},
+        });
+        setPortfolioBenchmark({
+          benchmark_equity_curve_x: optStats.portfolio.benchmark_equity_curve_x || [],
+          benchmark_equity_curve_y: optStats.portfolio.benchmark_equity_curve_y || [],
+          benchmark_error: optStats.portfolio.benchmark_error || null,
+        });
+      } else if (portfolio && portfolio.additional_stats) {
         setPortfolioStats({
           long: portfolio,
           short: portfolio.additional_stats.short || {},
         });
+        setPortfolioBenchmark(null);
       } else {
         setPortfolioStats(portfolio || null);
+        setPortfolioBenchmark(null);
       }
       setStatistics(symbolStats);
       
@@ -434,14 +449,41 @@ export default function StrategyBacktestSymbols() {
       {/* Equity Curve Chart */}
       {(() => {
         const currentStats = portfolioStats?.[portfolioStatsTab] || portfolioStats?.long;
-        const equityCurve = currentStats?.equity_curve;
-        
+        let equityCurve = currentStats?.equity_curve;
+        if ((!equityCurve || equityCurve.length === 0) && currentStats?.equity_curve_x?.length) {
+          const x = currentStats.equity_curve_x;
+          const y = currentStats.equity_curve_y || [];
+          equityCurve = x.map((timestamp, i) => ({ timestamp, equity: y[i] }));
+        }
+        const bx = portfolioBenchmark?.benchmark_equity_curve_x;
+        const by = portfolioBenchmark?.benchmark_equity_curve_y;
+        const benchOk =
+          Array.isArray(bx) &&
+          Array.isArray(by) &&
+          bx.length > 0 &&
+          bx.length === by.length;
+        const benchData = benchOk
+          ? bx
+              .map((timestamp, i) => {
+                const ts = new Date(timestamp).getTime();
+                const v = parseFloat(by[i]);
+                if (Number.isNaN(ts) || Number.isNaN(v)) return null;
+                return { x: ts, y: v };
+              })
+              .filter(Boolean)
+          : null;
+
         if (backtest.status === 'completed' && equityCurve && equityCurve.length > 0) {
           return (
             <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">
                 Portfolio Equity Curve ({portfolioStatsTab.toUpperCase()})
               </h2>
+              {portfolioBenchmark?.benchmark_error && !benchOk && (
+                <p className="text-sm text-amber-700 mb-3">
+                  Benchmark (^GSPC) unavailable: {portfolioBenchmark.benchmark_error}
+                </p>
+              )}
               <Chart
                 options={{
                   chart: {
@@ -460,20 +502,26 @@ export default function StrategyBacktestSymbols() {
                     text: `Portfolio Equity Curve - ${strategy.name} (${portfolioStatsTab.toUpperCase()})`,
                     align: 'left',
                   },
-                  colors: ['#3B82F6'],
+                  colors: benchData?.length ? ['#3B82F6', '#F97316'] : ['#3B82F6'],
+                  stroke: { width: benchData?.length ? [2, 2] : [2], curve: 'straight' },
+                  legend: { show: !!benchData?.length, position: 'top' },
                   tooltip: {
                     x: {
                       format: 'dd MMM yyyy'
                     },
                   },
                 }}
-                series={[{
-                  name: 'Equity',
-                  data: equityCurve.map(point => ({
+                series={(() => {
+                  const strat = equityCurve.map(point => ({
                     x: new Date(point.timestamp).getTime(),
                     y: point.equity,
-                  })),
-                }]}
+                  }));
+                  const out = [{ name: 'Strategy', data: strat }];
+                  if (benchData?.length) {
+                    out.push({ name: 'S&P 500 (buy & hold)', data: benchData });
+                  }
+                  return out;
+                })()}
                 type="line"
                 height={350}
               />

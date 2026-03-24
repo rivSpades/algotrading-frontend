@@ -366,6 +366,33 @@ export default function StrategyBacktestDetail() {
     
     return null;
   }, [selectedSymbol, selectedMode, statistics]);
+
+  /** S&P 500 buy-and-hold benchmark (portfolio view only); same window as strategy equity curve */
+  const benchmarkSeriesForChart = useMemo(() => {
+    if (selectedSymbol) return null;
+    const p = statistics.portfolio;
+    if (!p?.stats_by_mode) return null;
+    const modeStats = p.stats_by_mode[selectedMode];
+    const x = modeStats?.benchmark_equity_curve_x;
+    const y = modeStats?.benchmark_equity_curve_y;
+    if (!Array.isArray(x) || !Array.isArray(y) || x.length === 0 || x.length !== y.length) {
+      return null;
+    }
+    const data = x
+      .map((timestamp, index) => {
+        const ts = new Date(timestamp).getTime();
+        const equity = parseFloat(y[index]);
+        if (Number.isNaN(ts) || Number.isNaN(equity)) return null;
+        return { x: ts, y: equity };
+      })
+      .filter(Boolean);
+    return data.length > 0 ? data : null;
+  }, [selectedSymbol, selectedMode, statistics?.portfolio]);
+
+  const benchmarkErrorPortfolio = useMemo(() => {
+    if (selectedSymbol) return null;
+    return statistics?.portfolio?.benchmark_error || null;
+  }, [selectedSymbol, statistics?.portfolio]);
   
   // Get current stats for display
   // On the main backtest detail page, always show portfolio stats (not symbol-specific)
@@ -626,6 +653,11 @@ export default function StrategyBacktestDetail() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">
             Equity Curve ({selectedMode.toUpperCase()})
           </h2>
+          {benchmarkErrorPortfolio && !benchmarkSeriesForChart && (
+            <p className="text-sm text-amber-700 mb-3">
+              Benchmark (^GSPC) unavailable: {benchmarkErrorPortfolio}
+            </p>
+          )}
           <Chart
             options={{
               chart: {
@@ -646,16 +678,23 @@ export default function StrategyBacktestDetail() {
                   : `Portfolio Equity Curve (${selectedMode.toUpperCase()})`,
                 align: 'left',
               },
-              colors: ['#3B82F6'],
+              colors: benchmarkSeriesForChart ? ['#3B82F6', '#F97316'] : ['#3B82F6'],
+              stroke: {
+                width: benchmarkSeriesForChart ? [2, 2] : [2],
+                curve: 'straight',
+              },
+              legend: {
+                show: !!benchmarkSeriesForChart,
+                position: 'top',
+              },
               tooltip: {
                 x: {
                   format: 'dd MMM yyyy'
                 },
               },
             }}
-            series={[{
-              name: 'Equity',
-              data: equityCurveForMode
+            series={(() => {
+              const strategyData = equityCurveForMode
                 .filter(point => point && point.timestamp && point.equity !== null && point.equity !== undefined)
                 .map(point => {
                   const timestamp = new Date(point.timestamp).getTime();
@@ -668,8 +707,18 @@ export default function StrategyBacktestDetail() {
                     y: equity,
                   };
                 })
-                .filter(point => point !== null),
-            }]}
+                .filter(point => point !== null);
+              const seriesList = [
+                { name: selectedSymbol ? 'Equity' : 'Strategy', data: strategyData },
+              ];
+              if (benchmarkSeriesForChart) {
+                seriesList.push({
+                  name: 'S&P 500 (buy & hold)',
+                  data: benchmarkSeriesForChart,
+                });
+              }
+              return seriesList;
+            })()}
             type="line"
             height={350}
           />
