@@ -20,6 +20,12 @@ import { buildChronologicalTradeTableRows } from '../utils/chronologicalTradeTab
 import { exportTradesToCsvFile } from '../utils/tradeHistoryExport';
 import { downloadJson } from '../utils/exportCsv';
 import ExportTableToolbar from '../components/ExportTableToolbar';
+import {
+  HedgeTradeInvestedHeaderCells,
+  HedgeTradePnlHeaderCells,
+  HedgeTradeInvestedBodyCells,
+  HedgeTradePnlBodyCells,
+} from '../components/BacktestHedgeTradeTableCols';
 
 export default function StrategyBacktestDetail() {
   const { id, backtestId } = useParams();
@@ -246,7 +252,9 @@ export default function StrategyBacktestDetail() {
         selectedMode
       );
       const slug = `${selectedSymbol || 'portfolio'}-${selectedMode}`;
-      exportTradesToCsvFile(all, `backtest-${backtestId}-${slug}-trades.csv`);
+      exportTradesToCsvFile(all, `backtest-${backtestId}-${slug}-trades.csv`, {
+        hedgeEnabled: !!backtest?.hedge_enabled,
+      });
     } catch (e) {
       console.error(e);
       alert(`Export failed: ${e.message || 'Unknown error'}`);
@@ -394,12 +402,13 @@ export default function StrategyBacktestDetail() {
     return statistics?.portfolio?.benchmark_error || null;
   }, [selectedSymbol, statistics?.portfolio]);
 
-  /** Baseline equity (portfolio, same mode) when backtest ran strategy-only + hedged dual pass */
+  /** Baseline equity (portfolio or selected symbol, same mode) when dual pass ran */
   const strategyOnlySeriesForChart = useMemo(() => {
-    if (selectedSymbol) return null;
-    const p = statistics.portfolio;
-    if (!p?.stats_by_mode) return null;
-    const modeStats = p.stats_by_mode[selectedMode];
+    const portfolioOrSymbol = selectedSymbol
+      ? statistics.symbols?.find(s => s.symbol_ticker === selectedSymbol)
+      : statistics.portfolio;
+    if (!portfolioOrSymbol?.stats_by_mode) return null;
+    const modeStats = portfolioOrSymbol.stats_by_mode[selectedMode];
     const x = modeStats?.strategy_only_equity_curve_x;
     const y = modeStats?.strategy_only_equity_curve_y;
     if (!Array.isArray(x) || !Array.isArray(y) || x.length === 0 || x.length !== y.length) {
@@ -414,7 +423,7 @@ export default function StrategyBacktestDetail() {
       })
       .filter(Boolean);
     return data.length > 1 ? data : null;
-  }, [selectedSymbol, selectedMode, statistics?.portfolio]);
+  }, [selectedSymbol, selectedMode, statistics?.portfolio, statistics?.symbols]);
 
   // Get current stats for display
   // On the main backtest detail page, always show portfolio stats (not symbol-specific)
@@ -654,8 +663,7 @@ export default function StrategyBacktestDetail() {
             />
           </div>
 
-          {!selectedSymbol &&
-            backtest.hedge_enabled &&
+          {backtest.hedge_enabled &&
             currentStatsForDisplay.strategy_only_metrics &&
             Object.keys(currentStatsForDisplay.strategy_only_metrics).length > 0 && (
               <div className="mt-6 border-t border-gray-200 pt-6">
@@ -666,6 +674,9 @@ export default function StrategyBacktestDetail() {
                   Cards above reflect the <strong>strategy + hedge</strong> run (trades saved to this backtest).
                   The left column is a separate baseline pass <strong>without</strong> the VIX sleeve split (capital
                   path can differ, so trade counts may not match).
+                  {selectedSymbol ? (
+                    <> Shown for <strong>{selectedSymbol}</strong> in {selectedMode.toUpperCase()} mode.</>
+                  ) : null}
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                   <div className="rounded-lg bg-slate-50 border border-slate-200 p-4">
@@ -751,10 +762,10 @@ export default function StrategyBacktestDetail() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">
             Equity Curve ({selectedMode.toUpperCase()})
           </h2>
-          {!selectedSymbol && backtest.hedge_enabled && strategyOnlySeriesForChart && (
+          {backtest.hedge_enabled && strategyOnlySeriesForChart && (
             <p className="text-sm text-gray-600 mb-3">
-              Blue = strategy + VIX sleeve; slate = strategy-only baseline; orange = S&amp;P 500 buy-and-hold (if
-              available).
+              Blue = strategy + VIX sleeve; slate = strategy-only baseline
+              {!selectedSymbol ? '; orange = S&P 500 buy-and-hold (if available)' : ''}.
             </p>
           )}
           {benchmarkErrorPortfolio && !benchmarkSeriesForChart && (
@@ -784,21 +795,21 @@ export default function StrategyBacktestDetail() {
               },
               colors: (() => {
                 const c = ['#3B82F6'];
-                if (!selectedSymbol && strategyOnlySeriesForChart) c.push('#64748B');
+                if (strategyOnlySeriesForChart) c.push('#64748B');
                 if (benchmarkSeriesForChart) c.push('#F97316');
                 return c;
               })(),
               stroke: {
                 width: (() => {
                   let n = 1;
-                  if (!selectedSymbol && strategyOnlySeriesForChart) n += 1;
+                  if (strategyOnlySeriesForChart) n += 1;
                   if (benchmarkSeriesForChart) n += 1;
                   return Array(n).fill(2);
                 })(),
                 curve: 'straight',
               },
               legend: {
-                show: !!(benchmarkSeriesForChart || (!selectedSymbol && strategyOnlySeriesForChart)),
+                show: !!(benchmarkSeriesForChart || strategyOnlySeriesForChart),
                 position: 'top',
               },
               tooltip: {
@@ -823,13 +834,13 @@ export default function StrategyBacktestDetail() {
                 })
                 .filter(point => point !== null);
               const hedgedLabel =
-                !selectedSymbol && backtest.hedge_enabled && strategyOnlySeriesForChart
+                backtest.hedge_enabled && strategyOnlySeriesForChart
                   ? 'Strategy + hedge'
                   : selectedSymbol
                     ? 'Equity'
                     : 'Strategy';
               const seriesList = [{ name: hedgedLabel, data: strategyData }];
-              if (!selectedSymbol && strategyOnlySeriesForChart) {
+              if (strategyOnlySeriesForChart) {
                 seriesList.push({
                   name: 'Strategy only',
                   data: strategyOnlySeriesForChart,
@@ -1052,9 +1063,11 @@ export default function StrategyBacktestDetail() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ticker</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Invested</th>
+                      <HedgeTradeInvestedHeaderCells show={!!backtest?.hedge_enabled} />
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entry Date</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exit Date</th>
+                      <HedgeTradePnlHeaderCells show={!!backtest?.hedge_enabled} />
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PnL</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ROI %</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Max Drawdown</th>
@@ -1094,12 +1107,22 @@ export default function StrategyBacktestDetail() {
                                 return 'N/A';
                               })()}
                             </td>
+                            <HedgeTradeInvestedBodyCells
+                              show={!!backtest?.hedge_enabled}
+                              trade={trade}
+                              formatCurrency={formatCurrency}
+                            />
                             <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
                             <td className="px-4 py-3 text-sm text-gray-900">
                               {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-900">-</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">-</td>
+                            <HedgeTradePnlBodyCells
+                              show={!!backtest?.hedge_enabled}
+                              rowType="entry"
+                              trade={trade}
+                              formatCurrency={formatCurrency}
+                            />
                             <td className="px-4 py-3 text-sm text-gray-900">-</td>
                             <td className="px-4 py-3 text-sm text-gray-900">-</td>
                           </tr>
@@ -1136,6 +1159,11 @@ export default function StrategyBacktestDetail() {
                               return 'N/A';
                             })()}
                           </td>
+                          <HedgeTradeInvestedBodyCells
+                            show={!!backtest?.hedge_enabled}
+                            trade={trade}
+                            formatCurrency={formatCurrency}
+                          />
                           <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
@@ -1143,6 +1171,12 @@ export default function StrategyBacktestDetail() {
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {new Date(trade.exit_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </td>
+                          <HedgeTradePnlBodyCells
+                            show={!!backtest?.hedge_enabled}
+                            rowType="exit"
+                            trade={trade}
+                            formatCurrency={formatCurrency}
+                          />
                           <td className={`px-4 py-3 text-sm font-medium ${trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {formatCurrency(trade.pnl)}
                           </td>

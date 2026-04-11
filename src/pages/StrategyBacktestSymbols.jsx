@@ -13,6 +13,12 @@ import { motion } from 'framer-motion';
 import TaskProgress from '../components/TaskProgress';
 import StatisticsCard from '../components/StatisticsCard';
 import Chart from 'react-apexcharts';
+import {
+  HedgeTradeInvestedHeaderCells,
+  HedgeTradePnlHeaderCells,
+  HedgeTradeInvestedBodyCells,
+  HedgeTradePnlBodyCells,
+} from '../components/BacktestHedgeTradeTableCols';
 
 export default function StrategyBacktestSymbols() {
   const { id, backtestId } = useParams();
@@ -273,6 +279,16 @@ export default function StrategyBacktestSymbols() {
     return `${numValue.toFixed(2)}%`;
   };
 
+  const formatTotalInvestedForTrade = (trade) => {
+    const betAmount = trade.metadata?.bet_amount;
+    if (betAmount !== undefined && betAmount !== null) {
+      return formatCurrency(parseFloat(betAmount));
+    }
+    if (trade.entry_price && trade.quantity) {
+      return formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity));
+    }
+    return 'N/A';
+  };
 
   if (loading) {
     return (
@@ -726,9 +742,11 @@ export default function StrategyBacktestSymbols() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ticker</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Invested</th>
+                    <HedgeTradeInvestedHeaderCells show={!!backtest?.hedge_enabled} />
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entry Date</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exit Date</th>
+                    <HedgeTradePnlHeaderCells show={!!backtest?.hedge_enabled} />
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PnL</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ROI %</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Max Drawdown</th>
@@ -763,26 +781,23 @@ export default function StrategyBacktestSymbols() {
                             {positionType}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {(() => {
-                            // Use bet_amount from metadata if available (actual amount invested from portfolio capital)
-                            // Otherwise fall back to entry_price * quantity for backward compatibility
-                            const betAmount = trade.metadata?.bet_amount;
-                            if (betAmount !== undefined && betAmount !== null) {
-                              return formatCurrency(parseFloat(betAmount));
-                            }
-                            if (trade.entry_price && trade.quantity) {
-                              return formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity));
-                            }
-                            return 'N/A';
-                          })()}
-                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{formatTotalInvestedForTrade(trade)}</td>
+                        <HedgeTradeInvestedBodyCells
+                          show={!!backtest?.hedge_enabled}
+                          trade={trade}
+                          formatCurrency={formatCurrency}
+                        />
                         <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">-</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">-</td>
+                        <HedgeTradePnlBodyCells
+                          show={!!backtest?.hedge_enabled}
+                          rowType="entry"
+                          trade={trade}
+                          formatCurrency={formatCurrency}
+                        />
                         <td className="px-4 py-3 text-sm text-gray-900">-</td>
                         <td className="px-4 py-3 text-sm text-gray-900">-</td>
                       </tr>
@@ -804,11 +819,12 @@ export default function StrategyBacktestSymbols() {
                               Exit
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            {trade.entry_price && trade.quantity 
-                              ? formatCurrency(parseFloat(trade.entry_price) * parseFloat(trade.quantity))
-                              : 'N/A'}
-                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{formatTotalInvestedForTrade(trade)}</td>
+                          <HedgeTradeInvestedBodyCells
+                            show={!!backtest?.hedge_enabled}
+                            trade={trade}
+                            formatCurrency={formatCurrency}
+                          />
                           <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
@@ -816,6 +832,12 @@ export default function StrategyBacktestSymbols() {
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {new Date(trade.exit_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </td>
+                          <HedgeTradePnlBodyCells
+                            show={!!backtest?.hedge_enabled}
+                            rowType="exit"
+                            trade={trade}
+                            formatCurrency={formatCurrency}
+                          />
                           <td className={`px-4 py-3 text-sm font-medium ${trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {formatCurrency(trade.pnl)}
                           </td>
