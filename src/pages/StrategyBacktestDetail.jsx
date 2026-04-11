@@ -393,7 +393,29 @@ export default function StrategyBacktestDetail() {
     if (selectedSymbol) return null;
     return statistics?.portfolio?.benchmark_error || null;
   }, [selectedSymbol, statistics?.portfolio]);
-  
+
+  /** Baseline equity (portfolio, same mode) when backtest ran strategy-only + hedged dual pass */
+  const strategyOnlySeriesForChart = useMemo(() => {
+    if (selectedSymbol) return null;
+    const p = statistics.portfolio;
+    if (!p?.stats_by_mode) return null;
+    const modeStats = p.stats_by_mode[selectedMode];
+    const x = modeStats?.strategy_only_equity_curve_x;
+    const y = modeStats?.strategy_only_equity_curve_y;
+    if (!Array.isArray(x) || !Array.isArray(y) || x.length === 0 || x.length !== y.length) {
+      return null;
+    }
+    const data = x
+      .map((timestamp, index) => {
+        const ts = new Date(timestamp).getTime();
+        const equity = parseFloat(y[index]);
+        if (Number.isNaN(ts) || Number.isNaN(equity)) return null;
+        return { x: ts, y: equity };
+      })
+      .filter(Boolean);
+    return data.length > 1 ? data : null;
+  }, [selectedSymbol, selectedMode, statistics?.portfolio]);
+
   // Get current stats for display
   // On the main backtest detail page, always show portfolio stats (not symbol-specific)
   // Only show symbol stats when a symbol is explicitly selected
@@ -631,6 +653,82 @@ export default function StrategyBacktestDetail() {
               icon={TrendingDown}
             />
           </div>
+
+          {!selectedSymbol &&
+            backtest.hedge_enabled &&
+            currentStatsForDisplay.strategy_only_metrics &&
+            Object.keys(currentStatsForDisplay.strategy_only_metrics).length > 0 && (
+              <div className="mt-6 border-t border-gray-200 pt-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                  Strategy only vs strategy + hedge
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Cards above reflect the <strong>strategy + hedge</strong> run (trades saved to this backtest).
+                  The left column is a separate baseline pass <strong>without</strong> the VIX sleeve split (capital
+                  path can differ, so trade counts may not match).
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                  <div className="rounded-lg bg-slate-50 border border-slate-200 p-4">
+                    <h4 className="font-medium text-slate-800 mb-3">Strategy only (baseline)</h4>
+                    <ul className="space-y-2 text-gray-700">
+                      <li>
+                        Total return:{' '}
+                        {formatPercentage(currentStatsForDisplay.strategy_only_metrics.total_return)}
+                      </li>
+                      <li>
+                        Total PnL:{' '}
+                        {formatCurrency(currentStatsForDisplay.strategy_only_metrics.total_pnl)}
+                      </li>
+                      <li>Trades: {currentStatsForDisplay.strategy_only_metrics.total_trades ?? '—'}</li>
+                      <li>
+                        Win rate:{' '}
+                        {currentStatsForDisplay.strategy_only_metrics.win_rate != null
+                          ? formatPercentage(currentStatsForDisplay.strategy_only_metrics.win_rate)
+                          : 'N/A'}
+                      </li>
+                      <li>
+                        Max drawdown:{' '}
+                        {currentStatsForDisplay.strategy_only_metrics.max_drawdown != null
+                          ? formatPercentage(currentStatsForDisplay.strategy_only_metrics.max_drawdown)
+                          : 'N/A'}
+                      </li>
+                      <li>
+                        Sharpe:{' '}
+                        {currentStatsForDisplay.strategy_only_metrics.sharpe_ratio != null
+                          ? Number(currentStatsForDisplay.strategy_only_metrics.sharpe_ratio).toFixed(2)
+                          : 'N/A'}
+                      </li>
+                    </ul>
+                  </div>
+                  <div className="rounded-lg bg-blue-50 border border-blue-100 p-4">
+                    <h4 className="font-medium text-blue-900 mb-3">Strategy + hedge (primary)</h4>
+                    <ul className="space-y-2 text-gray-800">
+                      <li>Total return: {formatPercentage(currentStatsForDisplay.total_return)}</li>
+                      <li>Total PnL: {formatCurrency(currentStatsForDisplay.total_pnl)}</li>
+                      <li>Trades: {currentStatsForDisplay.total_trades ?? '—'}</li>
+                      <li>
+                        Win rate:{' '}
+                        {currentStatsForDisplay.win_rate != null
+                          ? formatPercentage(currentStatsForDisplay.win_rate)
+                          : 'N/A'}
+                      </li>
+                      <li>
+                        Max drawdown:{' '}
+                        {currentStatsForDisplay.max_drawdown != null
+                          ? formatPercentage(currentStatsForDisplay.max_drawdown)
+                          : 'N/A'}
+                      </li>
+                      <li>
+                        Sharpe:{' '}
+                        {currentStatsForDisplay.sharpe_ratio != null
+                          ? Number(currentStatsForDisplay.sharpe_ratio).toFixed(2)
+                          : 'N/A'}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
         </div>
       ) : (
         <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
@@ -653,6 +751,12 @@ export default function StrategyBacktestDetail() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">
             Equity Curve ({selectedMode.toUpperCase()})
           </h2>
+          {!selectedSymbol && backtest.hedge_enabled && strategyOnlySeriesForChart && (
+            <p className="text-sm text-gray-600 mb-3">
+              Blue = strategy + VIX sleeve; slate = strategy-only baseline; orange = S&amp;P 500 buy-and-hold (if
+              available).
+            </p>
+          )}
           {benchmarkErrorPortfolio && !benchmarkSeriesForChart && (
             <p className="text-sm text-amber-700 mb-3">
               Benchmark (^GSPC) unavailable: {benchmarkErrorPortfolio}
@@ -678,13 +782,23 @@ export default function StrategyBacktestDetail() {
                   : `Portfolio Equity Curve (${selectedMode.toUpperCase()})`,
                 align: 'left',
               },
-              colors: benchmarkSeriesForChart ? ['#3B82F6', '#F97316'] : ['#3B82F6'],
+              colors: (() => {
+                const c = ['#3B82F6'];
+                if (!selectedSymbol && strategyOnlySeriesForChart) c.push('#64748B');
+                if (benchmarkSeriesForChart) c.push('#F97316');
+                return c;
+              })(),
               stroke: {
-                width: benchmarkSeriesForChart ? [2, 2] : [2],
+                width: (() => {
+                  let n = 1;
+                  if (!selectedSymbol && strategyOnlySeriesForChart) n += 1;
+                  if (benchmarkSeriesForChart) n += 1;
+                  return Array(n).fill(2);
+                })(),
                 curve: 'straight',
               },
               legend: {
-                show: !!benchmarkSeriesForChart,
+                show: !!(benchmarkSeriesForChart || (!selectedSymbol && strategyOnlySeriesForChart)),
                 position: 'top',
               },
               tooltip: {
@@ -708,9 +822,19 @@ export default function StrategyBacktestDetail() {
                   };
                 })
                 .filter(point => point !== null);
-              const seriesList = [
-                { name: selectedSymbol ? 'Equity' : 'Strategy', data: strategyData },
-              ];
+              const hedgedLabel =
+                !selectedSymbol && backtest.hedge_enabled && strategyOnlySeriesForChart
+                  ? 'Strategy + hedge'
+                  : selectedSymbol
+                    ? 'Equity'
+                    : 'Strategy';
+              const seriesList = [{ name: hedgedLabel, data: strategyData }];
+              if (!selectedSymbol && strategyOnlySeriesForChart) {
+                seriesList.push({
+                  name: 'Strategy only',
+                  data: strategyOnlySeriesForChart,
+                });
+              }
               if (benchmarkSeriesForChart) {
                 seriesList.push({
                   name: 'S&P 500 (buy & hold)',

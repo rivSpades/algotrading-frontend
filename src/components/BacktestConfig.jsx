@@ -8,7 +8,12 @@ import { useNavigate } from 'react-router-dom';
 import { X, Play, Plus, Trash2 } from 'lucide-react';
 import { getStrategies } from '../data/strategies';
 import { getSymbolDetails } from '../data/symbols';
-import { createBacktest } from '../data/backtests';
+import { createBacktest, getHedgeLabSettings } from '../data/backtests';
+import {
+  HEDGE_DEFAULTS,
+  HEDGE_FIELD_DEFS,
+  parseHedgeField,
+} from '../data/hedgeConfig';
 import { marketDataAPI } from '../data/api';
 import { getBrokers } from '../data/liveTrading';
 import TaskProgress from './TaskProgress';
@@ -35,6 +40,8 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
   const [splitRatio, setSplitRatio] = useState(0.7);
   const [initialCapital, setInitialCapital] = useState(10000.0);
   const [betSizePercentage, setBetSizePercentage] = useState(100.0);
+  const [hedgeEnabled, setHedgeEnabled] = useState(false);
+  const [hedgeParams, setHedgeParams] = useState(() => ({ ...HEDGE_DEFAULTS }));
   const [strategyParameters, setStrategyParameters] = useState({});
   
   // Broker filtering state
@@ -53,12 +60,16 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [strategiesData, brokersData] = await Promise.all([
+      const [strategiesData, brokersData, hedgeLab] = await Promise.all([
         getStrategies(),
         getBrokers(),
+        getHedgeLabSettings().catch(() => null),
       ]);
       setStrategies(strategiesData);
       setBrokers(brokersData || []);
+      if (hedgeLab?.effective_config && typeof hedgeLab.effective_config === 'object') {
+        setHedgeParams({ ...HEDGE_DEFAULTS, ...hedgeLab.effective_config });
+      }
       
       // If defaultStrategyId is provided, automatically select it
       if (defaultStrategyId) {
@@ -301,6 +312,17 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
         }
       }
 
+      if (hedgeEnabled) {
+        backtestData.hedge_enabled = true;
+        const hc = {};
+        for (const { key } of HEDGE_FIELD_DEFS) {
+          if (hedgeParams[key] !== undefined) {
+            hc[key] = hedgeParams[key];
+          }
+        }
+        backtestData.hedge_config = hc;
+      }
+
       const backtest = await createBacktest(backtestData);
       
       // Capture task_id if available and show progress
@@ -334,6 +356,8 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
     setSplitRatio(0.7);
     setInitialCapital(10000.0);
     setBetSizePercentage(100.0);
+    setHedgeEnabled(false);
+    setHedgeParams({ ...HEDGE_DEFAULTS });
     setStrategyParameters({});
     setUseBrokerFilter(false);
     setSelectedBroker(null);
@@ -719,6 +743,47 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                     className="w-full"
                   />
                   <p className="mt-1 text-xs text-gray-500">Percentage of available capital to bet per trade (0.1% - 100%)</p>
+                </div>
+
+                {/* Hybrid VIX hedge: split each trade between strategy and VIX sleeve */}
+                <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hedgeEnabled}
+                      onChange={(e) => setHedgeEnabled(e.target.checked)}
+                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm font-medium text-gray-900">
+                      Enable hybrid VIX hedge on trades
+                    </span>
+                  </label>
+                  <p className="mt-2 text-xs text-gray-600">
+                    Splits each trade&apos;s bet using the hybrid VIX regime (same rules as Hedge lab): part of capital
+                    goes to your strategy position and part to a VIXM/VIXY sleeve (or VIXY in panic). PnL and the
+                    equity curve include both legs. Use <strong>Hedge lab</strong> for the SPY illustration only.
+                  </p>
+                  {hedgeEnabled && (
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto pr-1">
+                      {HEDGE_FIELD_DEFS.map(({ key, label, step }) => (
+                        <div key={key}>
+                          <label className="block text-xs text-gray-600 mb-1">{label}</label>
+                          <input
+                            type="number"
+                            step={step}
+                            value={hedgeParams[key] ?? ''}
+                            onChange={(e) =>
+                              setHedgeParams((prev) => ({
+                                ...prev,
+                                [key]: parseHedgeField(key, e.target.value, prev),
+                              }))
+                            }
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Strategy Parameters */}

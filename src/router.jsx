@@ -25,6 +25,7 @@ import BrokerSymbols from './pages/BrokerSymbols';
 import LiveTradingDeployments from './pages/LiveTradingDeployments';
 import DeploymentForm from './pages/DeploymentForm';
 import DeploymentDetail from './pages/DeploymentDetail';
+import HedgeConfiguration from './pages/HedgeConfiguration';
 import ErrorPage from './pages/ErrorPage';
 import { getSymbols } from './data/symbols';
 import { getSymbolDetails, getSymbolOHLCV } from './data/symbols';
@@ -178,6 +179,10 @@ const router = createBrowserRouter([
       {
         path: 'deployments/:id',
         element: <DeploymentDetail />,
+      },
+      {
+        path: 'hedge-config',
+        element: <HedgeConfiguration />,
       },
     ],
   },

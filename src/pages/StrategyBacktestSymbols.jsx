@@ -473,12 +473,40 @@ export default function StrategyBacktestSymbols() {
               .filter(Boolean)
           : null;
 
+        const sox = currentStats?.strategy_only_equity_curve_x;
+        const soy = currentStats?.strategy_only_equity_curve_y;
+        const soOk =
+          backtest.hedge_enabled &&
+          Array.isArray(sox) &&
+          Array.isArray(soy) &&
+          sox.length > 1 &&
+          sox.length === soy.length;
+        const strategyOnlyData = soOk
+          ? sox
+              .map((timestamp, i) => {
+                const ts = new Date(timestamp).getTime();
+                const v = parseFloat(soy[i]);
+                if (Number.isNaN(ts) || Number.isNaN(v)) return null;
+                return { x: ts, y: v };
+              })
+              .filter(Boolean)
+          : null;
+
         if (backtest.status === 'completed' && equityCurve && equityCurve.length > 0) {
+          const nSeries = 1 + (strategyOnlyData?.length ? 1 : 0) + (benchData?.length ? 1 : 0);
+          const colors = ['#3B82F6'];
+          if (strategyOnlyData?.length) colors.push('#64748B');
+          if (benchData?.length) colors.push('#F97316');
           return (
             <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">
                 Portfolio Equity Curve ({portfolioStatsTab.toUpperCase()})
               </h2>
+              {backtest.hedge_enabled && strategyOnlyData?.length ? (
+                <p className="text-sm text-gray-600 mb-3">
+                  Blue = strategy + hedge; slate = strategy-only baseline; orange = S&P 500 (if shown).
+                </p>
+              ) : null}
               {portfolioBenchmark?.benchmark_error && !benchOk && (
                 <p className="text-sm text-amber-700 mb-3">
                   Benchmark (^GSPC) unavailable: {portfolioBenchmark.benchmark_error}
@@ -502,9 +530,9 @@ export default function StrategyBacktestSymbols() {
                     text: `Portfolio Equity Curve - ${strategy.name} (${portfolioStatsTab.toUpperCase()})`,
                     align: 'left',
                   },
-                  colors: benchData?.length ? ['#3B82F6', '#F97316'] : ['#3B82F6'],
-                  stroke: { width: benchData?.length ? [2, 2] : [2], curve: 'straight' },
-                  legend: { show: !!benchData?.length, position: 'top' },
+                  colors,
+                  stroke: { width: Array(nSeries).fill(2), curve: 'straight' },
+                  legend: { show: nSeries > 1, position: 'top' },
                   tooltip: {
                     x: {
                       format: 'dd MMM yyyy'
@@ -516,7 +544,12 @@ export default function StrategyBacktestSymbols() {
                     x: new Date(point.timestamp).getTime(),
                     y: point.equity,
                   }));
-                  const out = [{ name: 'Strategy', data: strat }];
+                  const primaryName =
+                    backtest.hedge_enabled && strategyOnlyData?.length ? 'Strategy + hedge' : 'Strategy';
+                  const out = [{ name: primaryName, data: strat }];
+                  if (strategyOnlyData?.length) {
+                    out.push({ name: 'Strategy only', data: strategyOnlyData });
+                  }
                   if (benchData?.length) {
                     out.push({ name: 'S&P 500 (buy & hold)', data: benchData });
                   }

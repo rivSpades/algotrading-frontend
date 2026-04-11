@@ -46,6 +46,30 @@ export const backtestsAPI = {
   },
 
   /**
+   * Preview hybrid VIX hedge simulation (same window metrics vs SPY buy-and-hold)
+   */
+  async previewHedge(payload) {
+    return apiRequest('/backtests/preview-hedge/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /** Saved hedge lab overrides + merged effective defaults */
+  async getHedgeLabSettings() {
+    return apiRequest('/backtests/hedge-lab-settings/');
+  },
+
+  async saveHedgeLabSettings(payload) {
+    return apiRequest('/backtests/hedge-lab-settings/', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
    * Get trades for a backtest (with pagination and filtering)
    * @param {number} backtestId - Backtest ID
    * @param {number} page - Page number (default: 1)
@@ -178,6 +202,45 @@ export async function createBacktest(backtestData) {
     throw new Error(response.error || 'Failed to create backtest');
   } catch (error) {
     console.error('Error creating backtest:', error);
+    throw error;
+  }
+}
+
+export async function previewHedgeSimulation(payload) {
+  try {
+    const response = await backtestsAPI.previewHedge(payload);
+    if (response.success && response.data) {
+      return response.data;
+    }
+    throw new Error(response.error || 'Hedge preview failed');
+  } catch (error) {
+    console.error('Error previewing hedge:', error);
+    throw error;
+  }
+}
+
+export async function getHedgeLabSettings() {
+  try {
+    const response = await backtestsAPI.getHedgeLabSettings();
+    if (response.success && response.data) {
+      return response.data;
+    }
+    throw new Error(response.error || 'Failed to load hedge lab settings');
+  } catch (error) {
+    console.error('Error loading hedge lab settings:', error);
+    throw error;
+  }
+}
+
+export async function saveHedgeLabSettings(hedgeConfig) {
+  try {
+    const response = await backtestsAPI.saveHedgeLabSettings({ hedge_config: hedgeConfig });
+    if (response.success && response.data) {
+      return response.data;
+    }
+    throw new Error(response.error || 'Failed to save hedge lab settings');
+  } catch (error) {
+    console.error('Error saving hedge lab settings:', error);
     throw error;
   }
 }

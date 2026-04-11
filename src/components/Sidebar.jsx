@@ -4,7 +4,7 @@
  */
 
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, BarChart3, Calendar, Play, TrendingUp, Key, Rocket } from 'lucide-react';
+import { LayoutDashboard, BarChart3, Calendar, Play, TrendingUp, Key, Rocket, Shield } from 'lucide-react';
 
 export default function Sidebar() {
   const navItems = [
@@ -37,6 +37,12 @@ export default function Sidebar() {
       path: '/strategies',
       icon: TrendingUp,
       description: 'Trading strategies'
+    },
+    {
+      name: 'Hedge lab',
+      path: '/hedge-config',
+      icon: Shield,
+      description: 'VIX hybrid hedge preview'
     },
     {
       name: 'Brokers',
