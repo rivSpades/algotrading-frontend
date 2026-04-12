@@ -26,6 +26,7 @@ import {
   HedgeTradeInvestedBodyCells,
   HedgeTradePnlBodyCells,
 } from '../components/BacktestHedgeTradeTableCols';
+import { positionModesAvailable, positionModeRunLabel } from '../utils/backtestPositionMode';
 
 export default function StrategyBacktestDetail() {
   const { id, backtestId } = useParams();
@@ -73,6 +74,16 @@ export default function StrategyBacktestDetail() {
       };
     }
   }, [backtest?.status]);
+
+  const positionModesKey = backtest?.position_modes?.length
+    ? [...backtest.position_modes].sort().join(',')
+    : '';
+
+  useEffect(() => {
+    if (!backtest) return;
+    const avail = positionModesAvailable(backtest);
+    setSelectedMode((m) => (avail.includes(m) ? m : avail[0]));
+  }, [backtest?.id, positionModesKey]);
 
   // Trades are loaded once in loadData, then filtered client-side
 
@@ -505,6 +516,8 @@ export default function StrategyBacktestDetail() {
           <span>•</span>
           <span>Date Range: {formatDate(backtest.start_date)} - {formatDate(backtest.end_date)}</span>
           <span>•</span>
+          <span>Modes: {positionModeRunLabel(backtest)}</span>
+          <span>•</span>
           <span className="flex items-center gap-2">
             Status: 
             {backtest.status === 'running' && <Loader className="w-4 h-4 animate-spin" />}
@@ -525,24 +538,31 @@ export default function StrategyBacktestDetail() {
       {/* Mode Selector */}
       <div className="mb-6 bg-white rounded-lg shadow-lg p-4">
         <h2 className="text-lg font-bold text-gray-900 mb-3">Position Mode</h2>
-        <div className="flex gap-3">
-          {['long', 'short'].map((mode) => (
-            <button
-              key={mode}
-              onClick={() => {
-                setSelectedMode(mode);
-                setTradesPage(1); // Reset to page 1 when mode changes
-              }}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors capitalize ${
-                selectedMode === mode
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {mode.toUpperCase()}
-            </button>
-          ))}
-        </div>
+        {positionModesAvailable(backtest).length > 1 ? (
+          <div className="flex gap-3">
+            {positionModesAvailable(backtest).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => {
+                  setSelectedMode(mode);
+                  setTradesPage(1);
+                }}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors capitalize ${
+                  selectedMode === mode
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {mode.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">
+            This backtest was run in <strong>{positionModesAvailable(backtest)[0].toUpperCase()}</strong> mode only.
+          </p>
+        )}
       </div>
 
       {/* Warning Banner for Skipped Trades */}

@@ -17,6 +17,7 @@ import StatisticsCard from '../components/StatisticsCard';
 import CandlestickChart from '../components/CandlestickChart';
 import Chart from 'react-apexcharts';
 import { buildChronologicalTradeTableRows } from '../utils/chronologicalTradeTableRows';
+import { positionModesAvailable, positionModeRunLabel } from '../utils/backtestPositionMode';
 import {
   HedgeTradeInvestedHeaderCells,
   HedgeTradePnlHeaderCells,
@@ -69,6 +70,16 @@ export default function StrategyBacktestSymbolDetail() {
     const page = parseInt(searchParams.get('page') || '1');
     setCurrentPage(page);
   }, [searchParams]);
+
+  const positionModesKey = backtest?.position_modes?.length
+    ? [...backtest.position_modes].sort().join(',')
+    : '';
+
+  useEffect(() => {
+    if (!backtest) return;
+    const avail = positionModesAvailable(backtest);
+    setPositionModeTab((m) => (avail.includes(m) ? m : avail[0]));
+  }, [backtest?.id, positionModesKey]);
 
   const loadData = async () => {
     setLoading(true);
@@ -623,6 +634,8 @@ export default function StrategyBacktestSymbolDetail() {
         <div className="flex items-center gap-4 text-sm text-gray-600">
           <span>Backtest: {backtest.name || `#${backtest.id}`}</span>
           <span>•</span>
+          <span>Modes: {positionModeRunLabel(backtest)}</span>
+          <span>•</span>
           <span>Status: <span className={`font-medium ${backtest.status === 'completed' ? 'text-green-600' : backtest.status === 'failed' ? 'text-red-600' : 'text-yellow-600'}`}>{backtest.status}</span></span>
         </div>
       </div>
@@ -631,28 +644,28 @@ export default function StrategyBacktestSymbolDetail() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-gray-900">Performance Metrics</h2>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPositionModeTab('long')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                positionModeTab === 'long'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              LONG
-            </button>
-            <button
-              onClick={() => setPositionModeTab('short')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                positionModeTab === 'short'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              SHORT
-            </button>
-          </div>
+          {positionModesAvailable(backtest).length > 1 ? (
+            <div className="flex gap-2">
+              {positionModesAvailable(backtest).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setPositionModeTab(mode)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    positionModeTab === mode
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {mode.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className="text-sm text-gray-600">
+              <strong>{positionModesAvailable(backtest)[0].toUpperCase()}</strong> only
+            </span>
+          )}
         </div>
 
         {currentStats && Object.keys(currentStats).length > 0 ? (

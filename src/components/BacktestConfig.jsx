@@ -40,6 +40,8 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
   const [splitRatio, setSplitRatio] = useState(0.7);
   const [initialCapital, setInitialCapital] = useState(10000.0);
   const [betSizePercentage, setBetSizePercentage] = useState(100.0);
+  const [runPositionLong, setRunPositionLong] = useState(true);
+  const [runPositionShort, setRunPositionShort] = useState(true);
   const [hedgeEnabled, setHedgeEnabled] = useState(false);
   const [hedgeParams, setHedgeParams] = useState(() => ({ ...HEDGE_DEFAULTS }));
   const [strategyParameters, setStrategyParameters] = useState({});
@@ -286,6 +288,11 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
       symbolTickers = [...selectedSymbols];
     }
 
+    if (!runPositionLong && !runPositionShort) {
+      alert('Select at least one position mode: Long and/or Short.');
+      return;
+    }
+
     setCreating(true);
     try {
       // Get current date for end_date, and a very old date for start_date to get all data
@@ -302,6 +309,10 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
         initial_capital: initialCapital,
         bet_size_percentage: betSizePercentage,
         strategy_parameters: strategyParameters,
+        position_modes: [
+          ...(runPositionLong ? ['long'] : []),
+          ...(runPositionShort ? ['short'] : []),
+        ],
       };
       
       // Add broker filtering parameters if broker mode is enabled
@@ -356,6 +367,8 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
     setSplitRatio(0.7);
     setInitialCapital(10000.0);
     setBetSizePercentage(100.0);
+    setRunPositionLong(true);
+    setRunPositionShort(true);
     setHedgeEnabled(false);
     setHedgeParams({ ...HEDGE_DEFAULTS });
     setStrategyParameters({});
@@ -743,6 +756,40 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                     className="w-full"
                   />
                   <p className="mt-1 text-xs text-gray-500">Percentage of available capital to bet per trade (0.1% - 100%)</p>
+                </div>
+
+                {/* Position directions to simulate (multi-select) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Position modes to run</label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Select one or both. Each selected mode runs as a separate simulation (same as checking both for full long+short backtest).
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-gray-200 px-4 py-3 hover:bg-gray-50">
+                      <input
+                        type="checkbox"
+                        checked={runPositionLong}
+                        onChange={(e) => setRunPositionLong(e.target.checked)}
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">Long</span>
+                        <p className="text-xs text-gray-500">Long / buy-side signals</p>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-gray-200 px-4 py-3 hover:bg-gray-50">
+                      <input
+                        type="checkbox"
+                        checked={runPositionShort}
+                        onChange={(e) => setRunPositionShort(e.target.checked)}
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">Short</span>
+                        <p className="text-xs text-gray-500">Short-side signals</p>
+                      </div>
+                    </label>
+                  </div>
                 </div>
 
                 {/* Hybrid VIX hedge: split each trade between strategy and VIX sleeve */}
