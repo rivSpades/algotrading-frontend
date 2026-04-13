@@ -43,6 +43,7 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
   const [runPositionLong, setRunPositionLong] = useState(true);
   const [runPositionShort, setRunPositionShort] = useState(true);
   const [hedgeEnabled, setHedgeEnabled] = useState(false);
+  const [runStrategyOnlyBaseline, setRunStrategyOnlyBaseline] = useState(true);
   const [hedgeParams, setHedgeParams] = useState(() => ({ ...HEDGE_DEFAULTS }));
   const [strategyParameters, setStrategyParameters] = useState({});
   
@@ -325,6 +326,7 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
 
       if (hedgeEnabled) {
         backtestData.hedge_enabled = true;
+        backtestData.run_strategy_only_baseline = !!runStrategyOnlyBaseline;
         const hc = {};
         for (const { key } of HEDGE_FIELD_DEFS) {
           if (hedgeParams[key] !== undefined) {
@@ -370,6 +372,7 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
     setRunPositionLong(true);
     setRunPositionShort(true);
     setHedgeEnabled(false);
+    setRunStrategyOnlyBaseline(true);
     setHedgeParams({ ...HEDGE_DEFAULTS });
     setStrategyParameters({});
     setUseBrokerFilter(false);
@@ -810,6 +813,19 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                     goes to your strategy position and part to a VIXM/VIXY sleeve (or VIXY in panic). PnL and the
                     equity curve include both legs. Use <strong>Hedge lab</strong> for the SPY illustration only.
                   </p>
+                  {hedgeEnabled && (
+                    <label className="mt-3 flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={runStrategyOnlyBaseline}
+                        onChange={(e) => setRunStrategyOnlyBaseline(e.target.checked)}
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-gray-800">
+                        Also run strategy-only (no-hedge) baseline for comparison
+                      </span>
+                    </label>
+                  )}
                   {hedgeEnabled && (
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto pr-1">
                       {HEDGE_FIELD_DEFS.map(({ key, label, step }) => (
