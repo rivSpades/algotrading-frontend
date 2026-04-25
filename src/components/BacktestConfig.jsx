@@ -279,7 +279,10 @@ export default function BacktestConfig({
     if (completed) {
       if (pending.runMode === 'single_symbol_bulk') {
         const queued = Array.isArray(taskResult?.queued) ? taskResult.queued : [];
-        onBacktestCreated(null, { runMode: 'single_symbol_bulk', queued });
+        const parameterSet =
+          taskResult?.parameter_set ||
+          (typeof taskResult?.result === 'object' ? taskResult.result?.parameter_set : null);
+        onBacktestCreated(null, { runMode: 'single_symbol_bulk', queued, parameterSet });
         return;
       }
       if (pending.runMode === 'single_symbol' && pending.ticker) {

@@ -27,9 +27,10 @@ export default function TaskProgress({ taskId, onComplete, onClose }) {
       setMessage(data.message);
     }
 
-    // Check for completed/finished statuses
-    const isCompleted = data.status === 'completed' || data.status === 'success';
-    const isFailed = data.status === 'failed' || data.status === 'error';
+    // Check for completed/finished statuses (Celery/DRF may return uppercase states)
+    const st = data.status ? String(data.status).toLowerCase() : '';
+    const isCompleted = st === 'completed' || st === 'success';
+    const isFailed = st === 'failed' || st === 'error' || st === 'failure';
     
     if (isCompleted || isFailed) {
       // Stop polling if task is done

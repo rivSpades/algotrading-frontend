@@ -371,6 +371,16 @@ export const marketDataAPI = {
   },
 
   /**
+   * Purge pending broker messages (default Celery queue).
+   */
+  async purgeTasks(queueKey = 'celery') {
+    return apiRequest(`/tasks/purge/`, {
+      method: 'POST',
+      body: JSON.stringify({ queue_key: queueKey }),
+    });
+  },
+
+  /**
    * Get task execution history
    */
   async getTaskHistory(limit = 50) {

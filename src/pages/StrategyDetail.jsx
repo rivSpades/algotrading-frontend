@@ -4,8 +4,9 @@
  */
 
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
+import Chart from 'react-apexcharts';
 import {
   ArrowLeft,
   TrendingUp,
@@ -21,7 +22,14 @@ import {
   Search,
   Loader,
 } from 'lucide-react';
-import { getStrategy, getStrategySnapshotSymbols, deleteAllStrategySymbolSnapshots } from '../data/strategies';
+import {
+  getStrategy,
+  getStrategySnapshotSymbols,
+  getStrategySymbolRunParameterSets,
+  deleteStrategySymbolRunParameterSet,
+  deleteAllStrategySymbolSnapshots,
+  getStrategySymbolRunSharpeHeatmap,
+} from '../data/strategies';
 import { getBacktests, deleteBacktest } from '../data/backtests';
 import BacktestConfig from '../components/BacktestConfig';
 import SymbolCard from '../components/SymbolCard';
@@ -40,24 +48,118 @@ export default function StrategyDetail() {
   const [deleting, setDeleting] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [snapshotSymbols, setSnapshotSymbols] = useState([]);
+  const [snapshotSymbolsCount, setSnapshotSymbolsCount] = useState(0);
   const [snapshotSymbolsLoading, setSnapshotSymbolsLoading] = useState(false);
   const [snapshotSearch, setSnapshotSearch] = useState('');
   const [snapshotPage, setSnapshotPage] = useState(1);
+  const [snapshotParameterSets, setSnapshotParameterSets] = useState([]);
+  const [selectedSnapshotParameterSet, setSelectedSnapshotParameterSet] = useState('');
+  const [riskScatter, setRiskScatter] = useState(null);
+  const [riskScatterLoading, setRiskScatterLoading] = useState(false);
+  const [riskScatterTab, setRiskScatterTab] = useState('long');
   const SNAPSHOT_PAGE_SIZE = 20;
   const [deletingAllSnapshots, setDeletingAllSnapshots] = useState(false);
+  const riskScatterLoadedForRef = useRef('');
+  const didInitSnapshotsRef = useRef(false);
+  /** Prevents a slow in-flight snapshot request from overwriting a newer search/page result. */
+  const snapshotSymbolsFetchIdRef = useRef(0);
 
-  const reloadSnapshotSymbols = useCallback(async () => {
-    setSnapshotSymbolsLoading(true);
-    try {
-      const rows = await getStrategySnapshotSymbols(id);
-      setSnapshotSymbols(Array.isArray(rows) ? rows : []);
-    } catch (e) {
-      console.error(e);
-      setSnapshotSymbols([]);
-    } finally {
-      setSnapshotSymbolsLoading(false);
-    }
-  }, [id]);
+  const loadSnapshotParameterSets = useCallback(
+    async ({ preferParameterSet = null } = {}) => {
+      const rows = await getStrategySymbolRunParameterSets(id);
+      const list = Array.isArray(rows) ? rows : [];
+      const named = list.filter((ps) => ps && ps.signature && ps.label && String(ps.label).trim());
+      setSnapshotParameterSets(named);
+
+      const prefer = preferParameterSet ? String(preferParameterSet) : '';
+      const current = selectedSnapshotParameterSet ? String(selectedSnapshotParameterSet) : '';
+      const pick = (sig) => named.some((ps) => ps.signature === sig);
+      const chosen = (prefer && pick(prefer))
+        ? prefer
+        : (current && pick(current))
+          ? current
+          : (named[0]?.signature || '');
+
+      if (chosen !== current) setSelectedSnapshotParameterSet(chosen);
+      return chosen;
+    },
+    [id, selectedSnapshotParameterSet],
+  );
+
+  const loadSnapshotSymbolsPage = useCallback(
+    async ({ parameterSet, page, search } = {}) => {
+      const ps = parameterSet ? String(parameterSet) : '';
+      if (!ps) {
+        setSnapshotSymbols([]);
+        setSnapshotSymbolsCount(0);
+        return;
+      }
+      const effectivePage = Number(page) || 1;
+      const effectiveSearch = search != null ? String(search) : '';
+      const requestId = ++snapshotSymbolsFetchIdRef.current;
+      setSnapshotSymbolsLoading(true);
+      try {
+        const resp = await getStrategySnapshotSymbols(id, {
+          parameterSet: ps,
+          page: effectivePage,
+          pageSize: SNAPSHOT_PAGE_SIZE,
+          search: effectiveSearch,
+        });
+        if (requestId !== snapshotSymbolsFetchIdRef.current) {
+          return;
+        }
+        setSnapshotSymbols(Array.isArray(resp?.results) ? resp.results : []);
+        setSnapshotSymbolsCount(Number(resp?.count) || 0);
+      } finally {
+        if (requestId === snapshotSymbolsFetchIdRef.current) {
+          setSnapshotSymbolsLoading(false);
+        }
+      }
+    },
+    [id],
+  );
+
+  const loadRiskScatter = useCallback(
+    async ({ parameterSet, force = false } = {}) => {
+      const ps = parameterSet ? String(parameterSet) : '';
+      if (!ps) {
+        setRiskScatter(null);
+        return;
+      }
+      if (!force && riskScatterLoadedForRef.current === ps) return;
+      setRiskScatterLoading(true);
+      try {
+        const hm = await getStrategySymbolRunSharpeHeatmap(id, ps);
+        setRiskScatter(hm && typeof hm === 'object' ? hm : null);
+        riskScatterLoadedForRef.current = ps;
+      } catch (e) {
+        console.error(e);
+        setRiskScatter(null);
+        riskScatterLoadedForRef.current = ps;
+      } finally {
+        setRiskScatterLoading(false);
+      }
+    },
+    [id],
+  );
+
+  const refreshAllSnapshotPanels = useCallback(
+    async ({ preferParameterSet = null } = {}) => {
+      try {
+        const chosen = await loadSnapshotParameterSets({ preferParameterSet });
+        const ps = chosen || '';
+        await loadSnapshotSymbolsPage({ parameterSet: ps, page: 1, search: '' });
+        await loadRiskScatter({ parameterSet: ps, force: true });
+      } catch (e) {
+        console.error(e);
+        setSnapshotParameterSets([]);
+        setSnapshotSymbols([]);
+        setSnapshotSymbolsCount(0);
+        setRiskScatter(null);
+      }
+    },
+    [loadSnapshotParameterSets, loadSnapshotSymbolsPage, loadRiskScatter],
+  );
 
   useEffect(() => {
     loadStrategy();
@@ -67,23 +169,54 @@ export default function StrategyDetail() {
   }, [id, searchParams]);
 
   useEffect(() => {
+    // Strategy changed: reset snapshots UI to defaults, then fetch page 1.
+    riskScatterLoadedForRef.current = '';
+    didInitSnapshotsRef.current = false;
+    snapshotSymbolsFetchIdRef.current += 1;
     setSnapshotSearch('');
     setSnapshotPage(1);
-    reloadSnapshotSymbols();
-  }, [id, reloadSnapshotSymbols]);
+    setSnapshotSymbols([]);
+    setSnapshotSymbolsCount(0);
+  }, [id]);
 
-  const filteredSnapshotSymbols = useMemo(() => {
-    const q = snapshotSearch.trim().toLowerCase();
-    if (!q) return snapshotSymbols;
-    return snapshotSymbols.filter((s) => String(s.ticker || '').toLowerCase().includes(q));
-  }, [snapshotSymbols, snapshotSearch]);
+  useEffect(() => {
+    if (!id) return;
+    // Initial load: parameter sets -> select -> page 1 + scatter once.
+    (async () => {
+      if (didInitSnapshotsRef.current) return;
+      didInitSnapshotsRef.current = true;
+      try {
+        const chosen = await loadSnapshotParameterSets();
+        // Do not load the snapshot list here: that request can finish after a user search and
+        // replace filtered results. The effect below refetches when the global test + page + search are set.
+        if (!chosen) {
+          setSnapshotSymbols([]);
+          setSnapshotSymbolsCount(0);
+        }
+        await loadRiskScatter({ parameterSet: chosen, force: true });
+      } catch (e) {
+        console.error(e);
+        setSnapshotParameterSets([]);
+        setSnapshotSymbols([]);
+        setSnapshotSymbolsCount(0);
+        setRiskScatter(null);
+      }
+    })();
+  }, [id, loadSnapshotParameterSets, loadSnapshotSymbolsPage, loadRiskScatter]);
 
-  const pagedSnapshotSymbols = useMemo(() => {
-    const start = (snapshotPage - 1) * SNAPSHOT_PAGE_SIZE;
-    return filteredSnapshotSymbols.slice(start, start + SNAPSHOT_PAGE_SIZE);
-  }, [filteredSnapshotSymbols, snapshotPage]);
+  useEffect(() => {
+    if (!id) return;
+    if (!didInitSnapshotsRef.current) return;
+    if (!selectedSnapshotParameterSet) return;
+    // Page / search / global test changes refetch cards.
+    loadSnapshotSymbolsPage({
+      parameterSet: selectedSnapshotParameterSet,
+      page: snapshotPage,
+      search: snapshotSearch,
+    });
+  }, [id, snapshotPage, snapshotSearch, selectedSnapshotParameterSet, loadSnapshotSymbolsPage]);
 
-  const snapshotTotalPages = Math.max(1, Math.ceil(filteredSnapshotSymbols.length / SNAPSHOT_PAGE_SIZE));
+  const snapshotTotalPages = Math.max(1, Math.ceil((snapshotSymbolsCount || 0) / SNAPSHOT_PAGE_SIZE));
 
   const handleSnapshotSearchChange = (e) => {
     setSnapshotSearch(e.target.value);
@@ -155,11 +288,17 @@ export default function StrategyDetail() {
 
   const handleStrategyBacktestCreated = (backtest, ctx) => {
     if (ctx?.runMode === 'single_symbol_bulk') {
+      const ps = ctx?.parameterSet ? String(ctx.parameterSet) : '';
+      if (ps) {
+        setSelectedSnapshotParameterSet(ps);
+      }
       const q = Array.isArray(ctx?.queued)
         ? ctx.queued.find((x) => x && x.ticker && (x.run_id || x.id))
         : null;
       loadBacktests();
-      reloadSnapshotSymbols();
+      riskScatterLoadedForRef.current = '';
+      setSnapshotPage(1);
+      refreshAllSnapshotPanels({ preferParameterSet: ps || null });
       if (q) {
         navigate(`/strategies/${id}/${q.ticker}?run=${q.run_id || q.id}`);
       } else {
@@ -169,23 +308,46 @@ export default function StrategyDetail() {
     }
     if (ctx?.runMode === 'single_symbol' && ctx?.ticker && backtest?.id) {
       loadBacktests();
-      reloadSnapshotSymbols();
+      refreshAllSnapshotPanels();
       navigate(`/strategies/${id}/${ctx.ticker}?run=${backtest.id}`);
       return;
     }
     if (backtest?.id) {
       navigate(`/strategies/${id}/backtests/${backtest.id}`);
       loadBacktests();
-      reloadSnapshotSymbols();
+      refreshAllSnapshotPanels();
       return;
     }
     navigate(`/strategies/${id}`);
     loadBacktests();
-    reloadSnapshotSymbols();
+    refreshAllSnapshotPanels();
   };
 
   const handleDeleteAllSnapshots = async () => {
     if (!strategy || snapshotSymbols.length === 0) return;
+    if (selectedSnapshotParameterSet) {
+      const ps = snapshotParameterSets.find((x) => x.signature === selectedSnapshotParameterSet);
+      const label = (ps?.label && String(ps.label).trim()) || selectedSnapshotParameterSet;
+      const msg = `Delete global test "${label}"?\n\nThis deletes the global test and every snapshot run linked to it (all symbols). Portfolio backtests are not affected. This cannot be undone.`;
+      if (!window.confirm(msg)) return;
+      setDeletingAllSnapshots(true);
+      try {
+        await deleteStrategySymbolRunParameterSet(parseInt(id, 10), selectedSnapshotParameterSet);
+        setSelectedSnapshotParameterSet('');
+        setSnapshotSearch('');
+        setSnapshotPage(1);
+        riskScatterLoadedForRef.current = '';
+        didInitSnapshotsRef.current = false;
+        await refreshAllSnapshotPanels();
+      } catch (e) {
+        console.error(e);
+        alert(e.message || 'Failed to delete global test');
+      } finally {
+        setDeletingAllSnapshots(false);
+      }
+      return;
+    }
+
     const msg = `Delete every single-symbol snapshot run for "${strategy.name}"?\n\nThis removes all saved per-symbol backtests for this strategy (every symbol, every run). Portfolio backtests are not affected. This cannot be undone.`;
     if (!window.confirm(msg)) return;
     setDeletingAllSnapshots(true);
@@ -193,7 +355,10 @@ export default function StrategyDetail() {
       await deleteAllStrategySymbolSnapshots(parseInt(id, 10));
       setSnapshotSearch('');
       setSnapshotPage(1);
-      await reloadSnapshotSymbols();
+      setSelectedSnapshotParameterSet('');
+      riskScatterLoadedForRef.current = '';
+      didInitSnapshotsRef.current = false;
+      await refreshAllSnapshotPanels();
     } catch (e) {
       console.error(e);
       alert(e.message || 'Failed to delete snapshot runs');
@@ -361,9 +526,9 @@ export default function StrategyDetail() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <List className="w-5 h-5 shrink-0" />
-            Single-symbol snapshots ({filteredSnapshotSymbols.length})
+            Single-symbol snapshots ({snapshotSymbolsCount || 0})
           </h2>
-          {snapshotSymbols.length > 0 && (
+          {(snapshotSymbols.length > 0 || selectedSnapshotParameterSet) && (
             <button
               type="button"
               onClick={handleDeleteAllSnapshots}
@@ -371,7 +536,11 @@ export default function StrategyDetail() {
               className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
             >
               <Trash2 className="w-4 h-4" />
-              {deletingAllSnapshots ? 'Deleting…' : 'Delete all snapshots'}
+              {deletingAllSnapshots
+                ? 'Deleting…'
+                : selectedSnapshotParameterSet
+                  ? 'Delete this test'
+                  : 'Delete all snapshots'}
             </button>
           )}
         </div>
@@ -381,7 +550,28 @@ export default function StrategyDetail() {
           backtests stay.
         </p>
 
-        <div className="mb-6">
+        <div className="mb-6 space-y-3">
+          <label className="text-sm block">
+            <span className="text-gray-600">Global test</span>
+            <select
+              value={selectedSnapshotParameterSet}
+              onChange={(e) => {
+                const next = e.target.value;
+                setSelectedSnapshotParameterSet(next);
+                setSnapshotPage(1);
+                riskScatterLoadedForRef.current = '';
+                loadRiskScatter({ parameterSet: next, force: true });
+              }}
+              className="mt-1 w-full px-3 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              {snapshotParameterSets.map((ps) => (
+                <option key={ps.signature} value={ps.signature}>
+                  {String(ps.label).trim()}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
@@ -412,10 +602,10 @@ export default function StrategyDetail() {
             <Loader className="w-8 h-8 animate-spin mx-auto text-primary-600" />
             <p className="text-gray-600 mt-4">Loading symbols...</p>
           </div>
-        ) : pagedSnapshotSymbols.length > 0 ? (
+        ) : snapshotSymbols.length > 0 ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-              {pagedSnapshotSymbols.map((sym, index) => {
+              {snapshotSymbols.map((sym, index) => {
                 const footer =
                   sym.snapshot_count != null
                     ? `${sym.snapshot_count} saved run(s) · latest: ${sym.latest_run_status || '—'}`
@@ -449,7 +639,10 @@ export default function StrategyDetail() {
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
                 <button
                   type="button"
-                  onClick={() => setSnapshotPage((p) => Math.max(1, p - 1))}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setSnapshotPage((p) => Math.max(1, p - 1));
+                  }}
                   disabled={snapshotPage <= 1}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
                     snapshotPage > 1
@@ -461,11 +654,14 @@ export default function StrategyDetail() {
                   Previous
                 </button>
                 <span className="text-sm text-gray-600">
-                  Page {snapshotPage} of {snapshotTotalPages} ({filteredSnapshotSymbols.length} total)
+                  Page {snapshotPage} of {snapshotTotalPages} ({snapshotSymbolsCount || 0} total)
                 </span>
                 <button
                   type="button"
-                  onClick={() => setSnapshotPage((p) => Math.min(snapshotTotalPages, p + 1))}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setSnapshotPage((p) => Math.min(snapshotTotalPages, p + 1));
+                  }}
                   disabled={snapshotPage >= snapshotTotalPages}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
                     snapshotPage < snapshotTotalPages
@@ -482,10 +678,267 @@ export default function StrategyDetail() {
         ) : (
           <div className="text-center py-12 bg-gray-50 rounded-lg">
             <p className="text-gray-500 text-lg">
-              {snapshotSymbols.length === 0
-                ? 'No single-symbol snapshots yet.'
-                : 'No symbols match your search.'}
+              {snapshotSymbolsCount === 0 ? 'No single-symbol snapshots yet.' : 'No symbols match your search.'}
             </p>
+          </div>
+        )}
+
+        {selectedSnapshotParameterSet && (
+          <div className="mt-6 border border-gray-200 rounded-lg p-4 bg-white">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="text-sm font-semibold text-gray-900">Sharpe vs Max Drawdown (scatter)</h3>
+              {riskScatterLoading && (
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Loading…
+                </div>
+              )}
+            </div>
+
+            {riskScatter && Array.isArray(riskScatter.cells) && riskScatter.cells.length > 0 ? (
+              <div className="overflow-x-auto">
+                <div className="min-w-[900px]">
+                  {(() => {
+                    const tab = riskScatterTab === 'short' ? 'short' : 'long';
+                    const modeLabel = tab === 'short' ? 'SHORT' : 'LONG';
+                    const points = riskScatter.cells
+                      .map((c) => {
+                        const m = tab === 'short' ? c?.short : c?.long;
+                        const dd = m?.max_drawdown == null ? null : Number(m.max_drawdown);
+                        const sh = m?.sharpe == null ? null : Number(m.sharpe);
+                        return {
+                          // Keep ticker in a dedicated field; ApexCharts sometimes treats x/y specially.
+                          _ticker: c.ticker,
+                          x: dd,
+                          y: sh,
+                        };
+                      })
+                      .filter((p) => p._ticker && p.x != null && p.y != null && !Number.isNaN(p.x) && !Number.isNaN(p.y));
+
+                    const axisRange = (vals, { padFrac = 0.05, fallbackMin = 0, fallbackMax = 1 } = {}) => {
+                      if (!Array.isArray(vals) || vals.length === 0) return { min: fallbackMin, max: fallbackMax };
+                      let mn = Infinity;
+                      let mx = -Infinity;
+                      for (const v of vals) {
+                        if (v == null || Number.isNaN(v)) continue;
+                        if (v < mn) mn = v;
+                        if (v > mx) mx = v;
+                      }
+                      if (!Number.isFinite(mn) || !Number.isFinite(mx)) return { min: fallbackMin, max: fallbackMax };
+                      if (mn === mx) {
+                        const bump = mn === 0 ? 1 : Math.abs(mn) * 0.25;
+                        return { min: mn - bump, max: mx + bump };
+                      }
+                      const pad = (mx - mn) * padFrac;
+                      return { min: mn - pad, max: mx + pad };
+                    };
+
+                    const ddRange = axisRange(points.map((p) => p.x), { fallbackMin: 0, fallbackMax: 10 });
+                    const shRange = axisRange(points.map((p) => p.y), { fallbackMin: -1, fallbackMax: 2 });
+
+                    // Color points by 2D buckets (Sharpe row x abs(drawdown) column)
+                    // Sharpe buckets:
+                    //  S3: > 2.0
+                    //  S2: 1.0–2.0
+                    //  S1: 0–1.0
+                    //  S0: < 0
+                    // Drawdown buckets (ABS value, %):
+                    //  D1: 0–20
+                    //  D2: 20–40
+                    //  D3: 40–60
+                    //  D4: > 60
+                    const bucketColor = ({ sharpe, maxDrawdown }) => {
+                      const sh = Number(sharpe);
+                      const dd = Math.abs(Number(maxDrawdown));
+                      if (Number.isNaN(sh) || Number.isNaN(dd)) return '#9ca3af'; // gray fallback
+
+                      const s =
+                        sh > 2 ? 3
+                        : sh >= 1 ? 2
+                        : sh >= 0 ? 1
+                        : 0;
+                      const d =
+                        dd <= 20 ? 1
+                        : dd <= 40 ? 2
+                        : dd <= 60 ? 3
+                        : 4;
+
+                      // Grid colors (matching your spec)
+                      // rows: S3..S0, cols: D1..D4
+                      if (s === 3) {
+                        if (d === 1) return '#22c55e'; // 🟢🟢 -> green
+                        if (d === 2) return '#22c55e'; // 🟢
+                        if (d === 3) return '#eab308'; // 🟡
+                        return '#f97316'; // 🟠
+                      }
+                      if (s === 2) {
+                        if (d === 1) return '#22c55e'; // 🟢
+                        if (d === 2) return '#eab308'; // 🟡
+                        if (d === 3) return '#f97316'; // 🟠
+                        return '#ef4444'; // 🔴
+                      }
+                      if (s === 1) {
+                        if (d === 1) return '#eab308'; // 🟡
+                        if (d === 2) return '#f97316'; // 🟠
+                        return '#ef4444'; // 🔴 (D3/D4)
+                      }
+                      // s === 0
+                      if (d === 4) return '#111827'; // ⚫
+                      return '#ef4444'; // 🔴
+                    };
+                    const discreteMarkers = points.map((p, i) => ({
+                      seriesIndex: 0,
+                      dataPointIndex: i,
+                      fillColor: bucketColor({ sharpe: p.y, maxDrawdown: p.x }),
+                      strokeColor: bucketColor({ sharpe: p.y, maxDrawdown: p.x }),
+                      size: 2,
+                    }));
+
+                    return (
+                      <>
+                        <div className="flex items-center gap-2 mb-3">
+                          <button
+                            type="button"
+                            onClick={() => setRiskScatterTab('long')}
+                            className={`px-3 py-1.5 text-sm rounded-md border ${
+                              riskScatterTab === 'long'
+                                ? 'bg-white border-gray-300 text-gray-900 shadow-sm'
+                                : 'bg-transparent border-transparent text-gray-600 hover:text-gray-900'
+                            }`}
+                          >
+                            LONG
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRiskScatterTab('short')}
+                            className={`px-3 py-1.5 text-sm rounded-md border ${
+                              riskScatterTab === 'short'
+                                ? 'bg-white border-gray-300 text-gray-900 shadow-sm'
+                                : 'bg-transparent border-transparent text-gray-600 hover:text-gray-900'
+                            }`}
+                          >
+                            SHORT
+                          </button>
+                          <span className="text-xs text-gray-600 ml-auto">
+                            Showing {points.length} symbol(s)
+                          </span>
+                        </div>
+
+                  <Chart
+                    type="scatter"
+                    height={460}
+                    series={[
+                      {
+                        name: modeLabel,
+                        data: points,
+                      },
+                    ]}
+                    options={{
+                      chart: {
+                        type: 'scatter',
+                        animations: { enabled: false },
+                        toolbar: { show: true },
+                        zoom: { enabled: false },
+                        events: {
+                          dataPointSelection: (_event, chartContext, config) => {
+                            try {
+                              const pIdx = config?.dataPointIndex;
+                              const point = chartContext?.w?.config?.series?.[0]?.data?.[pIdx];
+                              const ticker = point?._ticker;
+                              if (!ticker) return;
+                              navigate(`/strategies/${id}/${encodeURIComponent(ticker)}`);
+                            } catch (e) {
+                              console.error(e);
+                            }
+                          },
+                        },
+                      },
+                      legend: { show: true, position: 'top' },
+                      markers: {
+                        size: 2,
+                        strokeWidth: 0,
+                        fillOpacity: 0.85,
+                        discrete: discreteMarkers,
+                      },
+                      xaxis: {
+                        title: { text: 'Max drawdown (%)' },
+                        labels: { formatter: (v) => Number(v).toFixed(1) },
+                        min: ddRange.min,
+                        max: ddRange.max,
+                      },
+                      yaxis: {
+                        title: { text: 'Sharpe ratio' },
+                        labels: { formatter: (v) => Number(v).toFixed(2) },
+                        min: shRange.min,
+                        max: shRange.max,
+                      },
+                      tooltip: {
+                        custom: ({ seriesIndex, dataPointIndex, w }) => {
+                          const p = w?.config?.series?.[seriesIndex]?.data?.[dataPointIndex];
+                          if (!p) return '';
+                          const mode = w?.config?.series?.[seriesIndex]?.name || '';
+                          const dd = Number(p.x);
+                          const sh = Number(p.y);
+                          return `
+                            <div style="padding:8px 10px;">
+                              <div style="font-weight:600; margin-bottom:4px;">${p._ticker} · ${mode}</div>
+                              <div>Max DD: ${Number.isNaN(dd) ? '—' : dd.toFixed(2)}%</div>
+                              <div>Sharpe: ${Number.isNaN(sh) ? '—' : sh.toFixed(2)}</div>
+                            </div>
+                          `;
+                        },
+                      },
+                    }}
+                  />
+                  <div className="mt-3 overflow-x-auto">
+                    <div className="min-w-[560px] text-xs text-gray-700">
+                      <div className="font-medium mb-2">Color = Sharpe bucket × |Max drawdown| bucket</div>
+                      <div className="grid grid-cols-[120px_repeat(4,1fr)] gap-2 items-center">
+                        <div />
+                        <div className="text-center">0–20%</div>
+                        <div className="text-center">20–40%</div>
+                        <div className="text-center">40–60%</div>
+                        <div className="text-center">&gt; 60%</div>
+
+                        <div className="font-medium">Sharpe &gt; 2</div>
+                        <div className="h-5 rounded" style={{ backgroundColor: '#22c55e' }} />
+                        <div className="h-5 rounded" style={{ backgroundColor: '#22c55e' }} />
+                        <div className="h-5 rounded" style={{ backgroundColor: '#eab308' }} />
+                        <div className="h-5 rounded" style={{ backgroundColor: '#f97316' }} />
+
+                        <div className="font-medium">Sharpe 1–2</div>
+                        <div className="h-5 rounded" style={{ backgroundColor: '#22c55e' }} />
+                        <div className="h-5 rounded" style={{ backgroundColor: '#eab308' }} />
+                        <div className="h-5 rounded" style={{ backgroundColor: '#f97316' }} />
+                        <div className="h-5 rounded" style={{ backgroundColor: '#ef4444' }} />
+
+                        <div className="font-medium">Sharpe 0–1</div>
+                        <div className="h-5 rounded" style={{ backgroundColor: '#eab308' }} />
+                        <div className="h-5 rounded" style={{ backgroundColor: '#f97316' }} />
+                        <div className="h-5 rounded" style={{ backgroundColor: '#ef4444' }} />
+                        <div className="h-5 rounded" style={{ backgroundColor: '#ef4444' }} />
+
+                        <div className="font-medium">Sharpe &lt; 0</div>
+                        <div className="h-5 rounded" style={{ backgroundColor: '#ef4444' }} />
+                        <div className="h-5 rounded" style={{ backgroundColor: '#ef4444' }} />
+                        <div className="h-5 rounded" style={{ backgroundColor: '#ef4444' }} />
+                        <div className="h-5 rounded" style={{ backgroundColor: '#111827' }} />
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2">
+                    Tip: click a point to open the symbol page.
+                  </p>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600">
+                No statistics yet for this global test (runs may still be running or missing statistics).
+              </p>
+            )}
           </div>
         )}
       </div>

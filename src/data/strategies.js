@@ -100,9 +100,34 @@ export const strategiesAPI = {
     });
   },
 
-  /** Tickers that have stored single-symbol runs for this strategy */
-  async getStrategySnapshotSymbols(strategyId) {
-    return apiRequest(`/strategies/${strategyId}/symbol-runs-summary/`);
+  /** Tickers that have stored single-symbol runs for this strategy (paginated). */
+  async getStrategySnapshotSymbols(strategyId, { parameterSet = '', page = 1, pageSize = 20, search = '' } = {}) {
+    const ps = parameterSet && String(parameterSet).trim();
+    const q = search && String(search).trim();
+    const params = new URLSearchParams();
+    if (ps) params.set('parameter_set', ps);
+    if (page) params.set('page', String(page));
+    if (pageSize) params.set('page_size', String(pageSize));
+    if (q) params.set('ticker_q', q);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest(`/strategies/${strategyId}/symbol-runs-summary/${qs}`);
+  },
+
+  async getStrategySymbolRunParameterSets(strategyId) {
+    return apiRequest(`/strategies/${strategyId}/symbol-run-parameter-sets/`);
+  },
+
+  async deleteStrategySymbolRunParameterSet(strategyId, signature) {
+    return apiRequest(
+      `/strategies/${strategyId}/symbol-run-parameter-sets/${encodeURIComponent(signature)}/`,
+      { method: 'DELETE' },
+    );
+  },
+
+  async getStrategySymbolRunSharpeHeatmap(strategyId, signature) {
+    return apiRequest(
+      `/strategies/${strategyId}/symbol-run-parameter-sets/${encodeURIComponent(signature)}/sharpe-heatmap/`,
+    );
   },
 
   /** Delete all single-symbol runs for this strategy (all symbols). */
@@ -289,17 +314,61 @@ export async function runStrategySymbolBacktestBulk(strategyId, body) {
   throw new Error(response.error || 'Failed to run bulk symbol backtests');
 }
 
-export async function getStrategySnapshotSymbols(strategyId) {
+export async function getStrategySnapshotSymbols(
+  strategyId,
+  { parameterSet = '', page = 1, pageSize = 20, search = '' } = {},
+) {
   try {
-    const response = await strategiesAPI.getStrategySnapshotSymbols(strategyId);
-    if (response.success && response.data && Array.isArray(response.data.symbols)) {
-      return response.data.symbols;
+    const response = await strategiesAPI.getStrategySnapshotSymbols(strategyId, { parameterSet, page, pageSize, search });
+    if (response.success && response.data) {
+      // DRF pagination: { count, next, previous, results }
+      if (Array.isArray(response.data.results)) {
+        return {
+          results: response.data.results,
+          count: response.data.count ?? response.data.results.length,
+          next: response.data.next || null,
+          previous: response.data.previous || null,
+          page,
+          pageSize,
+        };
+      }
+      // Backward compatibility (older backend)
+      if (Array.isArray(response.data.symbols)) {
+        return {
+          results: response.data.symbols,
+          count: response.data.symbols.length,
+          next: null,
+          previous: null,
+          page,
+          pageSize,
+        };
+      }
     }
-    return [];
+    return { results: [], count: 0, next: null, previous: null, page, pageSize };
   } catch (e) {
     console.error('Error loading snapshot symbols:', e);
-    return [];
+    return { results: [], count: 0, next: null, previous: null, page, pageSize };
   }
+}
+
+export async function getStrategySymbolRunParameterSets(strategyId) {
+  const response = await strategiesAPI.getStrategySymbolRunParameterSets(strategyId);
+  if (response.success && response.data && Array.isArray(response.data.parameter_sets)) {
+    return response.data.parameter_sets;
+  }
+  return [];
+}
+
+export async function deleteStrategySymbolRunParameterSet(strategyId, signature) {
+  const response = await strategiesAPI.deleteStrategySymbolRunParameterSet(strategyId, signature);
+  if (response.success && response.data) return response.data;
+  throw new Error(response.error || 'Failed to delete global test');
+}
+
+export async function getStrategySymbolRunSharpeHeatmap(strategyId, signature) {
+  const response = await strategiesAPI.getStrategySymbolRunSharpeHeatmap(strategyId, signature);
+  if (response.success && response.data) return response.data;
+  throw new Error(response.error || 'Failed to load heatmap');
 }
 
 export async function deleteAllStrategySymbolSnapshots(strategyId) {

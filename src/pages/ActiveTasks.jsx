@@ -14,6 +14,7 @@ export default function ActiveTasks() {
   const [taskHistory, setTaskHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [brokerInfo, setBrokerInfo] = useState(null);
   const wsConnectionsRef = useRef({});
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export default function ActiveTasks() {
       const response = await marketDataAPI.getActiveTasks();
       if (response.success) {
         const newTasks = response.data.results || [];
+        const broker = response.data.broker || null;
         
         // Use functional update to avoid stale closure issues
         setActiveTasks(prevTasks => {
@@ -73,6 +75,10 @@ export default function ActiveTasks() {
           const unique = Array.from(new Map(merged.map(t => [t.task_id, t])).values());
           return unique;
         });
+
+        // Attach broker queue info onto a synthetic "task" slot for display convenience
+        // (kept separate from activeTasks array so we don't pollute task cards)
+        setBrokerInfo(broker);
         
       }
     } catch (error) {
@@ -121,6 +127,25 @@ export default function ActiveTasks() {
     }
   };
 
+  const handlePurgeQueue = async () => {
+    const q = brokerInfo?.queue_key || 'celery';
+    if (!window.confirm(`This will delete ALL pending broker messages in queue "${q}". Continue?`)) {
+      return;
+    }
+    try {
+      const response = await marketDataAPI.purgeTasks(q);
+      if (response.success) {
+        alert(response.data?.message || 'Purged.');
+        loadActiveTasks();
+        loadTaskHistory();
+      } else {
+        alert(`Failed to purge: ${response.error}`);
+      }
+    } catch (e) {
+      alert(`Failed to purge: ${e.message}`);
+    }
+  };
+
   const formatTaskName = (name) => {
     if (!name || name === 'Unknown') return 'Unknown Task';
     // Extract readable name from task path
@@ -156,6 +181,38 @@ export default function ActiveTasks() {
           <RefreshCw className="w-4 h-4" />
           Refresh (Manual)
         </button>
+      </div>
+
+      {/* Broker Queue Visibility */}
+      <div className="mb-8 bg-white rounded-lg shadow p-6 border border-gray-200">
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Broker queue</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          If Celery workers are stopped, tasks can still be queued in Redis and will run after restart.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="text-sm text-gray-700">
+            Queue: <span className="font-mono">{brokerInfo?.queue_key || 'celery'}</span>
+          </div>
+          <div className="text-sm text-gray-700">
+            Pending messages:{' '}
+            <span className="font-semibold">
+              {brokerInfo?.pending == null ? '—' : brokerInfo.pending}
+            </span>
+          </div>
+          {brokerInfo?.error && (
+            <div className="text-sm text-red-700">
+              Error: {brokerInfo.error}
+            </div>
+          )}
+          <button
+            onClick={handlePurgeQueue}
+            className="ml-auto px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+            title="Delete all pending broker messages"
+          >
+            <Square className="w-4 h-4" />
+            Purge pending
+          </button>
+        </div>
       </div>
 
       {/* Active Tasks Section */}
