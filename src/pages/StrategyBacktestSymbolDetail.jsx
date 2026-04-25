@@ -39,6 +39,8 @@ export default function StrategyBacktestSymbolDetail({
   /** Parent increments when the same symbol run was re-queued in place (recalculate) so we refetch despite unchanged run id. */
   symbolRunReloadNonce = 0,
   standalone = false,
+  /** Optional: parent can pass already-fetched strategy to avoid duplicate GET /strategies/:id/ */
+  embeddedStrategy = null,
   onRecalculate = null,
   onDeleteRun = null,
   recalculateDisabled = false,
@@ -74,7 +76,7 @@ export default function StrategyBacktestSymbolDetail({
     setLoading(true);
     try {
       const [strategyData, runOrBacktestData, statsData] = await Promise.all([
-        getStrategy(id),
+        embeddedStrategy ? Promise.resolve(embeddedStrategy) : getStrategy(id),
         isSymbolRun ? getSymbolRun(runId) : getBacktest(backtestId),
         isSymbolRun ? getSymbolRunStatisticsOptimized(runId) : getBacktestStatisticsOptimized(backtestId),
       ]);
@@ -130,7 +132,7 @@ export default function StrategyBacktestSymbolDetail({
     } finally {
       setLoading(false);
     }
-  }, [id, backtestId, runId, isSymbolRun, ticker, positionModeTab]);
+  }, [id, backtestId, runId, isSymbolRun, ticker, positionModeTab, embeddedStrategy]);
 
   useEffect(() => {
     const page = parseInt(searchParams.get('page') || '1');

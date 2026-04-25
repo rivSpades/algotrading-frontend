@@ -113,17 +113,16 @@ export default function StrategySymbolDetail() {
   const status = selectedRun?.status;
 
   useEffect(() => {
-    const active =
-      status === 'running' ||
-      status === 'pending' ||
-      pendingBacktestId != null ||
-      runs.some((r) => r.status === 'running' || r.status === 'pending');
+    // Poll the runs list only while the currently selected run is still running/pending,
+    // or while we have a just-started run id we are waiting to appear.
+    // Avoid polling forever due to unrelated stale runs in the list.
+    const active = status === 'running' || status === 'pending' || pendingBacktestId != null;
     if (!active) return undefined;
     const t = setInterval(() => {
       loadSnapshot();
     }, 3000);
     return () => clearInterval(t);
-  }, [status, pendingBacktestId, runs, loadSnapshot]);
+  }, [status, pendingBacktestId, loadSnapshot]);
 
   const handleStarted = ({ taskId: tid, backtestId: bid, runName }) => {
     if (bid != null) {
@@ -337,6 +336,7 @@ export default function StrategySymbolDetail() {
         <StrategyBacktestSymbolDetail
           key={effectiveRunId}
           embeddedRunId={effectiveRunId}
+          embeddedStrategy={strategy}
           symbolRunReloadNonce={symbolRunReloadNonce}
           standalone
           onRecalculate={recalculateSelectedRun}
