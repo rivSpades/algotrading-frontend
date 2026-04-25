@@ -4,11 +4,27 @@
  */
 
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { ArrowLeft, TrendingUp, Code, Settings, Clock, CheckCircle, XCircle, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
-import { getStrategy } from '../data/strategies';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import {
+  ArrowLeft,
+  TrendingUp,
+  Code,
+  Settings,
+  Clock,
+  CheckCircle,
+  XCircle,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
+  List,
+  Search,
+  Loader,
+} from 'lucide-react';
+import { getStrategy, getStrategySnapshotSymbols, deleteAllStrategySymbolSnapshots } from '../data/strategies';
 import { getBacktests, deleteBacktest } from '../data/backtests';
 import BacktestConfig from '../components/BacktestConfig';
+import SymbolCard from '../components/SymbolCard';
 
 export default function StrategyDetail() {
   const { id } = useParams();
@@ -21,9 +37,27 @@ export default function StrategyDetail() {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [backtestsLoading, setBacktestsLoading] = useState(true);
-  const [showBacktestConfig, setShowBacktestConfig] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [snapshotSymbols, setSnapshotSymbols] = useState([]);
+  const [snapshotSymbolsLoading, setSnapshotSymbolsLoading] = useState(false);
+  const [snapshotSearch, setSnapshotSearch] = useState('');
+  const [snapshotPage, setSnapshotPage] = useState(1);
+  const SNAPSHOT_PAGE_SIZE = 20;
+  const [deletingAllSnapshots, setDeletingAllSnapshots] = useState(false);
+
+  const reloadSnapshotSymbols = useCallback(async () => {
+    setSnapshotSymbolsLoading(true);
+    try {
+      const rows = await getStrategySnapshotSymbols(id);
+      setSnapshotSymbols(Array.isArray(rows) ? rows : []);
+    } catch (e) {
+      console.error(e);
+      setSnapshotSymbols([]);
+    } finally {
+      setSnapshotSymbolsLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
     loadStrategy();
@@ -31,6 +65,30 @@ export default function StrategyDetail() {
     setCurrentPage(page);
     loadBacktests(page);
   }, [id, searchParams]);
+
+  useEffect(() => {
+    setSnapshotSearch('');
+    setSnapshotPage(1);
+    reloadSnapshotSymbols();
+  }, [id, reloadSnapshotSymbols]);
+
+  const filteredSnapshotSymbols = useMemo(() => {
+    const q = snapshotSearch.trim().toLowerCase();
+    if (!q) return snapshotSymbols;
+    return snapshotSymbols.filter((s) => String(s.ticker || '').toLowerCase().includes(q));
+  }, [snapshotSymbols, snapshotSearch]);
+
+  const pagedSnapshotSymbols = useMemo(() => {
+    const start = (snapshotPage - 1) * SNAPSHOT_PAGE_SIZE;
+    return filteredSnapshotSymbols.slice(start, start + SNAPSHOT_PAGE_SIZE);
+  }, [filteredSnapshotSymbols, snapshotPage]);
+
+  const snapshotTotalPages = Math.max(1, Math.ceil(filteredSnapshotSymbols.length / SNAPSHOT_PAGE_SIZE));
+
+  const handleSnapshotSearchChange = (e) => {
+    setSnapshotSearch(e.target.value);
+    setSnapshotPage(1);
+  };
 
   const loadStrategy = async () => {
     setLoading(true);
@@ -95,11 +153,53 @@ export default function StrategyDetail() {
     }
   };
 
-  const handleBacktestCreated = (backtest) => {
-    // Navigate immediately to the backtest detail page
-    navigate(`/strategies/${id}/backtests/${backtest.id}`);
-    // Reload backtests in the background
+  const handleStrategyBacktestCreated = (backtest, ctx) => {
+    if (ctx?.runMode === 'single_symbol_bulk') {
+      const q = Array.isArray(ctx?.queued)
+        ? ctx.queued.find((x) => x && x.ticker && (x.run_id || x.id))
+        : null;
+      loadBacktests();
+      reloadSnapshotSymbols();
+      if (q) {
+        navigate(`/strategies/${id}/${q.ticker}?run=${q.run_id || q.id}`);
+      } else {
+        navigate(`/strategies/${id}`);
+      }
+      return;
+    }
+    if (ctx?.runMode === 'single_symbol' && ctx?.ticker && backtest?.id) {
+      loadBacktests();
+      reloadSnapshotSymbols();
+      navigate(`/strategies/${id}/${ctx.ticker}?run=${backtest.id}`);
+      return;
+    }
+    if (backtest?.id) {
+      navigate(`/strategies/${id}/backtests/${backtest.id}`);
+      loadBacktests();
+      reloadSnapshotSymbols();
+      return;
+    }
+    navigate(`/strategies/${id}`);
     loadBacktests();
+    reloadSnapshotSymbols();
+  };
+
+  const handleDeleteAllSnapshots = async () => {
+    if (!strategy || snapshotSymbols.length === 0) return;
+    const msg = `Delete every single-symbol snapshot run for "${strategy.name}"?\n\nThis removes all saved per-symbol backtests for this strategy (every symbol, every run). Portfolio backtests are not affected. This cannot be undone.`;
+    if (!window.confirm(msg)) return;
+    setDeletingAllSnapshots(true);
+    try {
+      await deleteAllStrategySymbolSnapshots(parseInt(id, 10));
+      setSnapshotSearch('');
+      setSnapshotPage(1);
+      await reloadSnapshotSymbols();
+    } catch (e) {
+      console.error(e);
+      alert(e.message || 'Failed to delete snapshot runs');
+    } finally {
+      setDeletingAllSnapshots(false);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -170,10 +270,16 @@ export default function StrategyDetail() {
               {strategy.globally_enabled ? 'Globally Enabled' : 'Disabled'}
             </span>
           </div>
-          <div>
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center shrink-0">
             <BacktestConfig
-              onBacktestCreated={handleBacktestCreated}
+              runMode="portfolio"
               defaultStrategyId={strategy.id}
+              onBacktestCreated={handleStrategyBacktestCreated}
+            />
+            <BacktestConfig
+              runMode="single_symbol"
+              defaultStrategyId={strategy.id}
+              onBacktestCreated={handleStrategyBacktestCreated}
             />
           </div>
         </div>
@@ -246,6 +352,140 @@ export default function StrategyDetail() {
                 {strategy.example_code.trim()}
               </pre>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Single-symbol snapshots (card grid + search); portfolio runs also list symbols on each backtest detail page */}
+      <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <List className="w-5 h-5 shrink-0" />
+            Single-symbol snapshots ({filteredSnapshotSymbols.length})
+          </h2>
+          {snapshotSymbols.length > 0 && (
+            <button
+              type="button"
+              onClick={handleDeleteAllSnapshots}
+              disabled={deletingAllSnapshots || snapshotSymbolsLoading}
+              className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            >
+              <Trash2 className="w-4 h-4" />
+              {deletingAllSnapshots ? 'Deleting…' : 'Delete all snapshots'}
+            </button>
+          )}
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Click a card to open the symbol page for this strategy (latest run is pre-selected). Use{' '}
+          <strong>Delete all snapshots</strong> to remove every stored single-symbol run for this strategy; portfolio
+          backtests stay.
+        </p>
+
+        <div className="mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              value={snapshotSearch}
+              onChange={handleSnapshotSearchChange}
+              placeholder="Search symbols by ticker..."
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+            {snapshotSearch && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSnapshotSearch('');
+                  setSnapshotPage(1);
+                }}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {snapshotSymbolsLoading ? (
+          <div className="text-center py-12">
+            <Loader className="w-8 h-8 animate-spin mx-auto text-primary-600" />
+            <p className="text-gray-600 mt-4">Loading symbols...</p>
+          </div>
+        ) : pagedSnapshotSymbols.length > 0 ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+              {pagedSnapshotSymbols.map((sym, index) => {
+                const footer =
+                  sym.snapshot_count != null
+                    ? `${sym.snapshot_count} saved run(s) · latest: ${sym.latest_run_status || '—'}`
+                    : null;
+                return (
+                  <motion.div
+                    key={sym.ticker || index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <SymbolCard
+                      symbol={sym}
+                      footer={footer}
+                      onClick={(s) => {
+                        if (s.latest_run_id) {
+                          navigate(
+                            `/strategies/${id}/${encodeURIComponent(s.ticker)}?run=${s.latest_run_id}`,
+                          );
+                        } else {
+                          navigate(`/strategies/${id}/${encodeURIComponent(s.ticker)}`);
+                        }
+                      }}
+                    />
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {snapshotTotalPages > 1 && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setSnapshotPage((p) => Math.max(1, p - 1))}
+                  disabled={snapshotPage <= 1}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                    snapshotPage > 1
+                      ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Previous
+                </button>
+                <span className="text-sm text-gray-600">
+                  Page {snapshotPage} of {snapshotTotalPages} ({filteredSnapshotSymbols.length} total)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSnapshotPage((p) => Math.min(snapshotTotalPages, p + 1))}
+                  disabled={snapshotPage >= snapshotTotalPages}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                    snapshotPage < snapshotTotalPages
+                      ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-12 bg-gray-50 rounded-lg">
+            <p className="text-gray-500 text-lg">
+              {snapshotSymbols.length === 0
+                ? 'No single-symbol snapshots yet.'
+                : 'No symbols match your search.'}
+            </p>
           </div>
         )}
       </div>

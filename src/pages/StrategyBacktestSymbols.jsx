@@ -238,7 +238,7 @@ export default function StrategyBacktestSymbols() {
   };
 
   const handleSymbolClick = (ticker) => {
-    navigate(`/strategies/${id}/backtests/${backtestId}/${ticker}`);
+    navigate(`/strategies/${id}/${ticker}`);
   };
 
   const filteredSymbols = symbols.filter(symbol => {

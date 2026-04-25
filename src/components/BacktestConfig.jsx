@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Play, Plus, Trash2 } from 'lucide-react';
-import { getStrategies } from '../data/strategies';
+import { getStrategies, runStrategySymbolBacktest, runStrategySymbolBacktestBulk } from '../data/strategies';
 import { getSymbolDetails } from '../data/symbols';
 import { createBacktest, getHedgeLabSettings } from '../data/backtests';
 import {
@@ -18,7 +18,15 @@ import { marketDataAPI } from '../data/api';
 import { getBrokers } from '../data/liveTrading';
 import TaskProgress from './TaskProgress';
 
-export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = null }) {
+/**
+ * @param {'portfolio' | 'single_symbol'} runMode - portfolio = standard POST /backtests; single_symbol = one ticker snapshot API
+ */
+export default function BacktestConfig({
+  onBacktestCreated,
+  defaultStrategyId = null,
+  runMode = 'portfolio',
+  triggerLabel = null,
+}) {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [strategies, setStrategies] = useState([]);
@@ -53,11 +61,24 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
   const [selectedBroker, setSelectedBroker] = useState(null);
   const [brokerExchangeCode, setBrokerExchangeCode] = useState('');
 
+  const isSingleSymbol = runMode === 'single_symbol';
+  const defaultTriggerLabel = isSingleSymbol
+    ? 'Single-symbol backtest'
+    : defaultStrategyId != null
+      ? 'Portfolio backtest'
+      : 'Run backtest';
+
   useEffect(() => {
     if (showModal) {
       loadData();
+      if (isSingleSymbol) {
+        setRandomCountMode(false);
+        setRandomSelectedSymbols([]);
+      }
     }
-  }, [showModal]);
+  }, [showModal, isSingleSymbol]);
+
+  // (No longer used) Previously: client-side loading of broker-linked tickers for single-symbol picker.
 
 
   const loadData = async () => {
@@ -99,14 +120,33 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
   const handleAddTicker = async () => {
     const ticker = tickerInput.trim().toUpperCase();
     if (!ticker) return;
-    
+
+    if (isSingleSymbol) {
+      setValidatingTicker(true);
+      try {
+        const symbol = await getSymbolDetails(ticker);
+        if (symbol && symbol.status === 'active') {
+          setSelectedSymbols((prev) => (prev.includes(ticker) ? prev : [...prev, ticker]));
+          setTickerInput('');
+        } else {
+          alert(`${ticker} is not an active symbol.`);
+        }
+      } catch (error) {
+        console.error('Error validating ticker:', error);
+        alert(`${ticker} is not a valid symbol or is not active.`);
+      } finally {
+        setValidatingTicker(false);
+      }
+      return;
+    }
+
     // Check if already added
     if (selectedSymbols.includes(ticker)) {
       alert(`${ticker} is already in the list`);
       setTickerInput('');
       return;
     }
-    
+
     setValidatingTicker(true);
     try {
       // Validate ticker by fetching symbol details
@@ -128,7 +168,11 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
 
   const handleRemoveTicker = (ticker) => {
     setSelectedSymbols(prev => prev.filter(t => t !== ticker));
-    setSelectAllActive(false);
+    if (isSingleSymbol) {
+      // keep selectAllActive as-is; it's a separate bulk mode
+    } else {
+      setSelectAllActive(false);
+    }
   };
 
   const handleSelectAllActive = () => {
@@ -136,9 +180,14 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
       setSelectedSymbols([]);
       setSelectAllActive(false);
     } else {
-      // Just set the flag - will fetch active tickers when starting backtest
+      if (isSingleSymbol) {
+        if (!useBrokerFilter || !selectedBroker) {
+          alert('To select all for snapshots, turn on "Filter by Broker" and choose a broker first.');
+          return;
+        }
+      }
       setSelectAllActive(true);
-      setRandomCountMode(false); // Disable random mode when selecting all
+      setRandomCountMode(false);
     }
   };
 
@@ -203,32 +252,54 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
     }));
   };
 
+  /** @type {{ backtest: object, runMode: string, ticker?: string } | null} */
   const [pendingBacktest, setPendingBacktest] = useState(null);
 
-  const handleBacktestCreated = (backtest) => {
-    // Store backtest info for navigation after task completes
-    setPendingBacktest(backtest);
-    // Don't navigate immediately - wait for task to complete
+  const rememberPendingPortfolio = (backtest) => {
+    setPendingBacktest({ backtest, runMode: 'portfolio' });
   };
 
-  const handleTaskComplete = (data) => {
+  const handleTaskComplete = (taskResult) => {
+    const status = taskResult?.status;
+    const completed = status === 'completed' || status === 'success';
+    const failed = status === 'failed' || status === 'error';
+
     setShowProgress(false);
     setTaskId(null);
     setShowModal(false);
     resetForm();
-    
-    // Navigate to backtest detail page and refresh when task completes
-    if (data.status === 'completed' && pendingBacktest && onBacktestCreated) {
-      // Navigate to the backtest detail page
-      onBacktestCreated(pendingBacktest);
-      // The detail page will refresh automatically when loaded
-      setPendingBacktest(null);
-    } else if (data.status === 'failed') {
-      // If failed, still navigate so user can see the error
-      if (pendingBacktest && onBacktestCreated) {
-        onBacktestCreated(pendingBacktest);
-        setPendingBacktest(null);
+
+    const pending = pendingBacktest;
+    setPendingBacktest(null);
+
+    if (!onBacktestCreated || !pending) {
+      return;
+    }
+
+    if (completed) {
+      if (pending.runMode === 'single_symbol_bulk') {
+        const queued = Array.isArray(taskResult?.queued) ? taskResult.queued : [];
+        onBacktestCreated(null, { runMode: 'single_symbol_bulk', queued });
+        return;
       }
+      if (pending.runMode === 'single_symbol' && pending.ticker) {
+        const bt = pending.backtest;
+        const bid =
+          bt?.id ??
+          taskResult?.backtest_id ??
+          (typeof taskResult?.result === 'object' ? taskResult.result?.backtest_id : null);
+        if (bid) {
+          onBacktestCreated({ ...bt, id: bid }, { runMode: 'single_symbol', ticker: pending.ticker });
+        } else {
+          onBacktestCreated(bt || {}, { runMode: 'single_symbol', ticker: pending.ticker });
+        }
+        return;
+      }
+      if (pending.runMode === 'portfolio' && pending.backtest?.id) {
+        onBacktestCreated(pending.backtest, { runMode: 'portfolio' });
+      }
+    } else if (failed && pending.runMode === 'portfolio' && pending.backtest?.id) {
+      onBacktestCreated(pending.backtest, { runMode: 'portfolio' });
     }
   };
 
@@ -240,6 +311,93 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
   const handleCreateBacktest = async () => {
     if (!selectedStrategy) {
       alert('Please select a strategy');
+      return;
+    }
+
+    if (isSingleSymbol) {
+      if (!runPositionLong && !runPositionShort) {
+        alert('Select at least one position mode: Long and/or Short.');
+        return;
+      }
+      if (randomCountMode) {
+        alert('Random selection is not used for single-symbol backtest. Turn off Random.');
+        return;
+      }
+      if (!selectAllActive && selectedSymbols.length === 0) {
+        alert('Add at least one ticker, or enable "Select All Active" (broker-linked).');
+        return;
+      }
+      if (selectAllActive && (!useBrokerFilter || !selectedBroker)) {
+        alert('Select a broker first to use "Select All Active" for snapshots.');
+        return;
+      }
+      setCreating(true);
+      try {
+        const endDate = new Date().toISOString();
+        const startDate = new Date('1900-01-01').toISOString();
+        const baseBody = {
+          name: name || `${selectedStrategy.name} — snapshots`,
+          start_date: startDate,
+          end_date: endDate,
+          split_ratio: splitRatio,
+          initial_capital: initialCapital,
+          bet_size_percentage: betSizePercentage,
+          strategy_parameters: strategyParameters,
+          position_modes: [
+            ...(runPositionLong ? ['long'] : []),
+            ...(runPositionShort ? ['short'] : []),
+          ],
+        };
+        if (useBrokerFilter && selectedBroker) {
+          baseBody.broker_id = selectedBroker.id;
+          if (brokerExchangeCode) {
+            baseBody.exchange_code = brokerExchangeCode;
+          }
+        }
+        if (hedgeEnabled) {
+          baseBody.hedge_enabled = true;
+          baseBody.run_strategy_only_baseline = !!runStrategyOnlyBaseline;
+          const hc = {};
+          for (const { key } of HEDGE_FIELD_DEFS) {
+            if (hedgeParams[key] !== undefined) {
+              hc[key] = hedgeParams[key];
+            }
+          }
+          baseBody.hedge_config = hc;
+        }
+
+        if (selectAllActive || selectedSymbols.length > 1) {
+          const bulkBody = {
+            ...baseBody,
+            select_all_linked: !!selectAllActive,
+            symbol_tickers: selectAllActive ? [] : selectedSymbols,
+          };
+          const result = await runStrategySymbolBacktestBulk(selectedStrategy.id, bulkBody);
+          setPendingBacktest({ runMode: 'single_symbol_bulk' });
+          if (result.task_id) {
+            setTaskId(result.task_id);
+            setShowProgress(true);
+            setShowModal(false);
+          }
+        } else {
+          const ticker = selectedSymbols[0];
+          const oneBody = { ...baseBody, name: name || `${selectedStrategy.name} — ${ticker}` };
+          const backtest = await runStrategySymbolBacktest(selectedStrategy.id, ticker, oneBody);
+          setPendingBacktest({ backtest, runMode: 'single_symbol', ticker });
+          if (backtest.task_id) {
+            setTaskId(backtest.task_id);
+            setShowProgress(true);
+            setShowModal(false);
+          } else if (onBacktestCreated) {
+            onBacktestCreated(backtest, { runMode: 'single_symbol', ticker });
+          }
+        }
+      } catch (error) {
+        console.error('Error creating single-symbol backtest:', error);
+        alert('Failed to start single-symbol backtest: ' + (error.message || 'Unknown error'));
+      } finally {
+        setCreating(false);
+      }
       return;
     }
 
@@ -347,8 +505,7 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
       }
       
       // Store backtest info for navigation after task completion
-      // Don't navigate immediately - wait for task to complete
-      handleBacktestCreated(backtest);
+      rememberPendingPortfolio(backtest);
     } catch (error) {
       console.error('Error creating backtest:', error);
       alert('Failed to create backtest: ' + (error.message || 'Unknown error'));
@@ -392,18 +549,37 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
       )}
 
       <button
+        type="button"
         onClick={() => setShowModal(true)}
-        className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2"
+        className={
+          isSingleSymbol
+            ? 'px-6 py-3 border border-gray-300 bg-white text-gray-900 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-2'
+            : 'px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2'
+        }
       >
         <Play className="w-5 h-5" />
-        Run Backtest
+        {triggerLabel || defaultTriggerLabel}
       </button>
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Configure Backtest</h2>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {isSingleSymbol
+                    ? 'Configure single-symbol backtest'
+                    : defaultStrategyId != null
+                      ? 'Configure portfolio backtest'
+                      : 'Configure Backtest'}
+                </h2>
+                {isSingleSymbol && (
+                  <p className="text-sm text-gray-600 mt-1 max-w-xl">
+                    One ticker per run. Uses a separate job from portfolio tests and updates the saved result for that
+                    symbol (not shown in the portfolio history list).
+                  </p>
+                )}
+              </div>
               <button
                 onClick={() => {
                   setShowModal(false);
@@ -483,6 +659,7 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                         if (!e.target.checked) {
                           setSelectedBroker(null);
                           setBrokerExchangeCode('');
+                          setSelectAllActive(false);
                         }
                       }}
                       className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
@@ -504,6 +681,9 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                             setSelectedBroker(broker || null);
                             setBrokerExchangeCode('');
                             setSelectedSymbols([]);
+                            if (!broker) {
+                              setSelectAllActive(false);
+                            }
                           }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                         >
@@ -551,9 +731,39 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium text-gray-700">
-                      Symbols <span className="text-red-500">*</span>
+                      {isSingleSymbol ? (
+                        <>
+                          Ticker <span className="text-red-500">*</span>
+                        </>
+                      ) : (
+                        <>
+                          Symbols <span className="text-red-500">*</span>
+                        </>
+                      )}
                     </label>
-                    <div className="flex items-center gap-4">
+                    {!isSingleSymbol && (
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectAllActive}
+                            onChange={handleSelectAllActive}
+                            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                          />
+                          <span className="text-sm text-gray-700 font-medium">Select All Active</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={randomCountMode}
+                            onChange={handleRandomCountMode}
+                            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                          />
+                          <span className="text-sm text-gray-700 font-medium">Random Selection</span>
+                        </label>
+                      </div>
+                    )}
+                    {isSingleSymbol && (
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
@@ -561,21 +771,16 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                           onChange={handleSelectAllActive}
                           className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                         />
-                        <span className="text-sm text-gray-700 font-medium">Select All Active</span>
+                        <span className="text-sm text-gray-700 font-medium">
+                          Select All Active
+                        </span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={randomCountMode}
-                          onChange={handleRandomCountMode}
-                          className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                        />
-                        <span className="text-sm text-gray-700 font-medium">Random Selection</span>
-                      </label>
-                    </div>
+                    )}
                   </div>
-                  
-                  {!selectAllActive && !randomCountMode && (
+
+                  {!randomCountMode &&
+                    !(selectAllActive && !isSingleSymbol) &&
+                    !(isSingleSymbol && selectAllActive) && (
                     <>
                       <div className="flex gap-2 mb-3">
                         <input
@@ -631,7 +836,9 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                       )}
                       {selectedSymbols.length === 0 && (
                         <p className="text-sm text-gray-500 italic">
-                          No symbols added. Enter a ticker and click "Add" to add symbols.
+                          {isSingleSymbol
+                            ? 'Enter one active ticker and click Add.'
+                            : 'No symbols added. Enter a ticker and click "Add" to add symbols.'}
                         </p>
                       )}
                     </>
@@ -688,16 +895,41 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                     </div>
                   )}
 
-                  {selectAllActive && (
+                  {selectAllActive && isSingleSymbol && (
                     <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
                       <p className="text-sm text-blue-700">
                         {useBrokerFilter && selectedBroker ? (
                           <>
-                            <strong>All available symbols</strong> from the selected broker{brokerExchangeCode ? ` on exchange ${brokerExchangeCode}` : ''} will be included in the backtest.
+                            <strong>All available symbols</strong> from the selected broker
+                            {brokerExchangeCode ? ` on exchange ${brokerExchangeCode}` : ''} will be included in the
+                            backtest.
                           </>
                         ) : (
                           <>
-                            <strong>All active symbols</strong> will be included in the backtest. Active tickers will be fetched when you start the backtest.
+                            <strong>All active symbols</strong> will be included in the backtest. Active tickers will
+                            be fetched when you start the backtest.
+                          </>
+                        )}
+                      </p>
+                      <p className="text-xs text-blue-700 mt-1">
+                        Note: this runs a <strong>portfolio backtest</strong> (multi-symbol) even if you opened the
+                        single-symbol launcher.
+                      </p>
+                    </div>
+                  )}
+                  {selectAllActive && !isSingleSymbol && (
+                    <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
+                      <p className="text-sm text-blue-700">
+                        {useBrokerFilter && selectedBroker ? (
+                          <>
+                            <strong>All available symbols</strong> from the selected broker
+                            {brokerExchangeCode ? ` on exchange ${brokerExchangeCode}` : ''} will be included in the
+                            backtest.
+                          </>
+                        ) : (
+                          <>
+                            <strong>All active symbols</strong> will be included in the backtest. Active tickers will
+                            be fetched when you start the backtest.
                           </>
                         )}
                       </p>
@@ -890,14 +1122,28 @@ export default function BacktestConfig({ onBacktestCreated, defaultStrategyId = 
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={handleCreateBacktest}
-                    disabled={creating || !selectedStrategy || (!selectAllActive && !randomCountMode && selectedSymbols.length === 0) || (randomCountMode && randomSelectedSymbols.length === 0)}
+                    disabled={
+                      creating ||
+                      !selectedStrategy ||
+                      (isSingleSymbol
+                        ? selectAllActive
+                          ? !(useBrokerFilter && selectedBroker)
+                          : selectedSymbols.length === 0
+                        : (!selectAllActive && !randomCountMode && selectedSymbols.length === 0) ||
+                          (randomCountMode && randomSelectedSymbols.length === 0))
+                    }
                     className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {creating ? 'Creating...' : (
                       <>
                         <Play className="w-4 h-4" />
-                        Start Backtest
+                        {isSingleSymbol
+                          ? 'Start single-symbol backtest'
+                          : defaultStrategyId != null
+                            ? 'Start portfolio backtest'
+                            : 'Start Backtest'}
                       </>
                     )}
                   </button>

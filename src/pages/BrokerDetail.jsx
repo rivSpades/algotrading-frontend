@@ -3,9 +3,9 @@
  * Interactive interface to test broker adapter methods
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, DollarSign, Search, TrendingUp, Activity, Loader, CheckCircle2, XCircle, Edit, Link as LinkIcon, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, DollarSign, Search, TrendingUp, Activity, Loader, CheckCircle2, XCircle, Edit, Link as LinkIcon, Plus, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { getBroker, linkSymbolsToBroker } from '../data/liveTrading';
 import { liveTradingAPI } from '../data/liveTrading';
 import { marketDataAPI } from '../data/api';
@@ -42,6 +42,7 @@ export default function BrokerDetail() {
   const [symbolsPrevious, setSymbolsPrevious] = useState(null);
   const [symbolsSearchTerm, setSymbolsSearchTerm] = useState('');
   const [linkingSymbols, setLinkingSymbols] = useState(false);
+  const [reverifyBusy, setReverifyBusy] = useState(false);
   const [linkMode, setLinkMode] = useState('individual'); // 'individual', 'list', 'exchange', 'all_available'
   const [symbolInput, setSymbolInput] = useState(''); // For individual symbol
   const [symbolListInput, setSymbolListInput] = useState(''); // For list (comma-separated)
@@ -49,7 +50,9 @@ export default function BrokerDetail() {
   const [availableExchanges, setAvailableExchanges] = useState([]);
   
   // Task tracking for symbol linking
-  const [linkingTaskId, setLinkingTaskId] = useState(null);
+  /** Celery task id for link-symbols or reverify-symbols (see symbolAsyncModeRef). */
+  const [symbolAsyncTaskId, setSymbolAsyncTaskId] = useState(null);
+  const symbolAsyncModeRef = useRef(null);
   
   // Search debouncing
   const searchTimeoutRef = useRef(null);
@@ -199,7 +202,8 @@ export default function BrokerDetail() {
         if (response.success) {
           // Check if we got a task_id (async task)
           if (response.data.task_id) {
-            setLinkingTaskId(response.data.task_id);
+            symbolAsyncModeRef.current = 'link';
+            setSymbolAsyncTaskId(response.data.task_id);
           } else {
             // Legacy sync response (shouldn't happen, but handle it)
             alert(`Successfully linked ${response.data.created || 0} symbols!`);
@@ -224,29 +228,70 @@ export default function BrokerDetail() {
     }
   };
   
-  const handleLinkingTaskComplete = async (taskData) => {
+  const handleSymbolAsyncTaskComplete = useCallback(
+    async (taskData) => {
+      const mode = symbolAsyncModeRef.current;
+      symbolAsyncModeRef.current = null;
+      setSymbolAsyncTaskId(null);
+      setLinkingSymbols(false);
+      setReverifyBusy(false);
+
+      const ok = taskData.status === 'success' || taskData.status === 'completed';
+      if (ok) {
+        if (mode === 'reverify') {
+          const updated = taskData.updated ?? taskData.total ?? 0;
+          const failed = taskData.failed ?? 0;
+          alert(
+            `Re-verified ${updated} symbol link(s) from the broker.${failed ? ` (${failed} had errors during checks.)` : ''}`,
+          );
+          await loadLinkedSymbols(symbolsPage, symbolsSearchTerm);
+        } else {
+          alert(`Successfully linked ${taskData.created || 0} symbols!`);
+          await loadLinkedSymbols(1, symbolsSearchTerm);
+          setSymbolInput('');
+          setSymbolListInput('');
+          setExchangeCode('');
+          setLinkMode('individual');
+        }
+      } else if (mode === 'reverify') {
+        alert(`Re-verify failed: ${taskData.error || 'Unknown error'}`);
+      } else {
+        alert(`Linking task failed: ${taskData.error || 'Unknown error'}`);
+      }
+    },
+    [loadLinkedSymbols, symbolsPage, symbolsSearchTerm],
+  );
+
+  const handleSymbolAsyncTaskClose = () => {
+    setSymbolAsyncTaskId(null);
+    symbolAsyncModeRef.current = null;
     setLinkingSymbols(false);
-    setLinkingTaskId(null);
-    
-    // Show success message with results
-    if (taskData.status === 'success' || taskData.status === 'completed') {
-      alert(`Successfully linked ${taskData.created || 0} symbols!`);
-      // Reload linked symbols (reset to page 1, keep search term)
-      await loadLinkedSymbols(1, symbolsSearchTerm);
-    } else {
-      alert(`Linking task failed: ${taskData.error || 'Unknown error'}`);
-    }
-    
-    // Clear inputs and reset mode
-    setSymbolInput('');
-    setSymbolListInput('');
-    setExchangeCode('');
-    setLinkMode('individual');
+    setReverifyBusy(false);
   };
-  
-  const handleLinkingTaskClose = () => {
-    setLinkingTaskId(null);
-    setLinkingSymbols(false);
+
+  const handleReverifyLinkedSymbols = async () => {
+    if (!broker) return;
+    const paperOk = broker.paper_trading_active && broker.has_paper_trading;
+    const realOk = broker.real_money_active && broker.has_real_money;
+    if (!paperOk && !realOk) {
+      alert('Enable paper or real-money trading on this broker before re-verifying.');
+      return;
+    }
+    setReverifyBusy(true);
+    try {
+      const response = await liveTradingAPI.brokers.reverifyBrokerSymbols(id);
+      if (response.success && response.data?.task_id) {
+        symbolAsyncModeRef.current = 'reverify';
+        setSymbolAsyncTaskId(response.data.task_id);
+      } else {
+        alert('Failed to start re-verify: ' + (response.error || 'Unknown error'));
+        setReverifyBusy(false);
+      }
+    } catch (error) {
+      console.error('Error starting re-verify:', error);
+      alert('Failed to start re-verify: ' + (error.message || 'Unknown error'));
+      setReverifyBusy(false);
+    }
   };
   
   const handleGetBalance = async () => {
@@ -341,11 +386,11 @@ export default function BrokerDetail() {
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Task Progress Modal */}
-      {linkingTaskId && (
+      {symbolAsyncTaskId && (
         <TaskProgress
-          taskId={linkingTaskId}
-          onComplete={handleLinkingTaskComplete}
-          onClose={handleLinkingTaskClose}
+          taskId={symbolAsyncTaskId}
+          onComplete={handleSymbolAsyncTaskComplete}
+          onClose={handleSymbolAsyncTaskClose}
         />
       )}
       
@@ -755,7 +800,12 @@ export default function BrokerDetail() {
           
           <button
             onClick={handleLinkSymbols}
-            disabled={linkingSymbols || (!isPaperActive && !isRealMoneyActive)}
+            disabled={
+              linkingSymbols ||
+              reverifyBusy ||
+              !!symbolAsyncTaskId ||
+              (!isPaperActive && !isRealMoneyActive)
+            }
             className="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
           >
             {linkingSymbols ? (
@@ -773,9 +823,24 @@ export default function BrokerDetail() {
           
           {/* Linked Symbols List */}
           <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Linked Symbols</h3>
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleReverifyLinkedSymbols}
+                  disabled={
+                    reverifyBusy ||
+                    !!symbolAsyncTaskId ||
+                    linkingSymbols ||
+                    (!isPaperActive && !isRealMoneyActive)
+                  }
+                  title="Re-fetch long/short tradability from the broker API for every linked symbol and update this list"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className={`w-4 h-4 ${reverifyBusy || symbolAsyncTaskId ? 'animate-spin' : ''}`} />
+                  Re-verify from broker
+                </button>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input

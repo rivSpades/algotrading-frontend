@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export default function SymbolCard({ symbol, onClick }) {
+export default function SymbolCard({ symbol, onClick, footer = null }) {
   const navigate = useNavigate();
 
   const handleClick = () => {
@@ -55,9 +55,13 @@ export default function SymbolCard({ symbol, onClick }) {
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4" />
           <span className="text-xs">
-            Updated: {new Date(symbol.last_updated).toLocaleDateString()}
+            Updated:{' '}
+            {symbol.last_updated
+              ? new Date(symbol.last_updated).toLocaleDateString()
+              : '—'}
           </span>
         </div>
+        {footer ? <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-600">{footer}</div> : null}
       </div>
     </motion.div>
   );

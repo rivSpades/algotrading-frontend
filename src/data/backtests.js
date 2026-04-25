@@ -139,6 +139,35 @@ export const backtestsAPI = {
   async getBacktestSymbolStatistics(backtestId, symbolTicker) {
     return apiRequest(`/backtests/${backtestId}/symbol/${symbolTicker}/`);
   },
+
+  /**
+   * Single-symbol run (separate from portfolio backtests)
+   */
+  async getSymbolRun(runId) {
+    return apiRequest(`/symbol-runs/${runId}/`);
+  },
+
+  async deleteSymbolRun(runId) {
+    return apiRequest(`/symbol-runs/${runId}/`, { method: 'DELETE' });
+  },
+
+  async getSymbolRunTrades(runId, page = 1, pageSize = 20, symbol = null, mode = null) {
+    let url = `/symbol-runs/${runId}/trades/?page=${page}&page_size=${pageSize}`;
+    if (symbol) url += `&symbol=${encodeURIComponent(symbol)}`;
+    if (mode) url += `&mode=${encodeURIComponent(mode)}`;
+    return apiRequest(url);
+  },
+
+  async getAllSymbolRunTrades(runId, symbol = null, mode = null) {
+    let url = `/symbol-runs/${runId}/trades/?no_pagination=true`;
+    if (symbol) url += `&symbol=${encodeURIComponent(symbol)}`;
+    if (mode) url += `&mode=${encodeURIComponent(mode)}`;
+    return apiRequest(url);
+  },
+
+  async getSymbolRunStatisticsOptimized(runId) {
+    return apiRequest(`/symbol-runs/${runId}/statistics/optimized/`);
+  },
 };
 
 /**
@@ -170,6 +199,17 @@ export async function deleteBacktest(backtestId) {
     throw new Error(response.error || 'Failed to delete backtest');
   } catch (error) {
     console.error('Error deleting backtest:', error);
+    throw error;
+  }
+}
+
+export async function deleteSymbolRun(runId) {
+  try {
+    const response = await backtestsAPI.deleteSymbolRun(runId);
+    if (response.success) return true;
+    throw new Error(response.error || 'Failed to delete symbol run');
+  } catch (error) {
+    console.error('Error deleting symbol run:', error);
     throw error;
   }
 }
@@ -319,6 +359,38 @@ export async function getBacktestStatisticsOptimized(backtestId) {
     console.error('Error fetching optimized backtest statistics:', error);
     throw error;
   }
+}
+
+export async function getSymbolRun(runId) {
+  const response = await backtestsAPI.getSymbolRun(runId);
+  if (response.success && response.data) {
+    return response.data;
+  }
+  throw new Error(response.error || 'Failed to load symbol run');
+}
+
+export async function getSymbolRunTrades(runId, page = 1, pageSize = 20, symbol = null, mode = null) {
+  const response = await backtestsAPI.getSymbolRunTrades(runId, page, pageSize, symbol, mode);
+  if (response.success && response.data) {
+    return response.data;
+  }
+  return { results: [], count: 0, next: null, previous: null };
+}
+
+export async function getAllSymbolRunTrades(runId, symbol = null, mode = null) {
+  const response = await backtestsAPI.getAllSymbolRunTrades(runId, symbol, mode);
+  if (response.success && response.data) {
+    return Array.isArray(response.data) ? response.data : [];
+  }
+  return [];
+}
+
+export async function getSymbolRunStatisticsOptimized(runId) {
+  const response = await backtestsAPI.getSymbolRunStatisticsOptimized(runId);
+  if (response.success && response.data) {
+    return response.data;
+  }
+  return { portfolio: null, symbols: [] };
 }
 
 /**

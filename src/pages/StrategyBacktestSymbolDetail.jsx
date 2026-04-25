@@ -5,10 +5,17 @@
  */
 
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, TrendingUp, TrendingDown, BarChart3, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { ArrowLeft, TrendingUp, TrendingDown, BarChart3, Settings, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { getStrategy } from '../data/strategies';
-import { getBacktest, getBacktestStatisticsOptimized, getAllBacktestTrades } from '../data/backtests';
+import {
+  getBacktest,
+  getBacktestStatisticsOptimized,
+  getAllBacktestTrades,
+  getSymbolRun,
+  getSymbolRunStatisticsOptimized,
+  getAllSymbolRunTrades,
+} from '../data/backtests';
 import { exportTradesToCsvFile } from '../utils/tradeHistoryExport';
 import { downloadJson } from '../utils/exportCsv';
 import ExportTableToolbar from '../components/ExportTableToolbar';
@@ -24,9 +31,25 @@ import {
   HedgeTradeInvestedBodyCells,
   HedgeTradePnlBodyCells,
 } from '../components/BacktestHedgeTradeTableCols';
+import BacktestParametersPanel from '../components/BacktestParametersPanel';
 
-export default function StrategyBacktestSymbolDetail() {
-  const { id, backtestId, ticker } = useParams();
+export default function StrategyBacktestSymbolDetail({
+  embeddedBacktestId = null,
+  embeddedRunId = null,
+  /** Parent increments when the same symbol run was re-queued in place (recalculate) so we refetch despite unchanged run id. */
+  symbolRunReloadNonce = 0,
+  standalone = false,
+  onRecalculate = null,
+  onDeleteRun = null,
+  recalculateDisabled = false,
+}) {
+  const params = useParams();
+  const id = params.id;
+  const ticker = params.ticker;
+  const routeBacktestId = params.backtestId;
+  const backtestId = embeddedBacktestId != null ? String(embeddedBacktestId) : routeBacktestId;
+  const runId = embeddedRunId != null ? String(embeddedRunId) : null;
+  const isSymbolRun = runId != null;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [strategy, setStrategy] = useState(null);
@@ -40,30 +63,109 @@ export default function StrategyBacktestSymbolDetail() {
   const [currentPage, setCurrentPage] = useState(1);
   const [exportingSymbolTrades, setExportingSymbolTrades] = useState(false);
 
+  const backNavHref = standalone
+    ? `/strategies/${id}`
+    : isSymbolRun
+      ? `/strategies/${id}/${ticker}?run=${runId}`
+      : `/strategies/${id}/backtests/${backtestId}`;
+  const backNavLabel = standalone ? 'Back to strategy' : isSymbolRun ? 'Back' : 'Back to Symbols';
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [strategyData, runOrBacktestData, statsData] = await Promise.all([
+        getStrategy(id),
+        isSymbolRun ? getSymbolRun(runId) : getBacktest(backtestId),
+        isSymbolRun ? getSymbolRunStatisticsOptimized(runId) : getBacktestStatisticsOptimized(backtestId),
+      ]);
+
+      const ohlcvStart = isSymbolRun ? runOrBacktestData?.start_date : null;
+      const ohlcvEnd = isSymbolRun ? runOrBacktestData?.end_date : null;
+      const ohlcvResponse = await getSymbolOHLCV(
+        ticker,
+        'daily',
+        ohlcvStart,
+        ohlcvEnd,
+        1,
+        10000,
+        isSymbolRun ? null : parseInt(backtestId),
+        parseInt(id),
+      );
+
+      setStrategy(strategyData);
+      setBacktest(runOrBacktestData);
+
+      // Get symbol statistics from optimized statistics endpoint
+      // stats_by_mode: long (main row) + short
+      let symbolStatsEntry = null;
+      if (statsData?.symbols && Array.isArray(statsData.symbols)) {
+        symbolStatsEntry = statsData.symbols.find(s => {
+          const symbolTicker = s?.symbol_ticker;
+          return symbolTicker === ticker;
+        });
+      }
+
+      setStatistics(symbolStatsEntry || null);
+
+      // Ensure OHLCV data is set - when backtest_id is provided, backend returns all data
+      // Response can be: {results: [...]} or [...] (array directly)
+      let ohlcvResults = [];
+      if (ohlcvResponse) {
+        if (ohlcvResponse.results && Array.isArray(ohlcvResponse.results)) {
+          ohlcvResults = ohlcvResponse.results;
+        } else if (Array.isArray(ohlcvResponse)) {
+          ohlcvResults = ohlcvResponse;
+        }
+      }
+      // Store all OHLCV data - will be filtered by mode in useMemo based on selected positionModeTab
+      setAllOhlcvData(ohlcvResults);
+      console.log(`Loaded ${ohlcvResults.length} OHLCV data points for ${ticker} (will be filtered by mode)`);
+
+      setIndicatorsMetadata(ohlcvResponse?.indicators || {});
+
+    } catch (error) {
+      console.error('Error loading backtest symbol data:', error);
+      setStatistics(null);
+      setAllTrades([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, backtestId, runId, isSymbolRun, ticker, positionModeTab]);
+
   useEffect(() => {
     const page = parseInt(searchParams.get('page') || '1');
     setCurrentPage(page);
     loadData();
-  }, [id, backtestId, ticker]); // Only reload when backtest/symbol changes, not on page change
+  }, [
+    id,
+    backtestId,
+    runId,
+    isSymbolRun,
+    ticker,
+    embeddedBacktestId,
+    embeddedRunId,
+    symbolRunReloadNonce,
+    loadData,
+  ]);
 
-  // Reload trades when mode changes to ensure correct independent_bet_amounts are injected
-  // Pass mode parameter so backend injects correct mode's independent_bet_amounts, but backend doesn't filter trades
+  // Load trades for this symbol run/backtest (and reload when mode changes).
+  // We intentionally do this outside `loadData()` to avoid duplicate fetches on page load.
   useEffect(() => {
     const reloadTradesForMode = async () => {
-      if (!backtestId || !ticker || !statistics) return; // Wait for statistics to be loaded first
+      const idToUse = isSymbolRun ? runId : backtestId;
+      if (!idToUse || !ticker) return;
       try {
-        // Pass current mode so backend injects correct mode's independent_bet_amounts
-        // Backend returns ALL trades (not filtered by mode), but injects the correct mode's independent_bet_amounts
-        // Frontend filters by mode on client side
-        const symbolTrades = await getAllBacktestTrades(backtestId, ticker, positionModeTab);
+        const symbolTrades = isSymbolRun
+          ? await getAllSymbolRunTrades(idToUse, ticker, positionModeTab)
+          : await getAllBacktestTrades(idToUse, ticker, positionModeTab);
         setAllTrades(Array.isArray(symbolTrades) ? symbolTrades : []);
-        console.log(`Reloaded ${Array.isArray(symbolTrades) ? symbolTrades.length : 0} trades for symbol ${ticker} (mode: ${positionModeTab} for independent_bet_amounts)`);
       } catch (tradeError) {
         console.error('Error reloading trades for mode:', tradeError);
+        setAllTrades([]);
       }
     };
     reloadTradesForMode();
-  }, [positionModeTab, backtestId, ticker, statistics]); // Reload when mode changes to inject correct independent_bet_amounts
+  }, [positionModeTab, backtestId, runId, isSymbolRun, ticker]);
 
   // Update current page when searchParams change (for client-side pagination)
   useEffect(() => {
@@ -81,80 +183,36 @@ export default function StrategyBacktestSymbolDetail() {
     setPositionModeTab((m) => (avail.includes(m) ? m : avail[0]));
   }, [backtest?.id, positionModesKey]);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      // Load strategy, backtest, stats, and OHLCV data
-      // OHLCV endpoint will return all data (no pagination) when backtest_id is provided
-      const [strategyData, backtestData, statsData, ohlcvResponse] = await Promise.all([
-        getStrategy(id),
-        getBacktest(backtestId),
-        getBacktestStatisticsOptimized(backtestId), // Get optimized statistics with stats_by_mode
-        getSymbolOHLCV(
-          ticker, 
-          'daily', 
-          null, // Start date - will get all data when backtest_id is provided
-          null, // End date - will get all data when backtest_id is provided
-          1, 
-          10000, // Page size (not used when backtest_id is provided - returns all data)
-          parseInt(backtestId), 
-          parseInt(id)
-        ),
-      ]);
+  // When a backtest is still running/pending, poll its status so this page doesn't get stuck.
+  // Once it completes, reload the full dataset (stats/trades/ohlcv).
+  useEffect(() => {
+    const idToPoll = isSymbolRun ? runId : backtestId;
+    if (!idToPoll) return undefined;
+    const s = backtest?.status;
+    if (s !== 'running' && s !== 'pending') return undefined;
 
-      setStrategy(strategyData);
-      setBacktest(backtestData);
-
-      // Get symbol statistics from optimized statistics endpoint
-      // stats_by_mode: long (main row) + short
-      let symbolStatsEntry = null;
-      if (statsData?.symbols && Array.isArray(statsData.symbols)) {
-        symbolStatsEntry = statsData.symbols.find(s => {
-          const symbolTicker = s?.symbol_ticker;
-          return symbolTicker === ticker;
-        });
-      }
-
-      setStatistics(symbolStatsEntry || null);
-
-      // Load all trades for this symbol FIRST (needed to filter OHLCV data)
-      // Pass current mode so backend injects correct independent_bet_amounts for this mode
-      // Use symbol filter parameter to get only this symbol's trades from backend
-      // This is more efficient than fetching all trades and filtering on frontend
-      let symbolTrades = [];
+    let cancelled = false;
+    const t = setInterval(async () => {
+      if (cancelled) return;
       try {
-        symbolTrades = await getAllBacktestTrades(backtestId, ticker, positionModeTab); // Pass current mode for correct independent_bet_amount injection
-        setAllTrades(Array.isArray(symbolTrades) ? symbolTrades : []);
-        console.log(`Loaded ${Array.isArray(symbolTrades) ? symbolTrades.length : 0} trades for symbol ${ticker} (mode: ${positionModeTab})`);
-      } catch (tradeError) {
-        console.error('Error loading trades:', tradeError);
-        setAllTrades([]);
-      }
-
-      // Ensure OHLCV data is set - when backtest_id is provided, backend returns all data
-      // Response can be: {results: [...]} or [...] (array directly)
-      let ohlcvResults = [];
-      if (ohlcvResponse) {
-        if (ohlcvResponse.results && Array.isArray(ohlcvResponse.results)) {
-          ohlcvResults = ohlcvResponse.results;
-        } else if (Array.isArray(ohlcvResponse)) {
-          ohlcvResults = ohlcvResponse;
+        const bt = isSymbolRun ? await getSymbolRun(idToPoll) : await getBacktest(idToPoll);
+        if (cancelled) return;
+        setBacktest(bt);
+        if (bt?.status === 'completed' || bt?.status === 'failed') {
+          clearInterval(t);
+          // Pull stats/trades now that the backtest is done.
+          loadData();
         }
+      } catch (e) {
+        // keep polling; transient errors are ok
       }
-      // Store all OHLCV data - will be filtered by mode in useMemo based on selected positionModeTab
-      setAllOhlcvData(ohlcvResults);
-      console.log(`Loaded ${ohlcvResults.length} OHLCV data points for ${ticker} (will be filtered by mode)`);
-      
-      setIndicatorsMetadata(ohlcvResponse?.indicators || {});
+    }, 3000);
 
-    } catch (error) {
-      console.error('Error loading backtest symbol data:', error);
-      setStatistics(null);
-      setAllTrades([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [backtestId, runId, isSymbolRun, backtest?.status, loadData]);
 
   const formatCurrency = (value) => {
     if (value === null || value === undefined) return 'N/A';
@@ -245,8 +303,12 @@ export default function StrategyBacktestSymbolDetail() {
   const handleExportSymbolTradesCsv = async () => {
     setExportingSymbolTrades(true);
     try {
-      const all = await getAllBacktestTrades(parseInt(backtestId, 10), ticker, positionModeTab);
-      exportTradesToCsvFile(all, `backtest-${backtestId}-${ticker}-${positionModeTab}-trades.csv`, {
+      const idToUse = isSymbolRun ? parseInt(runId, 10) : parseInt(backtestId, 10);
+      const all = isSymbolRun
+        ? await getAllSymbolRunTrades(idToUse, ticker, positionModeTab)
+        : await getAllBacktestTrades(idToUse, ticker, positionModeTab);
+      const prefix = isSymbolRun ? `symbol-run-${runId}` : `backtest-${backtestId}`;
+      exportTradesToCsvFile(all, `${prefix}-${ticker}-${positionModeTab}-trades.csv`, {
         hedgeEnabled: !!backtest?.hedge_enabled,
       });
     } catch (e) {
@@ -260,10 +322,15 @@ export default function StrategyBacktestSymbolDetail() {
   const handleExportSymbolTradesJson = async () => {
     setExportingSymbolTrades(true);
     try {
-      const all = await getAllBacktestTrades(parseInt(backtestId, 10), ticker, positionModeTab);
-      downloadJson(`backtest-${backtestId}-${ticker}-${positionModeTab}-trades.json`, {
+      const idToUse = isSymbolRun ? parseInt(runId, 10) : parseInt(backtestId, 10);
+      const all = isSymbolRun
+        ? await getAllSymbolRunTrades(idToUse, ticker, positionModeTab)
+        : await getAllBacktestTrades(idToUse, ticker, positionModeTab);
+      const prefix = isSymbolRun ? `symbol-run-${runId}` : `backtest-${backtestId}`;
+      downloadJson(`${prefix}-${ticker}-${positionModeTab}-trades.json`, {
         exportedAt: new Date().toISOString(),
-        backtestId: parseInt(backtestId, 10),
+        backtestId: isSymbolRun ? null : parseInt(backtestId, 10),
+        symbolRunId: isSymbolRun ? parseInt(runId, 10) : null,
         strategyId: parseInt(id, 10),
         ticker,
         positionMode: positionModeTab,
@@ -575,26 +642,35 @@ export default function StrategyBacktestSymbolDetail() {
         <div className="text-center py-8">
           <p className="text-gray-600">Backtest or strategy not found</p>
           <button
-            onClick={() => navigate(`/strategies/${id}/backtests/${backtestId}`)}
+            onClick={() => navigate(backNavHref)}
             className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
           >
-            Back to Symbols
+            {backNavLabel}
           </button>
         </div>
       </div>
     );
   }
 
-  if (backtest.status === 'running') {
+  if (backtest.status === 'running' || backtest.status === 'pending') {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center py-8">
-          <p className="text-gray-600">Backtest is still running. Results will appear here once it completes.</p>
+          <p className="text-gray-600">
+            Backtest is still running. Results will appear here once it completes.
+          </p>
           <button
-            onClick={() => navigate(`/strategies/${id}/backtests/${backtestId}`)}
+            type="button"
+            onClick={() => loadData()}
+            className="mt-4 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            Refresh now
+          </button>
+          <button
+            onClick={() => navigate(backNavHref)}
             className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
           >
-            Back to Symbols
+            {backNavLabel}
           </button>
         </div>
       </div>
@@ -607,10 +683,10 @@ export default function StrategyBacktestSymbolDetail() {
         <div className="text-center py-8">
           <p className="text-gray-600">No statistics available for this symbol in this backtest.</p>
           <button
-            onClick={() => navigate(`/strategies/${id}/backtests/${backtestId}`)}
+            onClick={() => navigate(backNavHref)}
             className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
           >
-            Back to Symbols
+            {backNavLabel}
           </button>
         </div>
       </div>
@@ -619,13 +695,47 @@ export default function StrategyBacktestSymbolDetail() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <button
-        onClick={() => navigate(`/strategies/${id}/backtests/${backtestId}`)}
-        className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-900"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Symbols
-      </button>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => navigate(backNavHref)}
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          {backNavLabel}
+        </button>
+        {standalone && (
+          <div className="flex items-center gap-2">
+            {typeof onDeleteRun === 'function' && (
+              <button
+                type="button"
+                onClick={onDeleteRun}
+                disabled={recalculateDisabled}
+                title={recalculateDisabled ? 'Wait for the current run to finish' : 'Delete this stored run'}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Delete run
+              </button>
+            )}
+            {typeof onRecalculate === 'function' && (
+              <button
+                type="button"
+                onClick={onRecalculate}
+                disabled={recalculateDisabled}
+                title={
+                  recalculateDisabled
+                    ? 'Wait for the current run to finish or for recalculate to complete'
+                    : 'Re-run with the same saved settings (no configuration step)'
+                }
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-800 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Recalculate
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -639,6 +749,8 @@ export default function StrategyBacktestSymbolDetail() {
           <span>Status: <span className={`font-medium ${backtest.status === 'completed' ? 'text-green-600' : backtest.status === 'failed' ? 'text-red-600' : 'text-yellow-600'}`}>{backtest.status}</span></span>
         </div>
       </div>
+
+      <BacktestParametersPanel backtest={backtest} />
 
       {/* Statistics Cards with Tabs */}
       <div className="mb-6">

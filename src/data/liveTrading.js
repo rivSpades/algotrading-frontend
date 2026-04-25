@@ -43,13 +43,16 @@ export const liveTradingAPI = {
       });
     },
 
-    async getBrokerSymbols(id, page = 1, search = '') {
+    async getBrokerSymbols(id, page = 1, search = '', pageSize = null) {
       const params = new URLSearchParams();
       if (page > 1) {
         params.append('page', page);
       }
       if (search && search.trim()) {
         params.append('search', search.trim());
+      }
+      if (pageSize != null && pageSize > 0) {
+        params.append('page_size', String(pageSize));
       }
       const queryString = params.toString();
       // Ensure trailing slash before query string for DRF detail actions
@@ -64,6 +67,15 @@ export const liveTradingAPI = {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(linkData),
+      });
+    },
+
+    /** Re-verify long/short capabilities from the broker API for all existing links. */
+    async reverifyBrokerSymbols(id) {
+      return apiRequest(`/brokers/${id}/reverify-symbols/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       });
     },
 
@@ -281,6 +293,17 @@ export async function linkSymbolsToBroker(brokerId, symbolTickers = [], exchange
     throw error;
   }
 }
+
+export async function reverifyBrokerLinkedSymbols(brokerId) {
+  const response = await liveTradingAPI.brokers.reverifyBrokerSymbols(brokerId);
+  if (response.success && response.data) {
+    return response.data;
+  }
+  throw new Error(response.error || 'Failed to start re-verify task');
+}
+
+// (Intentionally removed) getAllBrokerLinkedTickers: single-symbol flow now matches portfolio behavior
+// (backend expands broker-linked symbols when "Select All Active" is checked).
 
 /**
  * Helper functions for deployments

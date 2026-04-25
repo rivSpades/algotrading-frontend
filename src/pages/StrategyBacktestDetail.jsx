@@ -5,17 +5,22 @@
  */
 
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { ArrowLeft, TrendingUp, TrendingDown, BarChart3, List, Loader, ChevronLeft, ChevronRight, Search } from 'lucide-react';
-import SymbolCard from '../components/SymbolCard';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { ArrowLeft, TrendingUp, TrendingDown, BarChart3, Loader, ChevronLeft, ChevronRight, Search, List } from 'lucide-react';
 import { getStrategy } from '../data/strategies';
-import { getBacktest, getBacktestStatisticsOptimized, getBacktestTrades, getBacktestSymbols, getAllBacktestTrades } from '../data/backtests';
+import {
+  getBacktest,
+  getBacktestStatisticsOptimized,
+  getBacktestTrades,
+  getAllBacktestTrades,
+  getBacktestSymbols,
+} from '../data/backtests';
 import { marketDataAPI } from '../data/api';
 import StatisticsCard from '../components/StatisticsCard';
 import Chart from 'react-apexcharts';
 import TaskProgress from '../components/TaskProgress';
 import TopPerformersChart from '../components/TopPerformersChart';
-import { motion } from 'framer-motion';
 import { buildChronologicalTradeTableRows } from '../utils/chronologicalTradeTableRows';
 import { exportTradesToCsvFile } from '../utils/tradeHistoryExport';
 import { downloadJson } from '../utils/exportCsv';
@@ -26,6 +31,8 @@ import {
   HedgeTradeInvestedBodyCells,
   HedgeTradePnlBodyCells,
 } from '../components/BacktestHedgeTradeTableCols';
+import BacktestParametersPanel from '../components/BacktestParametersPanel';
+import SymbolCard from '../components/SymbolCard';
 import { positionModesAvailable, positionModeRunLabel } from '../utils/backtestPositionMode';
 
 export default function StrategyBacktestDetail() {
@@ -36,20 +43,26 @@ export default function StrategyBacktestDetail() {
   const [statistics, setStatistics] = useState({ portfolio: null, symbols: [] });
   const [trades, setTrades] = useState({ results: [], count: 0, next: null, previous: null }); // Paginated trades from server
   const [tradesLoading, setTradesLoading] = useState(false);
-  const [symbols, setSymbols] = useState({ results: [], count: 0, next: null, previous: null });
   const [loading, setLoading] = useState(true);
-  const [selectedSymbol, setSelectedSymbol] = useState(null);
+  const [selectedSymbol] = useState(null);
   const [selectedMode, setSelectedMode] = useState('long'); // 'long', 'short'
   const [taskId, setTaskId] = useState(null);
   const [showTaskProgress, setShowTaskProgress] = useState(false);
   const [tradesPage, setTradesPage] = useState(1);
   const [tradesPageInput, setTradesPageInput] = useState('1');
-  const [symbolsPage, setSymbolsPage] = useState(1);
-  const [symbolSearch, setSymbolSearch] = useState('');
-  const [symbolsLoading, setSymbolsLoading] = useState(false);
   const pollingIntervalRef = useRef(null);
-  const searchTimeoutRef = useRef(null);
   const [exportingTrades, setExportingTrades] = useState(false);
+
+  /** Symbols included in this portfolio backtest (paginated + searchable) */
+  const SYMBOL_PAGE_SIZE = 20;
+  const [symbolListLoading, setSymbolListLoading] = useState(false);
+  const [symbolList, setSymbolList] = useState({ results: [], count: 0, next: null, previous: null });
+  const [symbolSearch, setSymbolSearch] = useState('');
+  const [symbolPage, setSymbolPage] = useState(1);
+
+  /** All trades for current mode — used to rebuild top/worst performers without symbol-level BacktestStatistics rows */
+  const [performerTrades, setPerformerTrades] = useState([]);
+  const [performerTradesLoading, setPerformerTradesLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -87,28 +100,6 @@ export default function StrategyBacktestDetail() {
 
   // Trades are loaded once in loadData, then filtered client-side
 
-  useEffect(() => {
-    // Skip initial mount - loadData handles that
-    if (!backtestId) return;
-    
-    // Debounce search to avoid too many API calls
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-    
-    const timeoutId = setTimeout(() => {
-      loadSymbols(symbolsPage, symbolSearch);
-    }, symbolSearch ? 300 : 0); // 300ms debounce only when searching
-    
-    searchTimeoutRef.current = timeoutId;
-    
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [symbolsPage, symbolSearch, backtestId]); // Reload when search or page changes
-
   // Load trades with server-side pagination and filtering
   useEffect(() => {
     if (!backtestId) return;
@@ -128,21 +119,80 @@ export default function StrategyBacktestDetail() {
     loadTrades();
   }, [backtestId, tradesPage, selectedSymbol, selectedMode]);
 
+  useEffect(() => {
+    setSymbolPage(1);
+    setSymbolSearch('');
+  }, [backtestId]);
+
+  const loadSymbolList = useCallback(async () => {
+    if (!backtestId) return;
+    setSymbolListLoading(true);
+    try {
+      const data = await getBacktestSymbols(parseInt(backtestId, 10), symbolPage, SYMBOL_PAGE_SIZE, symbolSearch);
+      setSymbolList(data || { results: [], count: 0, next: null, previous: null });
+    } catch {
+      setSymbolList({ results: [], count: 0, next: null, previous: null });
+    } finally {
+      setSymbolListLoading(false);
+    }
+  }, [backtestId, symbolPage, symbolSearch]);
+
+  useEffect(() => {
+    loadSymbolList();
+  }, [loadSymbolList]);
+
+  useEffect(() => {
+    if (!backtestId || backtest?.status !== 'completed') {
+      setPerformerTrades([]);
+      setPerformerTradesLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      setPerformerTradesLoading(true);
+      try {
+        const all = await getAllBacktestTrades(parseInt(backtestId, 10), null, selectedMode);
+        if (!cancelled) {
+          setPerformerTrades(Array.isArray(all) ? all : []);
+        }
+      } catch {
+        if (!cancelled) setPerformerTrades([]);
+      } finally {
+        if (!cancelled) setPerformerTradesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [backtestId, backtest?.status, selectedMode]);
+
+  const symbolsForTopPerformers = useMemo(() => {
+    const fromTrades = () => {
+      if (!performerTrades.length) return [];
+      const byTicker = new Map();
+      for (const t of performerTrades) {
+        const ticker = t?.symbol_info?.ticker;
+        if (!ticker) continue;
+        const raw = t?.pnl;
+        const pnl = raw === null || raw === undefined ? 0 : Number(raw);
+        if (Number.isNaN(pnl)) continue;
+        byTicker.set(ticker, (byTicker.get(ticker) || 0) + pnl);
+      }
+      return [...byTicker.entries()].map(([symbol_ticker, total_pnl]) => ({
+        symbol_ticker,
+        stats_by_mode: {
+          [selectedMode]: { total_pnl },
+        },
+      }));
+    };
+    const aggregated = fromTrades();
+    if (aggregated.length > 0) return aggregated;
+    return statistics.symbols && statistics.symbols.length > 0 ? statistics.symbols : [];
+  }, [performerTrades, statistics.symbols, selectedMode]);
+
   const loadData = async () => {
     setLoading(true);
     try {
-      // Load initial symbols (will be reloaded by useEffect if search/page changes)
-      let symbolsData;
-      try {
-        symbolsData = await getBacktestSymbols(backtestId, 1, 20, ''); // Always load without search initially
-        // Set symbols here so they appear immediately on mount
-        setSymbols(symbolsData || { results: [], count: 0, next: null, previous: null });
-      } catch (symbolError) {
-        symbolsData = { results: [], count: 0, next: null, previous: null };
-        setSymbols(symbolsData);
-      }
-      
-      // Load other data (trades are loaded separately with pagination)
       let strategyData, backtestData, statsData;
       try {
         [strategyData, backtestData, statsData] = await Promise.all([
@@ -153,33 +203,11 @@ export default function StrategyBacktestDetail() {
       } catch (error) {
         // Error loading data
       }
-      
+
       setStrategy(strategyData);
       setBacktest(backtestData);
       setStatistics(statsData || { portfolio: null, symbols: [] });
-      
-      // Use symbols from API if available, otherwise try fallback
-      if (!symbolsData || !symbolsData.results || symbolsData.results.length === 0) {
-        // Fallback: Extract from statistics
-        if (statsData?.symbols && statsData.symbols.length > 0) {
-          const tickersFromStats = statsData.symbols
-            .map(s => s.symbol_ticker)
-            .filter(Boolean);
-          if (tickersFromStats.length > 0) {
-            const finalSymbolsData = {
-              results: tickersFromStats,
-              count: tickersFromStats.length,
-              next: null,
-              previous: null
-            };
-            setSymbols(finalSymbolsData);
-          }
-        }
-      }
-      
-      // Don't auto-select symbol - the main page should show portfolio stats
-      // Only show symbol stats when user explicitly selects a symbol
-      
+
       // Check for task_id in backtest response or find from active tasks if backtest is running
       if (backtestData?.status === 'running') {
         if (backtestData.task_id) {
@@ -234,25 +262,6 @@ export default function StrategyBacktestDetail() {
   useEffect(() => {
     setTradesPageInput(tradesPage.toString());
   }, [tradesPage]);
-
-  const loadSymbols = async (page = 1, search = '') => {
-    setSymbolsLoading(true);
-    try {
-      const symbolsData = await getBacktestSymbols(backtestId, page, 20, search);
-      setSymbols(symbolsData || { results: [], count: 0, next: null, previous: null });
-    } catch (error) {
-      setSymbols({ results: [], count: 0, next: null, previous: null });
-    } finally {
-      setSymbolsLoading(false);
-    }
-  };
-
-  const handleSymbolSearch = (e) => {
-    const value = e.target.value;
-    setSymbolSearch(value);
-    setSymbolsPage(1); // Reset to page 1 when searching
-    // Search will trigger via useEffect when symbolSearch changes (with debounce)
-  };
 
   const handleExportPortfolioTradesCsv = async () => {
     setExportingTrades(true);
@@ -600,6 +609,122 @@ export default function StrategyBacktestDetail() {
         })()
       )}
 
+      {backtest && <BacktestParametersPanel backtest={backtest} title="Backtest parameters" />}
+
+      {/* Symbols in this portfolio backtest — quick navigation to per-symbol view (same backtest id) */}
+      <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <List className="w-5 h-5 shrink-0" />
+            Symbols in this backtest ({symbolList.count ?? 0})
+          </h2>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          These are the tickers included in this portfolio run. Open a card to see trades and charts for that symbol
+          within backtest #{backtestId} (shared bankroll simulation).
+        </p>
+        <div className="mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              value={symbolSearch}
+              onChange={(e) => {
+                setSymbolSearch(e.target.value);
+                setSymbolPage(1);
+              }}
+              placeholder="Search symbols by ticker..."
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+            {symbolSearch ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSymbolSearch('');
+                  setSymbolPage(1);
+                }}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {symbolListLoading ? (
+          <div className="text-center py-12">
+            <Loader className="w-8 h-8 animate-spin mx-auto text-primary-600" />
+            <p className="text-gray-600 mt-4">Loading symbols…</p>
+          </div>
+        ) : symbolList.results && symbolList.results.length > 0 ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+              {symbolList.results.map((sym, index) => (
+                <motion.div
+                  key={sym.ticker || index}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
+                >
+                  <SymbolCard
+                    symbol={sym}
+                    footer="Open symbol view in this backtest"
+                    onClick={(s) => {
+                      navigate(`/strategies/${id}/backtests/${backtestId}/${encodeURIComponent(s.ticker)}`);
+                    }}
+                  />
+                </motion.div>
+              ))}
+            </div>
+            {(() => {
+              const total = symbolList.count || 0;
+              const totalPages = Math.max(1, Math.ceil(total / SYMBOL_PAGE_SIZE));
+              if (totalPages <= 1) return null;
+              return (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setSymbolPage((p) => Math.max(1, p - 1))}
+                    disabled={symbolPage <= 1}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                      symbolPage > 1
+                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    Previous
+                  </button>
+                  <span className="text-sm text-gray-600">
+                    Page {symbolPage} of {totalPages} ({total} symbols)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSymbolPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={symbolPage >= totalPages}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                      symbolPage < totalPages
+                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              );
+            })()}
+          </>
+        ) : (
+          <div className="text-center py-12 bg-gray-50 rounded-lg">
+            <p className="text-gray-500 text-lg">
+              {symbolSearch.trim() ? 'No symbols match your search.' : 'No symbols linked to this backtest.'}
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Statistics Cards */}
       {currentStatsForDisplay ? (
         <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
@@ -767,13 +892,16 @@ export default function StrategyBacktestDetail() {
         </div>
       )}
 
-      {/* Top/Worst Performers Chart - Only show when no symbol is selected (portfolio view) */}
-      {!selectedSymbol && statistics.symbols && statistics.symbols.length > 0 && (
-        <TopPerformersChart 
-          symbols={statistics.symbols} 
-          mode={selectedMode}
-          topCount={10}
-        />
+      {/* Top/Worst performers: from trade PnL aggregation (portfolio no longer stores per-symbol stats rows) */}
+      {!selectedSymbol && backtest?.status === 'completed' && (
+        performerTradesLoading ? (
+          <div className="mb-6 bg-white rounded-lg shadow-lg p-6 flex items-center gap-3 text-gray-600">
+            <Loader className="w-5 h-5 animate-spin text-primary-600" />
+            <span>Loading symbol rankings…</span>
+          </div>
+        ) : symbolsForTopPerformers.length > 0 ? (
+          <TopPerformersChart symbols={symbolsForTopPerformers} mode={selectedMode} topCount={10} />
+        ) : null
       )}
 
       {/* Equity Curve Chart */}
@@ -879,123 +1007,6 @@ export default function StrategyBacktestDetail() {
           />
         </div>
       )}
-
-      {/* Symbols Card View with Search and Pagination */}
-      <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <List className="w-5 h-5" />
-          Symbols Backtested ({symbols.count || symbols.results?.length || 0})
-        </h2>
-
-        {/* Search Bar */}
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              value={symbolSearch}
-              onChange={handleSymbolSearch}
-              placeholder="Search symbols by ticker..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  // Force reload with current search
-                  loadSymbols(1, symbolSearch);
-                }
-              }}
-            />
-            {symbolSearch && (
-              <button
-                onClick={() => {
-                  setSymbolSearch('');
-                  setSymbolsPage(1);
-                }}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Symbols Grid */}
-        {symbolsLoading ? (
-          <div className="text-center py-12">
-            <Loader className="w-8 h-8 animate-spin mx-auto text-primary-600" />
-            <p className="text-gray-600 mt-4">Loading symbols...</p>
-          </div>
-        ) : symbols.results && symbols.results.length > 0 ? (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-              {symbols.results.map((symbol, index) => {
-                return (
-                  <motion.div
-                    key={symbol.ticker || symbol.id || index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                  >
-                    <SymbolCard 
-                      symbol={symbol} 
-                      onClick={(sym) => {
-                        navigate(`/strategies/${id}/backtests/${backtestId}/${sym.ticker}`);
-                      }}
-                    />
-                  </motion.div>
-                );
-              })}
-            </div>
-
-            {/* Pagination for Symbols */}
-            {(symbols.count > 20 || symbols.next || symbols.previous) && (
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
-                <button
-                  onClick={() => setSymbolsPage(prev => Math.max(1, prev - 1))}
-                  disabled={!symbols.previous}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                    symbols.previous
-                      ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      : 'bg-gray-50 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Previous
-                </button>
-                <span className="text-sm text-gray-600">
-                  Page {symbolsPage} of {Math.ceil((symbols.count || 0) / 20)} ({symbols.count || 0} total)
-                </span>
-                <button
-                  onClick={() => setSymbolsPage(prev => prev + 1)}
-                  disabled={!symbols.next}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                    symbols.next
-                      ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      : 'bg-gray-50 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  Next
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <p className="text-gray-500 text-lg">
-              {symbolSearch 
-                ? `No symbols found matching "${symbolSearch}"` 
-                : 'No symbols found in this backtest'}
-            </p>
-            {symbolSearch && (
-              <p className="text-gray-400 text-sm mt-2">
-                Try a different search term or clear the search to see all symbols
-              </p>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* Trades Table with Pagination */}
       <div className="bg-white rounded-lg shadow-lg p-6">
