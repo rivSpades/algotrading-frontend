@@ -294,10 +294,46 @@ export const marketDataAPI = {
   },
 
   /**
-   * Get scheduled tasks
+   * Get all Celery Beat periodic tasks (unpaginated list)
    */
   async getScheduledTasks() {
     return apiRequest('/scheduled-tasks/');
+  },
+
+  /**
+   * Get crontab schedule by id ( django-celery-beat )
+   */
+  async getCrontabSchedule(id) {
+    return apiRequest(`/crontab-schedules/${id}/`);
+  },
+
+  /**
+   * Update crontab schedule
+   */
+  async updateCrontabSchedule(id, data) {
+    return apiRequest(`/crontab-schedules/${id}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Get interval schedule by id
+   */
+  async getIntervalSchedule(id) {
+    return apiRequest(`/interval-schedules/${id}/`);
+  },
+
+  /**
+   * Update interval schedule
+   */
+  async updateIntervalSchedule(id, data) {
+    return apiRequest(`/interval-schedules/${id}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
   },
 
   /**
@@ -350,6 +386,15 @@ export const marketDataAPI = {
    */
   async disableScheduledTask(taskId) {
     return apiRequest(`/scheduled-tasks/${taskId}/disable/`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Run a periodic task immediately (manual mirror)
+   */
+  async runScheduledTaskNow(taskId) {
+    return apiRequest(`/scheduled-tasks/${taskId}/run-now/`, {
       method: 'POST',
     });
   },

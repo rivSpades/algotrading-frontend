@@ -17,6 +17,7 @@ import {
   XCircle,
   ChevronLeft,
   ChevronRight,
+  Rocket,
   Trash2,
   List,
   Search,
@@ -33,6 +34,7 @@ import {
 import { getBacktests, deleteBacktest } from '../data/backtests';
 import BacktestConfig from '../components/BacktestConfig';
 import SymbolCard from '../components/SymbolCard';
+import DeployStrategyModal from '../components/DeployStrategyModal';
 
 export default function StrategyDetail() {
   const { id } = useParams();
@@ -59,6 +61,7 @@ export default function StrategyDetail() {
   const [riskScatterTab, setRiskScatterTab] = useState('long');
   const SNAPSHOT_PAGE_SIZE = 20;
   const [deletingAllSnapshots, setDeletingAllSnapshots] = useState(false);
+  const [deployModalOpen, setDeployModalOpen] = useState(false);
   const riskScatterLoadedForRef = useRef('');
   const didInitSnapshotsRef = useRef(false);
   /** Prevents a slow in-flight snapshot request from overwriting a newer search/page result. */
@@ -528,21 +531,34 @@ export default function StrategyDetail() {
             <List className="w-5 h-5 shrink-0" />
             Single-symbol snapshots ({snapshotSymbolsCount || 0})
           </h2>
-          {(snapshotSymbols.length > 0 || selectedSnapshotParameterSet) && (
-            <button
-              type="button"
-              onClick={handleDeleteAllSnapshots}
-              disabled={deletingAllSnapshots || snapshotSymbolsLoading}
-              className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-            >
-              <Trash2 className="w-4 h-4" />
-              {deletingAllSnapshots
-                ? 'Deleting…'
-                : selectedSnapshotParameterSet
-                  ? 'Delete this test'
-                  : 'Delete all snapshots'}
-            </button>
-          )}
+          <div className="flex flex-wrap gap-2 shrink-0">
+            {selectedSnapshotParameterSet && (
+              <button
+                type="button"
+                onClick={() => setDeployModalOpen(true)}
+                disabled={snapshotSymbolsLoading}
+                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Rocket className="w-4 h-4" />
+                Deploy
+              </button>
+            )}
+            {(snapshotSymbols.length > 0 || selectedSnapshotParameterSet) && (
+              <button
+                type="button"
+                onClick={handleDeleteAllSnapshots}
+                disabled={deletingAllSnapshots || snapshotSymbolsLoading}
+                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deletingAllSnapshots
+                  ? 'Deleting…'
+                  : selectedSnapshotParameterSet
+                    ? 'Delete this test'
+                    : 'Delete all snapshots'}
+              </button>
+            )}
+          </div>
         </div>
         <p className="text-sm text-gray-600 mb-4">
           Click a card to open the symbol page for this strategy (latest run is pre-selected). Use{' '}
@@ -1071,6 +1087,20 @@ export default function StrategyDetail() {
           </>
         )}
       </div>
+
+      <DeployStrategyModal
+        open={deployModalOpen}
+        onClose={() => setDeployModalOpen(false)}
+        strategyId={id ? Number(id) : null}
+        strategyName={strategy?.name}
+        parameterSet={selectedSnapshotParameterSet}
+        parameterSetLabel={
+          snapshotParameterSets.find(
+            (ps) => ps.signature === selectedSnapshotParameterSet,
+          )?.label
+        }
+        defaultPositionMode={riskScatterTab === 'short' ? 'short' : 'long'}
+      />
     </div>
   );
 }

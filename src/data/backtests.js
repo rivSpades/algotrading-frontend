@@ -70,6 +70,34 @@ export const backtestsAPI = {
   },
 
   /**
+   * Live hybrid VIX panic distance (Z and prior-day VIX vs floor) — same rule as overlay / entries.
+   * @param {{ deploymentId?: number, hedgeConfig?: object, useYahooOnly?: boolean, includeChart?: boolean, chartTailDays?: number }} [params]
+   */
+  async getHedgePanicSnapshot(params = {}) {
+    const sp = new URLSearchParams();
+    if (params.useYahooOnly === false) {
+      sp.set('use_yahoo_only', 'false');
+    } else {
+      sp.set('use_yahoo_only', 'true');
+    }
+    if (params.deploymentId != null && params.deploymentId !== '') {
+      sp.set('deployment', String(params.deploymentId));
+    }
+    if (params.hedgeConfig && typeof params.hedgeConfig === 'object' && Object.keys(params.hedgeConfig).length) {
+      sp.set('hedge_config', JSON.stringify(params.hedgeConfig));
+    }
+    if (params.includeChart === false) {
+      sp.set('include_chart', 'false');
+    } else {
+      sp.set('include_chart', 'true');
+    }
+    if (params.chartTailDays != null) {
+      sp.set('chart_tail_days', String(params.chartTailDays));
+    }
+    return apiRequest(`/backtests/hedge-panic-snapshot/?${sp.toString()}`);
+  },
+
+  /**
    * Get trades for a backtest (with pagination and filtering)
    * @param {number} backtestId - Backtest ID
    * @param {number} page - Page number (default: 1)
@@ -283,6 +311,13 @@ export async function saveHedgeLabSettings(hedgeConfig) {
     console.error('Error saving hedge lab settings:', error);
     throw error;
   }
+}
+
+/** Hybrid VIX panic rule snapshot (lab defaults, or a hedged deployment’s effective config). */
+export async function getHedgePanicSnapshot(params = {}) {
+  const response = await backtestsAPI.getHedgePanicSnapshot(params);
+  if (response?.success) return response.data;
+  return null;
 }
 
 /**

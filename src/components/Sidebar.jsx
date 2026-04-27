@@ -4,7 +4,7 @@
  */
 
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, BarChart3, Calendar, Play, TrendingUp, Key, Rocket, Shield } from 'lucide-react';
+import { LayoutDashboard, BarChart3, Calendar, Play, TrendingUp, Key, Rocket, Shield, FileText } from 'lucide-react';
 
 export default function Sidebar() {
   const navItems = [
@@ -54,7 +54,13 @@ export default function Sidebar() {
       name: 'Deployments',
       path: '/deployments',
       icon: Rocket,
-      description: 'Live trading'
+      description: 'Manage deployments'
+    },
+    {
+      name: 'Platform log',
+      path: '/logs',
+      icon: FileText,
+      description: 'Audit log (all events)'
     },
   ];
 
