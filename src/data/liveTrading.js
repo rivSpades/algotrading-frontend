@@ -1,12 +1,29 @@
 /**
+ * Data layer for live trading dashboard helpers.
+ */
+
+import { apiRequest } from './api';
+
+export async function getMarketOpenProgress() {
+  const res = await apiRequest('/market-open-progress/');
+  if (!res?.success) {
+    return { results: [], as_of: null, error: res?.error || 'Request failed' };
+  }
+  const data = res.data || {};
+  return {
+    results: data.results || [],
+    as_of: data.as_of || null,
+    error: null,
+  };
+}
+
+/**
  * Data layer for the legacy Live Trading API.
  *
  * NOTE: Strategy deployment endpoints moved to `data/strategyDeployments.js`
  * in the Live Trading Engine v2 rewrite. This module now exposes only broker
  * management endpoints + helpers, which the broker pages still rely on.
  */
-
-import { apiRequest } from './api';
 
 export const liveTradingAPI = {
   /**

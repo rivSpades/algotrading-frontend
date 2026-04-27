@@ -5,7 +5,7 @@
  * symbols each fetch their own endpoints when the tab is selected.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -27,7 +27,10 @@ import {
   listDeploymentEvents,
   listDeploymentSymbols,
   listLiveTrades,
+  manualCloseLiveTrade,
   promoteStrategyDeployment,
+  updateDeploymentPositions,
+  waitForLiveTradeCloseReconcile,
   stopStrategyDeployment,
 } from '../data/strategyDeployments';
 
@@ -70,6 +73,7 @@ export default function DeploymentDetail() {
   const [symbolActionId, setSymbolActionId] = useState(null);
 
   const [actionInFlight, setActionInFlight] = useState(false);
+  const [closingTradeId, setClosingTradeId] = useState(null);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
 
@@ -98,6 +102,7 @@ export default function DeploymentDetail() {
           deploymentId: id,
           page: tradesPage,
           pageSize: TRADES_PAGE_SIZE,
+          omitHedgeLegs: true,
         }),
       ]);
       setStats(st);
@@ -231,6 +236,51 @@ export default function DeploymentDetail() {
     if (tab === 'overview') await loadOverview();
     if (tab === 'logging') await loadLogging();
     if (tab === 'symbols') await loadSymbols();
+  };
+
+  const handleManualCloseTrade = async (trade, { force = false } = {}) => {
+    if (!trade?.id) return;
+    const ticker = trade.symbol_info?.ticker || trade.symbol || 'trade';
+    const body = force
+      ? `Mark ${ticker} #${trade.id} closed in the app only (no broker order)? Use when the position is already flat at the broker.`
+      : `Manually close ${ticker} trade #${trade.id} at the broker?`;
+    if (!window.confirm(body)) return;
+    setActionInFlight(true);
+    setClosingTradeId(trade.id);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await manualCloseLiveTrade(trade.id, { force });
+      let reconcileNote = '';
+      if (!force && result?.reconcile_task_id) {
+        const poll = await waitForLiveTradeCloseReconcile(result.reconcile_task_id);
+        if (poll?.result?.status === 'timeout') {
+          reconcileNote = ' (sync timed out; use Refresh if the row still shows open).';
+        } else if (poll?.result?.status === 'error' || poll?.result?.error) {
+          reconcileNote = ' (background sync had an error; use Refresh or App only if needed).';
+        }
+      } else if (!force) {
+        try {
+          await updateDeploymentPositions(id);
+        } catch (syncErr) {
+          console.warn('Position sync after manual close failed:', syncErr);
+        }
+      }
+      if (result?.reason === 'manual_exit_db_reset') {
+        setNotice('Closed in the app; ledger reset (no broker order).');
+      } else {
+        const st = result?.status || 'unknown';
+        const reason = result?.reason ? ` (${result.reason})` : '';
+        setNotice(`Manual close: ${st}${reason}.${reconcileNote}`);
+      }
+      await loadHeader();
+      if (tab === 'overview') await loadOverview();
+    } catch (err) {
+      setError(err.message || 'Manual close failed');
+    } finally {
+      setClosingTradeId(null);
+      setActionInFlight(false);
+    }
   };
 
   const onToggleSymbol = async (deploymentSymbol) => {
@@ -437,6 +487,8 @@ export default function DeploymentDetail() {
             onPageChange={setTradesPage}
             hasNext={!!trades.next}
             hasPrevious={!!trades.previous}
+            onManualClose={handleManualCloseTrade}
+            closingTradeId={closingTradeId}
           />
 
           {deployment.parent_deployment && (
@@ -606,7 +658,7 @@ function EventsFeed({
   );
 }
 
-function TradesTable({ trades, totalCount, page, loading, onPageChange, hasNext, hasPrevious }) {
+function TradesTable({ trades, totalCount, page, loading, onPageChange, hasNext, hasPrevious, onManualClose, closingTradeId = null }) {
   if (loading && trades.length === 0) {
     return (
       <div className="flex items-center justify-center gap-2 text-gray-500 py-12">
@@ -639,19 +691,87 @@ function TradesTable({ trades, totalCount, page, loading, onPageChange, hasNext,
               <th className="px-4 py-2 text-right">PnL</th>
               <th className="px-4 py-2 text-left">Status</th>
               <th className="px-4 py-2 text-left">Entry Time</th>
+              <th className="px-4 py-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 text-sm">
             {trades.map((trade) => (
-              <tr key={trade.id}>
-                <td className="px-4 py-2 font-medium">{trade.symbol_info?.ticker || trade.symbol}</td>
-                <td className="px-4 py-2 uppercase text-xs">{trade.position_mode}</td>
-                <td className="px-4 py-2 text-right">{fmt(trade.entry_price)}</td>
-                <td className="px-4 py-2 text-right">{fmt(trade.exit_price)}</td>
-                <td className="px-4 py-2 text-right">{fmt(trade.pnl)}</td>
-                <td className="px-4 py-2 text-xs">{trade.status}</td>
-                <td className="px-4 py-2 text-xs">{trade.entry_timestamp}</td>
-              </tr>
+              <Fragment key={trade.id}>
+                <tr className="bg-white">
+                  <td className="px-4 py-2 font-medium">
+                    {trade.symbol_info?.ticker || trade.symbol}
+                    {trade.metadata?.hedge_enabled && (
+                      <span className="ml-2 text-xs font-normal text-violet-600">(hedged entry)</span>
+                    )}
+                    {closingTradeId === trade.id && (
+                      <span className="ml-2 text-xs font-medium text-blue-600">Closing with broker…</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 uppercase text-xs">{trade.position_mode}</td>
+                  <td className="px-4 py-2 text-right">{fmt(trade.entry_price)}</td>
+                  <td className="px-4 py-2 text-right">{fmt(trade.exit_price)}</td>
+                  <td className="px-4 py-2 text-right">{fmt(trade.pnl)}</td>
+                  <td className="px-4 py-2 text-xs">
+                    <span
+                      className={
+                        trade.status === 'open'
+                          ? 'text-amber-800 font-medium'
+                          : 'text-gray-700'
+                      }
+                    >
+                      {trade.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-xs text-gray-600">{trade.entry_timestamp}</td>
+                  <td className="px-4 py-2 text-right">
+                    {trade.status === 'open' ? (
+                      <div className="flex flex-col gap-1 items-end">
+                        <button
+                          type="button"
+                          onClick={() => onManualClose?.(trade, { force: false })}
+                          disabled={closingTradeId != null}
+                          className="px-2 py-1 text-xs border rounded border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          Close
+                        </button>
+                        <button
+                          type="button"
+                          title="No Alpaca order — marks closed in app (e.g. position already flat)"
+                          onClick={() => onManualClose?.(trade, { force: true })}
+                          disabled={closingTradeId != null}
+                          className="px-2 py-1 text-xs text-amber-800 border border-amber-300 rounded hover:bg-amber-50 disabled:opacity-50"
+                        >
+                          App only
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                </tr>
+                {(trade.hedge_legs || []).map((h) => (
+                  <tr
+                    key={h.id}
+                    className="bg-violet-50/60 text-xs border-t-0"
+                  >
+                    <td className="px-4 py-1.5 pl-8 text-violet-900 border-l-4 border-violet-300">
+                      <span className="text-violet-500 mr-1.5" aria-hidden>
+                        ↳
+                      </span>
+                      Hedge · {h.symbol_info?.ticker || h.symbol}
+                    </td>
+                    <td className="px-4 py-1.5 uppercase text-violet-800">{h.position_mode}</td>
+                    <td className="px-4 py-1.5 text-right text-violet-900">{fmt(h.entry_price)}</td>
+                    <td className="px-4 py-1.5 text-right text-violet-900">{fmt(h.exit_price)}</td>
+                    <td className="px-4 py-1.5 text-right text-violet-900">{fmt(h.pnl)}</td>
+                    <td className="px-4 py-1.5 text-violet-800">
+                      {h.status === 'open' ? 'open' : 'closed'}
+                    </td>
+                    <td className="px-4 py-1.5 text-violet-800">{h.entry_timestamp}</td>
+                    <td className="px-4 py-1.5 text-right text-violet-600">—</td>
+                  </tr>
+                ))}
+              </Fragment>
             ))}
           </tbody>
         </table>

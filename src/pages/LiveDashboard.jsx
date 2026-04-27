@@ -49,6 +49,7 @@ import {
   listLiveTrades,
   listStrategyDeployments,
 } from '../data/strategyDeployments';
+import { getMarketOpenProgress } from '../data/liveTrading';
 
 const STATUS_BADGE = {
   pending: 'bg-gray-100 text-gray-700',
@@ -94,12 +95,82 @@ function fmtRelative(iso) {
   return d.toLocaleString();
 }
 
+function fmtCountdown(seconds) {
+  if (seconds == null || !Number.isFinite(seconds)) return '—';
+  if (seconds <= 0) return 'now';
+  const s = Math.floor(seconds);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `in ${h}h ${m}m`;
+  return `in ${m}m`;
+}
+
+function fmtToClose(seconds) {
+  if (seconds == null || !Number.isFinite(seconds)) return '—';
+  if (seconds <= 0) return 'closing';
+  const s = Math.floor(seconds);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `closes in ${h}h ${m}m`;
+  return `closes in ${m}m`;
+}
+
+function MarketOpenProgressPanel({ data }) {
+  const rows = data?.results || [];
+  if (!rows.length) return null;
+  return (
+    <div className="mb-6 bg-white border border-gray-200 rounded-lg shadow overflow-hidden">
+      <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-gray-500" />
+          <h3 className="text-sm font-semibold text-gray-900">Market status</h3>
+        </div>
+        {data?.as_of && <span className="text-xs text-gray-500">as of {new Date(data.as_of).toLocaleTimeString()}</span>}
+      </div>
+      <div className="p-4 space-y-3">
+        {rows.map((r) => {
+          const pct = r.progress == null ? 0 : Math.max(0, Math.min(100, 100 * Number(r.progress || 0)));
+          const title = (r.exchanges || []).join(', ');
+          return (
+            <div key={r.open_group_key} className="space-y-1">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="text-sm text-gray-900">
+                  <span className="font-medium">{title || r.open_group_key}</span>{' '}
+                  <span className="text-xs text-gray-500">({r.open_utc} UTC)</span>
+                </div>
+                <div className="text-xs text-gray-600">
+                  {r.is_open ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
+                        OPEN
+                      </span>
+                      <span className="text-gray-600">{fmtToClose(r.seconds_to_close)}</span>
+                    </span>
+                  ) : (
+                    fmtCountdown(r.seconds_to_open)
+                  )}
+                </div>
+              </div>
+              {!r.is_open && (
+                <div className="h-2.5 w-full rounded-full bg-slate-200 overflow-hidden">
+                  <div className="h-full bg-blue-600 rounded-full" style={{ width: `${pct}%` }} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function LiveDashboard() {
   const [deployments, setDeployments] = useState([]);
   const [openTrades, setOpenTrades] = useState({ results: [], count: 0 });
   const [closedTrades, setClosedTrades] = useState({ results: [], count: 0 });
   const [signals, setSignals] = useState({ results: [], count: 0 });
   const [recentEvents, setRecentEvents] = useState({ results: [], count: 0 });
+  const [marketOpen, setMarketOpen] = useState({ results: [], as_of: null, error: null });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -111,12 +182,13 @@ export default function LiveDashboard() {
     setError(null);
     const since = startOfTodayIso();
     try {
-      const [depPage, openPage, closedPage, signalPage, eventPage] = await Promise.all([
+      const [depPage, openPage, closedPage, signalPage, eventPage, openProg] = await Promise.all([
         listStrategyDeployments({}),
         listLiveTrades({ status: 'open', pageSize: 200 }),
         listLiveTrades({ status: 'closed', pageSize: 200 }),
         listAllDeploymentEvents({ since, pageSize: 50 }),
         listAllDeploymentEvents({ pageSize: 30 }),
+        getMarketOpenProgress(),
       ]);
       setDeployments(depPage.results || []);
       setOpenTrades(openPage);
@@ -128,6 +200,7 @@ export default function LiveDashboard() {
         ),
       });
       setRecentEvents(eventPage);
+      setMarketOpen(openProg);
       setLastUpdated(new Date());
       const firstHedged = (depPage.results || []).find((d) => d.hedge_enabled);
       const panicSnapshot = await getHedgePanicSnapshot(
@@ -247,6 +320,8 @@ export default function LiveDashboard() {
           {error}
         </div>
       )}
+
+      <MarketOpenProgressPanel data={marketOpen} />
 
       <HedgePanicPanel
         data={hedgePanic}

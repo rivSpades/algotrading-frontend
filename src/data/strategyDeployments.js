@@ -252,6 +252,7 @@ export const liveTradesAPI = {
       symbolTicker = null,
       status = null,
       deploymentType = null,
+      omitHedgeLegs = false,
     } = {},
   ) {
     const params = new URLSearchParams();
@@ -261,11 +262,17 @@ export const liveTradesAPI = {
     if (symbolTicker) params.append('symbol', symbolTicker);
     if (status) params.append('status', status);
     if (deploymentType) params.append('deployment_type', deploymentType);
+    if (omitHedgeLegs) params.append('omit_hedge_legs', 'true');
     const qs = params.toString();
     return apiRequest(`/live-trades/${qs ? `?${qs}` : ''}`);
   },
   async retrieve(id) {
     return apiRequest(`/live-trades/${id}/`);
+  },
+  async reconcileCloseStatus(taskId) {
+    const params = new URLSearchParams();
+    params.set('task_id', taskId);
+    return apiRequest(`/live-trades/reconcile-close-status/?${params.toString()}`);
   },
 };
 
@@ -352,6 +359,36 @@ export async function listLiveTrades(filters = {}) {
     console.error('Error listing live trades:', err);
     return { results: [], count: 0, next: null, previous: null };
   }
+}
+
+/**
+ * Poll Celery `reconcile_close_until_sync` until done or `maxMs` (broker DB aligned).
+ */
+export async function waitForLiveTradeCloseReconcile(
+  taskId,
+  { maxMs = 120000, intervalMs = 1600 } = {},
+) {
+  if (!taskId) return { ready: true, result: { status: 'skipped' } };
+  const t0 = Date.now();
+  while (Date.now() - t0 < maxMs) {
+    const response = await liveTradesAPI.reconcileCloseStatus(taskId);
+    const data = unwrap(response);
+    if (data?.ready) {
+      return data;
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return { ready: true, result: { status: 'timeout' }, state: 'TIMEOUT' };
+}
+
+export async function manualCloseLiveTrade(liveTradeId, { force = false } = {}) {
+  return unwrap(
+    await apiRequest(`/live-trades/${liveTradeId}/manual-close/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(force ? { force: true } : {}),
+    }),
+  );
 }
 
 export async function listAllDeploymentEvents(filters = {}) {
