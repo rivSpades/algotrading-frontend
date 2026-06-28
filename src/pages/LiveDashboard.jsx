@@ -52,13 +52,13 @@ import {
 import { getMarketOpenProgress } from '../data/liveTrading';
 
 const STATUS_BADGE = {
-  pending: 'bg-gray-100 text-gray-700',
-  active: 'bg-green-100 text-green-700',
-  evaluating: 'bg-blue-100 text-blue-700',
-  passed: 'bg-emerald-100 text-emerald-700',
-  failed: 'bg-red-100 text-red-700',
-  paused: 'bg-yellow-100 text-yellow-700',
-  stopped: 'bg-gray-200 text-gray-700',
+  pending: 'bg-surface-sunken text-ink-secondary',
+  active: 'bg-profit-soft text-profit-ink',
+  evaluating: 'bg-status-running-soft text-accent-ink',
+  passed: 'bg-status-success-soft text-emerald-700',
+  failed: 'bg-loss-soft text-loss-ink',
+  paused: 'bg-status-pending-soft text-status-pending',
+  stopped: 'bg-surface-sunken text-ink-secondary',
 };
 
 const SIGNAL_EVENT_TYPES = ['signal_evaluated', 'order_placed', 'order_filled', 'order_failed', 'trade_opened', 'trade_closed'];
@@ -119,13 +119,13 @@ function MarketOpenProgressPanel({ data }) {
   const rows = data?.results || [];
   if (!rows.length) return null;
   return (
-    <div className="mb-6 bg-white border border-gray-200 rounded-lg shadow overflow-hidden">
+    <div className="mb-6 bg-surface border border-border rounded-lg shadow overflow-hidden">
       <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-gray-500" />
-          <h3 className="text-sm font-semibold text-gray-900">Market status</h3>
+          <BarChart3 className="w-4 h-4 text-ink-tertiary" />
+          <h3 className="text-sm font-semibold text-ink">Market status</h3>
         </div>
-        {data?.as_of && <span className="text-xs text-gray-500">as of {new Date(data.as_of).toLocaleTimeString()}</span>}
+        {data?.as_of && <span className="text-xs text-ink-tertiary">as of {new Date(data.as_of).toLocaleTimeString()}</span>}
       </div>
       <div className="p-4 space-y-3">
         {rows.map((r) => {
@@ -134,17 +134,17 @@ function MarketOpenProgressPanel({ data }) {
           return (
             <div key={r.open_group_key} className="space-y-1">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <div className="text-sm text-gray-900">
+                <div className="text-sm text-ink">
                   <span className="font-medium">{title || r.open_group_key}</span>{' '}
-                  <span className="text-xs text-gray-500">({r.open_utc} UTC)</span>
+                  <span className="text-xs text-ink-tertiary">({r.open_utc} UTC)</span>
                 </div>
-                <div className="text-xs text-gray-600">
+                <div className="text-xs text-ink-secondary">
                   {r.is_open ? (
                     <span className="inline-flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
+                      <span className="px-2 py-0.5 rounded-full bg-status-success-soft text-status-success font-semibold">
                         OPEN
                       </span>
-                      <span className="text-gray-600">{fmtToClose(r.seconds_to_close)}</span>
+                      <span className="text-ink-secondary">{fmtToClose(r.seconds_to_close)}</span>
                     </span>
                   ) : (
                     fmtCountdown(r.seconds_to_open)
@@ -153,7 +153,7 @@ function MarketOpenProgressPanel({ data }) {
               </div>
               {!r.is_open && (
                 <div className="h-2.5 w-full rounded-full bg-slate-200 overflow-hidden">
-                  <div className="h-full bg-blue-600 rounded-full" style={{ width: `${pct}%` }} />
+                  <div className="h-full bg-accent rounded-full" style={{ width: `${pct}%` }} />
                 </div>
               )}
             </div>
@@ -287,13 +287,13 @@ export default function LiveDashboard() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8" aria-live="polite" aria-atomic="false">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <Rocket className="w-8 h-8 text-blue-600" /> Live Trading Dashboard
+          <h1 className="text-3xl font-bold text-ink flex items-center gap-2">
+            <Rocket className="w-8 h-8 text-accent" /> Live Trading Dashboard
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-ink-secondary mt-1">
             Real-time view of every active strategy deployment.
           </p>
         </div>
@@ -301,13 +301,13 @@ export default function LiveDashboard() {
           <button
             onClick={fetchAll}
             disabled={refreshing}
-            className="flex items-center gap-2 text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="flex items-center gap-2 text-sm bg-accent text-white px-4 py-2 rounded-lg hover:bg-accent-hover disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </button>
           {lastUpdated && (
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-ink-tertiary">
               Updated {fmtRelative(lastUpdated.toISOString())}
             </span>
           )}
@@ -315,7 +315,7 @@ export default function LiveDashboard() {
       </div>
 
       {error && (
-        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm flex items-center gap-2">
+        <div className="mb-4 px-4 py-3 bg-loss-soft border border-loss rounded text-loss-ink text-sm flex items-center gap-2">
           <AlertTriangle className="w-4 h-4" />
           {error}
         </div>
@@ -382,10 +382,10 @@ export default function LiveDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-2">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-ink">
               Deployments by strategy
             </h2>
-            <Link to="/deployments" className="text-sm text-blue-600 hover:underline">
+            <Link to="/deployments" className="text-sm text-accent hover:underline">
               All deployments →
             </Link>
           </div>
@@ -417,7 +417,7 @@ export default function LiveDashboard() {
           />
           <FeedPanel
             title="Recent events"
-            icon={<Activity className="w-4 h-4 text-gray-500" />}
+            icon={<Activity className="w-4 h-4 text-ink-tertiary" />}
             events={recentEvents.results}
             emptyHint="Audit log is empty."
             compact
@@ -488,9 +488,9 @@ function PanicActivationRules({ zTh, vixFl, zMet, vixMet, waitingReset, isPanic,
     </li>
   );
   return (
-    <div className="rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-800">
-      <p className="font-semibold text-gray-900 text-xs uppercase tracking-wide mb-2">What must be true for panic to be ON</p>
-      <p className="text-xs text-gray-600 mb-2">
+    <div className="rounded-md border border-slate-200 bg-surface px-3 py-2.5 text-sm text-ink">
+      <p className="font-semibold text-ink text-xs uppercase tracking-wide mb-2">What must be true for panic to be ON</p>
+      <p className="text-xs text-ink-secondary mb-2">
         All <strong>three</strong> below. (&quot;Panic&quot; = heavy VIXY mix, per your model.)
       </p>
       <ul className="space-y-2 list-none m-0 p-0">
@@ -515,7 +515,7 @@ function PanicActivationRules({ zTh, vixFl, zMet, vixMet, waitingReset, isPanic,
         </Row>
       </ul>
       {allOn && (
-        <p className="text-xs text-red-800 font-medium mt-2 pt-2 border-t border-slate-100">All three are satisfied → panic is ON now.</p>
+        <p className="text-xs text-loss-ink font-medium mt-2 pt-2 border-t border-slate-100">All three are satisfied → panic is ON now.</p>
       )}
     </div>
   );
@@ -534,7 +534,7 @@ function HedgeStressMeters({ z, zTh, vix, vixFl, zMet, vixMet, zNeed, vixNeed })
   return (
     <div className="mt-3 space-y-3">
       <div>
-        <div className="flex justify-between items-baseline text-xs text-gray-600 mb-1">
+        <div className="flex justify-between items-baseline text-xs text-ink-secondary mb-1">
           <span>Distance to <strong>z</strong> cap ({zTh})</span>
           {zMet ? (
             <span className="text-emerald-700 font-semibold">At or past cap</span>
@@ -549,13 +549,13 @@ function HedgeStressMeters({ z, zTh, vix, vixFl, zMet, vixMet, zNeed, vixNeed })
           title={zMet ? 'Z cap reached' : `About ${zW.toFixed(0)}% of the way from 0 to the cap (rough guide)`}
         >
           <div
-            className={`h-full rounded-full ${zMet ? 'bg-emerald-500' : 'bg-blue-500'}`}
+            className={`h-full rounded-full ${zMet ? 'bg-profit' : 'bg-accent-soft0'}`}
             style={{ width: `${zW}%` }}
           />
         </div>
       </div>
       <div>
-        <div className="flex justify-between items-baseline text-xs text-gray-600 mb-1">
+        <div className="flex justify-between items-baseline text-xs text-ink-secondary mb-1">
           <span>Distance to <strong>prior-day VIX</strong> floor ({vixFl})</span>
           {vixMet ? (
             <span className="text-emerald-700 font-semibold">At or past floor</span>
@@ -570,7 +570,7 @@ function HedgeStressMeters({ z, zTh, vix, vixFl, zMet, vixMet, zNeed, vixNeed })
           title={vixMet ? 'VIX floor reached' : `About ${vW.toFixed(0)}% of the way from 0 to the floor (rough guide)`}
         >
           <div
-            className={`h-full rounded-full ${vixMet ? 'bg-emerald-500' : 'bg-violet-500'}`}
+            className={`h-full rounded-full ${vixMet ? 'bg-profit' : 'bg-violet-500'}`}
             style={{ width: `${vW}%` }}
           />
         </div>
@@ -596,8 +596,8 @@ function HedgePanicPanel({ data, sourceDeployment }) {
   }
   if (data.regime === 'warmup') {
     return (
-      <div className="mb-6 bg-white border border-gray-200 rounded-lg shadow p-4 text-sm text-gray-700">
-        <div className="font-semibold text-gray-900 flex items-center gap-2">
+      <div className="mb-6 bg-surface border border-border rounded-lg shadow p-4 text-sm text-ink-secondary">
+        <div className="font-semibold text-ink flex items-center gap-2">
           <BarChart3 className="w-4 h-4" />
           Vol hedge (not ready)
         </div>
@@ -610,10 +610,10 @@ function HedgePanicPanel({ data, sourceDeployment }) {
   const regime = data.regime || 'normal';
   const regClass =
     regime === 'panic'
-      ? 'bg-red-100 text-red-800 border-red-200'
+      ? 'bg-loss-soft text-loss-ink border-loss'
       : regime === 'hysteresis'
         ? 'bg-amber-100 text-amber-900 border-amber-200'
-        : 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        : 'bg-status-success-soft text-status-success border-emerald-200';
   const sourceLabel = sourceDeployment
     ? `Config from deployment “${sourceDeployment.name || `id ${sourceDeployment.id}`}”.`
     : 'Hedge lab defaults (no deployment with hedge enabled).';
@@ -637,7 +637,7 @@ function HedgePanicPanel({ data, sourceDeployment }) {
   const inStandby = Boolean(data.panic_blocked_by_hysteresis);
 
   const heroBorder = isPanicHedge
-    ? 'border-red-300 bg-red-50'
+    ? 'border-red-300 bg-loss-soft'
     : inStandby
       ? 'border-amber-300 bg-amber-50/90'
       : 'border-slate-200 bg-slate-50';
@@ -648,21 +648,21 @@ function HedgePanicPanel({ data, sourceDeployment }) {
       : 'Status: OFF';
 
   return (
-    <div className="mb-6 bg-white border border-gray-200 rounded-lg shadow overflow-hidden">
-      <div className="p-4 border-b border-gray-100 flex flex-wrap items-start justify-between gap-3">
+    <div className="mb-6 bg-surface border border-border rounded-lg shadow overflow-hidden">
+      <div className="p-4 border-b border-border flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-blue-600" />
+          <h2 className="text-base font-semibold text-ink flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-accent" />
             Panic hedge
           </h2>
-          <p className="text-xs text-gray-500 mt-1">{sourceLabel}</p>
+          <p className="text-xs text-ink-tertiary mt-1">{sourceLabel}</p>
         </div>
         <div className="flex flex-col items-end gap-1 text-xs">
           <span className={`px-2.5 py-1 rounded-md border font-semibold ${regClass}`}>
             {(regime || '').toUpperCase()}
           </span>
-          {data.as_of && <span className="text-gray-500">Last session {data.as_of}</span>}
-          {data.data_source && <span className="text-gray-400">{data.data_source}</span>}
+          {data.as_of && <span className="text-ink-tertiary">Last session {data.as_of}</span>}
+          {data.data_source && <span className="text-ink-tertiary">{data.data_source}</span>}
         </div>
       </div>
 
@@ -683,13 +683,13 @@ function HedgePanicPanel({ data, sourceDeployment }) {
         <div className={`rounded-lg border-2 p-4 ${heroBorder}`}>
           <div className="flex flex-wrap items-center gap-2 gap-y-1">
             {isPanicHedge ? (
-              <CheckCircle2 className="w-6 h-6 text-red-600 shrink-0" />
+              <CheckCircle2 className="w-6 h-6 text-loss shrink-0" />
             ) : inStandby ? (
               <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0" />
             ) : (
               <XCircle className="w-6 h-6 text-slate-500 shrink-0" />
             )}
-            <h3 className="text-lg font-bold text-gray-900 tracking-tight">{heroTitle}</h3>
+            <h3 className="text-lg font-bold text-ink tracking-tight">{heroTitle}</h3>
           </div>
           <HedgeStressMeters
             z={data.smoothed_vix_z}
@@ -704,32 +704,32 @@ function HedgePanicPanel({ data, sourceDeployment }) {
         </div>
       </div>
 
-      <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-3 bg-gray-50/80 text-sm">
-        <div className="rounded-md bg-white border border-gray-100 p-3 shadow-sm">
-          <div className="text-xs text-gray-500 mb-0.5">① Smoothed z vs cap {zTh}</div>
-          <p className="text-lg font-semibold text-gray-900 tabular-nums">
-            {data.smoothed_vix_z} <span className="text-sm font-normal text-gray-500">/ {zTh}</span>
+      <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-3 bg-bg/80 text-sm">
+        <div className="rounded-md bg-surface border border-border p-3 shadow-sm">
+          <div className="text-xs text-ink-tertiary mb-0.5">① Smoothed z vs cap {zTh}</div>
+          <p className="text-lg font-semibold text-ink tabular-nums">
+            {data.smoothed_vix_z} <span className="text-sm font-normal text-ink-tertiary">/ {zTh}</span>
           </p>
-          <p className="text-gray-600 text-xs mt-0.5">
+          <p className="text-ink-secondary text-xs mt-0.5">
             {data.z_stress_satisfied ? 'Met.' : `+${zNeed} to cap`}
           </p>
         </div>
-        <div className="rounded-md bg-white border border-gray-100 p-3 shadow-sm">
-          <div className="text-xs text-gray-500 mb-0.5">② Prior-day VIX vs floor {vixFl}</div>
-          <p className="text-lg font-semibold text-gray-900 tabular-nums">
+        <div className="rounded-md bg-surface border border-border p-3 shadow-sm">
+          <div className="text-xs text-ink-tertiary mb-0.5">② Prior-day VIX vs floor {vixFl}</div>
+          <p className="text-lg font-semibold text-ink tabular-nums">
             {data.vix_for_rule_prior_day}{' '}
-            <span className="text-sm font-normal text-gray-500">/ {vixFl}</span>
+            <span className="text-sm font-normal text-ink-tertiary">/ {vixFl}</span>
           </p>
-          <p className="text-gray-600 text-xs mt-0.5">
+          <p className="text-ink-secondary text-xs mt-0.5">
             {data.vix_level_satisfied ? 'Met.' : `+${vixNeed} to floor`}
             {data.vix_spot_on_as_of != null && (
-              <span className="text-gray-400"> · spot {data.vix_spot_on_as_of}</span>
+              <span className="text-ink-tertiary"> · spot {data.vix_spot_on_as_of}</span>
             )}
           </p>
         </div>
-        <div className="rounded-md bg-white border border-gray-100 p-3 shadow-sm">
-          <div className="text-xs text-gray-500 mb-0.5">Book split today</div>
-          <p className="text-lg font-semibold text-gray-900 tabular-nums">
+        <div className="rounded-md bg-surface border border-border p-3 shadow-sm">
+          <div className="text-xs text-ink-tertiary mb-0.5">Book split today</div>
+          <p className="text-lg font-semibold text-ink tabular-nums">
             {(100 * (data.w_strategy || 0)).toFixed(0)}% / {(100 * (data.w_hedge || 0)).toFixed(0)}% hedge
           </p>
         </div>
@@ -737,8 +737,8 @@ function HedgePanicPanel({ data, sourceDeployment }) {
 
       {safePoints.length > 0 && (
         <div className="p-4 pt-2">
-          <p className="text-xs text-gray-500 mb-2">
-            History ({safePoints.length} sessions). <strong className="text-red-800">Red dots</strong> on the lines = panic
+          <p className="text-xs text-ink-tertiary mb-2">
+            History ({safePoints.length} sessions). <strong className="text-loss-ink">Red dots</strong> on the lines = panic
             regime on that day (same as red bars below). Pink/yellow = above caps.
           </p>
 
@@ -750,7 +750,7 @@ function HedgePanicPanel({ data, sourceDeployment }) {
                 margin={{ top: 4, right: 8, left: 4, bottom: 0 }}
                 syncId={HEDGE_CHART_SYNC}
               >
-                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200" />
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="d" hide height={0} tick={false} />
                 <YAxis
                   width={36}
@@ -796,7 +796,7 @@ function HedgePanicPanel({ data, sourceDeployment }) {
                 margin={{ top: 4, right: 8, left: 4, bottom: 0 }}
                 syncId={HEDGE_CHART_SYNC}
               >
-                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200" />
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="d" hide height={0} tick={false} />
                 <YAxis
                   width={36}
@@ -834,11 +834,11 @@ function HedgePanicPanel({ data, sourceDeployment }) {
             </ResponsiveContainer>
           </div>
 
-          <p className="text-xs font-medium text-gray-800 mb-1 mt-3">Panic on that day? (one bar = one day)</p>
-          <p className="text-xs text-gray-600 mb-2">
+          <p className="text-xs font-medium text-ink mb-1 mt-3">Panic on that day? (one bar = one day)</p>
+          <p className="text-xs text-ink-secondary mb-2">
             <span className="inline-block w-3 h-2 rounded-sm bg-red-700 mr-1 align-middle" /> on ·
             <span className="inline-block w-3 h-2 rounded-sm bg-amber-500 ml-1 mr-1 align-middle" /> ①+② but not ③ ·
-            <span className="inline-block w-3 h-2 rounded-sm bg-gray-300 ml-1 mr-1 align-middle" /> off
+            <span className="inline-block w-3 h-2 rounded-sm bg-surface-sunken ml-1 mr-1 align-middle" /> off
           </p>
           <div className="h-[64px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -847,7 +847,7 @@ function HedgePanicPanel({ data, sourceDeployment }) {
                 margin={{ top: 2, right: 8, left: 4, bottom: 2 }}
                 syncId={HEDGE_CHART_SYNC}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-gray-200" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
                 <XAxis dataKey="d" tick={{ fontSize: 9 }} minTickGap={28} interval="preserveStartEnd" />
                 <YAxis type="number" domain={[0, 1]} hide />
                 <Tooltip
@@ -861,11 +861,11 @@ function HedgePanicPanel({ data, sourceDeployment }) {
                       line = 'Rules passed, normal sleeve (standby until z resets below 0)';
                     }
                     return (
-                      <div className="text-xs bg-white border rounded shadow px-2 py-1 max-w-[16rem]">
+                      <div className="text-xs bg-surface border rounded shadow px-2 py-1 max-w-[16rem]">
                         <div className="font-medium">{label}</div>
-                        <div className="text-gray-700">{line}</div>
+                        <div className="text-ink-secondary">{line}</div>
                         {pl.waitingReset && !pl.panic && (
-                          <div className="text-gray-500 mt-0.5">Reset rule active (z must go &lt; 0 before next panic)</div>
+                          <div className="text-ink-tertiary mt-0.5">Reset rule active (z must go &lt; 0 before next panic)</div>
                         )}
                       </div>
                     );
@@ -889,11 +889,11 @@ function HedgePanicPanel({ data, sourceDeployment }) {
 }
 
 const TONE_STYLES = {
-  blue: 'bg-blue-50 text-blue-700 border-blue-100',
+  blue: 'bg-accent-soft text-accent-ink border-accent-soft',
   indigo: 'bg-indigo-50 text-indigo-700 border-indigo-100',
   emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  red: 'bg-red-50 text-red-700 border-red-100',
-  gray: 'bg-gray-50 text-gray-700 border-gray-200',
+  red: 'bg-loss-soft text-loss-ink border-red-100',
+  gray: 'bg-bg text-ink-secondary border-border',
 };
 
 function Kpi({ label, value, icon, tone = 'gray', sub }) {
@@ -915,16 +915,16 @@ function Kpi({ label, value, icon, tone = 'gray', sub }) {
 
 function StrategyGroupCard({ group }) {
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="bg-surface rounded-lg shadow">
       <div className="px-4 py-3 border-b flex items-center justify-between">
         <Link
           to={`/strategies/${group.strategy_id}`}
-          className="text-sm font-semibold text-gray-900 hover:text-blue-600 inline-flex items-center gap-1"
+          className="text-sm font-semibold text-ink hover:text-accent inline-flex items-center gap-1"
         >
           {group.strategy_name}
           <ArrowUpRight className="w-3 h-3" />
         </Link>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-ink-tertiary">
           {group.deployments.length} deployment{group.deployments.length === 1 ? '' : 's'}
         </span>
       </div>
@@ -933,21 +933,21 @@ function StrategyGroupCard({ group }) {
           <Link
             key={d.id}
             to={`/deployments/${d.id}`}
-            className="flex items-center justify-between px-4 py-3 hover:bg-gray-50"
+            className="flex items-center justify-between px-4 py-3 hover:bg-bg"
           >
             <div className="min-w-0">
-              <div className="text-sm font-medium text-gray-900 truncate">
+              <div className="text-sm font-medium text-ink truncate">
                 {d.name || `${d.strategy_name} deployment`}
               </div>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-ink-tertiary">
                 {d.broker_name} • {(d.position_mode || '').toUpperCase()} •{' '}
                 {d.deployment_type === 'paper' ? 'Paper' : 'Real money'}
               </div>
             </div>
-            <div className="flex items-center gap-3 text-xs text-gray-600 shrink-0">
+            <div className="flex items-center gap-3 text-xs text-ink-secondary shrink-0">
               <span>{d.active_symbol_count}/{d.symbol_count} sym</span>
               <span>${Number(d.initial_capital).toLocaleString()}</span>
-              <span className={`px-2 py-1 rounded-full ${STATUS_BADGE[d.status] || 'bg-gray-100'}`}>
+              <span className={`px-2 py-1 rounded-full ${STATUS_BADGE[d.status] || 'bg-surface-sunken'}`}>
                 {d.status}
               </span>
             </div>
@@ -960,15 +960,15 @@ function StrategyGroupCard({ group }) {
 
 function FeedPanel({ title, icon, events, emptyHint, compact = false }) {
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="bg-surface rounded-lg shadow">
       <div className="px-4 py-3 border-b flex items-center gap-2">
         {icon}
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        <span className="text-xs text-gray-400 ml-auto">{events.length}</span>
+        <h3 className="text-sm font-semibold text-ink">{title}</h3>
+        <span className="text-xs text-ink-tertiary ml-auto">{events.length}</span>
       </div>
       <div className={`divide-y ${compact ? 'max-h-72' : 'max-h-96'} overflow-y-auto`}>
         {events.length === 0 ? (
-          <div className="text-center text-xs text-gray-500 py-8">{emptyHint}</div>
+          <div className="text-center text-xs text-ink-tertiary py-8">{emptyHint}</div>
         ) : (
           events.map((e) => (
             <FeedEvent key={e.id} event={e} compact={compact} />
@@ -982,10 +982,10 @@ function FeedPanel({ title, icon, events, emptyHint, compact = false }) {
 function FeedEvent({ event, compact }) {
   const levelClass =
     event.level === 'error'
-      ? 'bg-red-100 text-red-700'
+      ? 'bg-loss-soft text-loss-ink'
       : event.level === 'warning'
-        ? 'bg-yellow-100 text-yellow-700'
-        : 'bg-blue-50 text-blue-700';
+        ? 'bg-status-pending-soft text-status-pending'
+        : 'bg-accent-soft text-accent-ink';
   return (
     <div className={`px-4 py-2 ${compact ? 'text-xs' : 'text-sm'}`}>
       <div className="flex items-center gap-2 flex-wrap">
@@ -993,24 +993,24 @@ function FeedEvent({ event, compact }) {
           {event.event_type}
         </span>
         {event.deployment_symbol_ticker && (
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-ink-tertiary">
             [{event.deployment_symbol_ticker}]
           </span>
         )}
         {event.deployment && (
           <Link
             to={`/deployments/${event.deployment}`}
-            className="text-xs text-blue-600 hover:underline"
+            className="text-xs text-accent hover:underline"
           >
             #{event.deployment}
           </Link>
         )}
-        <span className="text-xs text-gray-400 ml-auto">
+        <span className="text-xs text-ink-tertiary ml-auto">
           {fmtRelative(event.created_at)}
         </span>
       </div>
       {event.message && !compact && (
-        <div className="mt-1 text-gray-700 text-xs">{event.message}</div>
+        <div className="mt-1 text-ink-secondary text-xs">{event.message}</div>
       )}
     </div>
   );
@@ -1018,16 +1018,16 @@ function FeedEvent({ event, compact }) {
 
 function TradesTable({ title, trades, emptyHint, showPnl }) {
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="bg-surface rounded-lg shadow">
       <div className="px-4 py-3 border-b">
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+        <h3 className="text-sm font-semibold text-ink">{title}</h3>
       </div>
       {trades.length === 0 ? (
-        <div className="text-center text-xs text-gray-500 py-8">{emptyHint}</div>
+        <div className="text-center text-xs text-ink-tertiary py-8">{emptyHint}</div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+          <table className="min-w-full divide-y divide-border">
+            <thead className="bg-bg text-xs uppercase text-ink-tertiary">
               <tr>
                 <th className="px-3 py-2 text-left">Ticker</th>
                 <th className="px-3 py-2 text-left">Mode</th>
@@ -1038,7 +1038,7 @@ function TradesTable({ title, trades, emptyHint, showPnl }) {
                 <th className="px-3 py-2 text-left">Time</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 text-xs">
+            <tbody className="divide-y divide-border text-xs">
               {trades.map((t) => (
                 <tr key={t.id}>
                   <td className="px-3 py-2 font-medium">
@@ -1053,15 +1053,15 @@ function TradesTable({ title, trades, emptyHint, showPnl }) {
                         Number(t.pnl) > 0
                           ? 'text-emerald-600'
                           : Number(t.pnl) < 0
-                            ? 'text-red-600'
-                            : 'text-gray-700'
+                            ? 'text-loss'
+                            : 'text-ink-secondary'
                       }`}
                     >
                       {t.pnl != null ? fmtCurrency(t.pnl) : '—'}
                     </td>
                   )}
                   <td className="px-3 py-2">{t.status}</td>
-                  <td className="px-3 py-2 text-gray-500">
+                  <td className="px-3 py-2 text-ink-tertiary">
                     {fmtRelative(t.exit_timestamp || t.entry_timestamp)}
                   </td>
                 </tr>
@@ -1076,10 +1076,10 @@ function TradesTable({ title, trades, emptyHint, showPnl }) {
 
 function EmptyState({ title, hint }) {
   return (
-    <div className="text-center py-12 bg-white rounded-lg shadow">
-      <Rocket className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
-      <p className="text-sm text-gray-600">{hint}</p>
+    <div className="text-center py-12 bg-surface rounded-lg shadow">
+      <Rocket className="w-12 h-12 text-ink-tertiary mx-auto mb-4" />
+      <h3 className="text-lg font-semibold text-ink mb-2">{title}</h3>
+      <p className="text-sm text-ink-secondary">{hint}</p>
     </div>
   );
 }

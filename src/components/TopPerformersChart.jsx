@@ -6,8 +6,10 @@
 import { useMemo } from 'react';
 import Chart from 'react-apexcharts';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { getChartTheme } from '../lib/chartTheme';
 
 export default function TopPerformersChart({ symbols, mode = 'long', topCount = 10 }) {
+  const chartTheme = getChartTheme();
   // Calculate top and worst performers by total_pnl for the selected mode
   const performers = useMemo(() => {
     if (!symbols || symbols.length === 0) {
@@ -98,7 +100,7 @@ export default function TopPerformersChart({ symbols, mode = 'long', topCount = 
     yaxis: {
       show: false, // Hide Y-axis labels (we'll show ticker names in bars instead)
     },
-    colors: ['#10b981'], // Green for positive
+    colors: [chartTheme.profit],
     tooltip: {
       y: {
         formatter: (val) => formatCurrency(val),
@@ -112,7 +114,7 @@ export default function TopPerformersChart({ symbols, mode = 'long', topCount = 
         fontWeight: 600,
       },
     },
-  }), [performers.top, mode]);
+  }), [performers.top, mode, chartTheme.profit]);
 
   // Worst Performers Chart Options
   const worstChartOptions = useMemo(() => ({
@@ -155,7 +157,7 @@ export default function TopPerformersChart({ symbols, mode = 'long', topCount = 
     yaxis: {
       show: false, // Hide Y-axis labels (we'll show ticker names in bars instead)
     },
-    colors: ['#ef4444'], // Red for negative
+    colors: [chartTheme.loss],
     tooltip: {
       y: {
         formatter: (val) => formatCurrency(val),
@@ -169,7 +171,7 @@ export default function TopPerformersChart({ symbols, mode = 'long', topCount = 
         fontWeight: 600,
       },
     },
-  }), [performers.worst, mode]);
+  }), [performers.worst, mode, chartTheme.loss]);
 
   const topSeries = useMemo(() => {
     if (performers.top.length === 0) return [];
@@ -190,21 +192,21 @@ export default function TopPerformersChart({ symbols, mode = 'long', topCount = 
   // Don't render if no data
   if (performers.top.length === 0 && performers.worst.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <p className="text-gray-600">No performance data available for {mode.toUpperCase()} mode.</p>
+      <div className="bg-surface rounded-lg shadow-lg p-6">
+        <p className="text-ink-secondary">No performance data available for {mode.toUpperCase()} mode.</p>
       </div>
     );
   }
 
   return (
-    <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
+    <div className="mb-6 bg-surface rounded-lg shadow-lg p-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Performers */}
         {performers.top.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-5 h-5 text-green-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Top Performers</h3>
+              <TrendingUp className="w-5 h-5 text-profit" />
+              <h3 className="text-lg font-semibold text-ink">Top Performers</h3>
             </div>
             <Chart
               options={topChartOptions}
@@ -219,8 +221,8 @@ export default function TopPerformersChart({ symbols, mode = 'long', topCount = 
         {performers.worst.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <TrendingDown className="w-5 h-5 text-red-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Worst Performers</h3>
+              <TrendingDown className="w-5 h-5 text-loss" />
+              <h3 className="text-lg font-semibold text-ink">Worst Performers</h3>
             </div>
             <Chart
               options={worstChartOptions}

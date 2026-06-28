@@ -556,8 +556,8 @@ export default function BacktestConfig({
         onClick={() => setShowModal(true)}
         className={
           isSingleSymbol
-            ? 'px-6 py-3 border border-gray-300 bg-white text-gray-900 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-2'
-            : 'px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2'
+            ? 'px-6 py-3 border border-border-strong bg-surface text-ink rounded-lg hover:bg-bg transition-colors font-medium flex items-center gap-2'
+            : 'px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors font-medium flex items-center gap-2'
         }
       >
         <Play className="w-5 h-5" />
@@ -566,10 +566,10 @@ export default function BacktestConfig({
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-surface rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">
+                <h2 className="text-2xl font-bold text-ink">
                   {isSingleSymbol
                     ? 'Configure single-symbol backtest'
                     : defaultStrategyId != null
@@ -577,7 +577,7 @@ export default function BacktestConfig({
                       : 'Configure Backtest'}
                 </h2>
                 {isSingleSymbol && (
-                  <p className="text-sm text-gray-600 mt-1 max-w-xl">
+                  <p className="text-sm text-ink-secondary mt-1 max-w-xl">
                     One ticker per run. Uses a separate job from portfolio tests and updates the saved result for that
                     symbol (not shown in the portfolio history list).
                   </p>
@@ -588,7 +588,7 @@ export default function BacktestConfig({
                   setShowModal(false);
                   resetForm();
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-ink-tertiary hover:text-ink-secondary"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -600,7 +600,7 @@ export default function BacktestConfig({
               <div className="space-y-6">
                 {/* Backtest Name */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-ink-secondary mb-2">
                     Backtest Name (Optional)
                   </label>
                   <input
@@ -608,20 +608,20 @@ export default function BacktestConfig({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g., SMA Crossover Test - Jan 2024"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                   />
                 </div>
 
                 {/* Strategy Selection */}
                 {!defaultStrategyId && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Strategy <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-ink-secondary mb-2">
+                      Strategy <span className="text-loss">*</span>
                     </label>
                     <select
                       value={selectedStrategy?.id || ''}
                       onChange={(e) => handleStrategySelect(parseInt(e.target.value))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                     >
                       <option value="">Select a strategy</option>
                       {strategies.map((strategy) => (
@@ -631,21 +631,21 @@ export default function BacktestConfig({
                       ))}
                     </select>
                     {selectedStrategy && (
-                      <div className="mt-2 bg-gray-50 p-3 rounded-lg">
-                        <p className="text-sm text-gray-700">{selectedStrategy.description_short}</p>
+                      <div className="mt-2 bg-bg p-3 rounded-lg">
+                        <p className="text-sm text-ink-secondary">{selectedStrategy.description_short}</p>
                       </div>
                     )}
                   </div>
                 )}
                 {defaultStrategyId && selectedStrategy && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-ink-secondary mb-2">
                       Strategy
                     </label>
-                    <div className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg">
-                      <p className="text-gray-900 font-medium">{selectedStrategy.name}</p>
+                    <div className="px-3 py-2 bg-bg border border-border-strong rounded-lg">
+                      <p className="text-ink font-medium">{selectedStrategy.name}</p>
                       {selectedStrategy.description_short && (
-                        <p className="text-sm text-gray-600 mt-1">{selectedStrategy.description_short}</p>
+                        <p className="text-sm text-ink-secondary mt-1">{selectedStrategy.description_short}</p>
                       )}
                     </div>
                   </div>
@@ -665,17 +665,17 @@ export default function BacktestConfig({
                           setSelectAllActive(false);
                         }
                       }}
-                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      className="w-4 h-4 text-accent border-border-strong rounded focus:ring-accent"
                     />
-                    <span className="text-sm font-medium text-gray-700">Filter by Broker (Optional)</span>
+                    <span className="text-sm font-medium text-ink-secondary">Filter by Broker (Optional)</span>
                   </label>
                   
                   {useBrokerFilter && (
-                    <div className="space-y-4 ml-6 p-4 bg-gray-50 rounded-lg">
+                    <div className="space-y-4 ml-6 p-4 bg-bg rounded-lg">
                       {/* Broker Selection */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Broker <span className="text-red-500">*</span>
+                        <label className="block text-sm font-medium text-ink-secondary mb-2">
+                          Broker <span className="text-loss">*</span>
                         </label>
                         <select
                           value={selectedBroker?.id || ''}
@@ -688,7 +688,7 @@ export default function BacktestConfig({
                               setSelectAllActive(false);
                             }
                           }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                         >
                           <option value="">Select a broker</option>
                           {brokers.map((broker) => (
@@ -703,7 +703,7 @@ export default function BacktestConfig({
                         <>
                           {/* Exchange Filter (Optional) */}
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-medium text-ink-secondary mb-2">
                               Exchange Filter (Optional)
                             </label>
                             <input
@@ -714,13 +714,13 @@ export default function BacktestConfig({
                                 setSelectedSymbols([]);
                               }}
                               placeholder="e.g., NASDAQ, NYSE (leave empty for all exchanges)"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                              className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                             />
                           </div>
                           
                           {/* Info message */}
                           {selectedBroker && (
-                            <div className="text-sm text-gray-600">
+                            <div className="text-sm text-ink-secondary">
                               Symbol filtering will be handled by the backend when creating the backtest.
                             </div>
                           )}
@@ -733,14 +733,14 @@ export default function BacktestConfig({
                 {/* Symbols Selection */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-ink-secondary">
                       {isSingleSymbol ? (
                         <>
-                          Ticker <span className="text-red-500">*</span>
+                          Ticker <span className="text-loss">*</span>
                         </>
                       ) : (
                         <>
-                          Symbols <span className="text-red-500">*</span>
+                          Symbols <span className="text-loss">*</span>
                         </>
                       )}
                     </label>
@@ -751,18 +751,18 @@ export default function BacktestConfig({
                             type="checkbox"
                             checked={selectAllActive}
                             onChange={handleSelectAllActive}
-                            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                            className="w-4 h-4 text-accent border-border-strong rounded focus:ring-accent"
                           />
-                          <span className="text-sm text-gray-700 font-medium">Select All Active</span>
+                          <span className="text-sm text-ink-secondary font-medium">Select All Active</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={randomCountMode}
                             onChange={handleRandomCountMode}
-                            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                            className="w-4 h-4 text-accent border-border-strong rounded focus:ring-accent"
                           />
-                          <span className="text-sm text-gray-700 font-medium">Random Selection</span>
+                          <span className="text-sm text-ink-secondary font-medium">Random Selection</span>
                         </label>
                       </div>
                     )}
@@ -772,9 +772,9 @@ export default function BacktestConfig({
                           type="checkbox"
                           checked={selectAllActive}
                           onChange={handleSelectAllActive}
-                          className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                          className="w-4 h-4 text-accent border-border-strong rounded focus:ring-accent"
                         />
-                        <span className="text-sm text-gray-700 font-medium">
+                        <span className="text-sm text-ink-secondary font-medium">
                           Select All Active
                         </span>
                       </label>
@@ -796,14 +796,14 @@ export default function BacktestConfig({
                             }
                           }}
                           placeholder="Enter ticker (e.g., AAPL)"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          className="flex-1 px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                           disabled={validatingTicker}
                         />
                         <button
                           type="button"
                           onClick={handleAddTicker}
                           disabled={validatingTicker || !tickerInput.trim()}
-                          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                           {validatingTicker ? (
                             'Validating...'
@@ -817,18 +817,18 @@ export default function BacktestConfig({
                       </div>
                       
                       {selectedSymbols.length > 0 && (
-                        <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto">
+                        <div className="border border-border-strong rounded-lg p-3 max-h-48 overflow-y-auto">
                           <div className="flex flex-wrap gap-2">
                             {selectedSymbols.map((ticker) => (
                               <span
                                 key={ticker}
-                                className="inline-flex items-center gap-2 px-3 py-1 bg-primary-50 text-primary-700 rounded-lg text-sm"
+                                className="inline-flex items-center gap-2 px-3 py-1 bg-accent-soft text-accent-ink rounded-lg text-sm"
                               >
                                 {ticker}
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveTicker(ticker)}
-                                  className="text-primary-600 hover:text-primary-800"
+                                  className="text-accent hover:text-accent-ink"
                                 >
                                   <Trash2 className="w-3 h-3" />
                                 </button>
@@ -838,7 +838,7 @@ export default function BacktestConfig({
                         </div>
                       )}
                       {selectedSymbols.length === 0 && (
-                        <p className="text-sm text-gray-500 italic">
+                        <p className="text-sm text-ink-tertiary italic">
                           {isSingleSymbol
                             ? 'Enter one active ticker and click Add.'
                             : 'No symbols added. Enter a ticker and click "Add" to add symbols.'}
@@ -849,10 +849,10 @@ export default function BacktestConfig({
                   
                   {/* Random Count Mode */}
                   {randomCountMode && (
-                    <div className="mb-4 p-4 border border-gray-300 rounded-lg bg-gray-50">
+                    <div className="mb-4 p-4 border border-border-strong rounded-lg bg-bg">
                       <div className="space-y-3">
                         <div className="flex items-center gap-3">
-                          <label className="text-sm text-gray-700 font-medium">
+                          <label className="text-sm text-ink-secondary font-medium">
                             Number of symbols:
                           </label>
                           <input
@@ -860,28 +860,28 @@ export default function BacktestConfig({
                             min="1"
                             value={randomCount}
                             onChange={(e) => setRandomCount(Math.max(1, parseInt(e.target.value) || 1))}
-                            className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            className="w-24 px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                           />
                           <button
                             type="button"
                             onClick={handleSelectRandomSymbols}
                             disabled={loading || randomCount <= 0}
-                            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                           >
                             {loading ? 'Loading...' : useBrokerFilter && selectedBroker ? 'Select Random from Broker' : 'Select Random Symbols'}
                           </button>
                         </div>
                         
                         {randomSelectedSymbols.length > 0 && (
-                          <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto bg-white">
-                            <p className="text-sm text-gray-600 mb-2">
+                          <div className="border border-border-strong rounded-lg p-3 max-h-48 overflow-y-auto bg-surface">
+                            <p className="text-sm text-ink-secondary mb-2">
                               Selected {randomSelectedSymbols.length} random symbol(s):
                             </p>
                             <div className="flex flex-wrap gap-2">
                               {randomSelectedSymbols.map((ticker) => (
                                 <span
                                   key={ticker}
-                                  className="inline-flex items-center px-3 py-1 bg-primary-50 text-primary-700 rounded-lg text-sm"
+                                  className="inline-flex items-center px-3 py-1 bg-accent-soft text-accent-ink rounded-lg text-sm"
                                 >
                                   {ticker}
                                 </span>
@@ -890,7 +890,7 @@ export default function BacktestConfig({
                           </div>
                         )}
                         {randomSelectedSymbols.length === 0 && (
-                          <p className="text-sm text-gray-500 italic">
+                          <p className="text-sm text-ink-tertiary italic">
                             Click "Select Random Symbols" to randomly select {randomCount} {useBrokerFilter && selectedBroker ? 'symbol(s) from the broker' : 'active symbol(s)'}.
                           </p>
                         )}
@@ -899,8 +899,8 @@ export default function BacktestConfig({
                   )}
 
                   {selectAllActive && isSingleSymbol && (
-                    <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
-                      <p className="text-sm text-blue-700">
+                    <div className="bg-accent-soft border-l-4 border-blue-400 p-3 rounded">
+                      <p className="text-sm text-accent-ink">
                         {useBrokerFilter && selectedBroker ? (
                           <>
                             <strong>All available symbols</strong> from the selected broker
@@ -914,15 +914,15 @@ export default function BacktestConfig({
                           </>
                         )}
                       </p>
-                      <p className="text-xs text-blue-700 mt-1">
+                      <p className="text-xs text-accent-ink mt-1">
                         Note: this runs a <strong>portfolio backtest</strong> (multi-symbol) even if you opened the
                         single-symbol launcher.
                       </p>
                     </div>
                   )}
                   {selectAllActive && !isSingleSymbol && (
-                    <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
-                      <p className="text-sm text-blue-700">
+                    <div className="bg-accent-soft border-l-4 border-blue-400 p-3 rounded">
+                      <p className="text-sm text-accent-ink">
                         {useBrokerFilter && selectedBroker ? (
                           <>
                             <strong>All available symbols</strong> from the selected broker
@@ -940,7 +940,7 @@ export default function BacktestConfig({
                   )}
                   
                   {selectedSymbols.length > 0 && !selectAllActive && !randomCountMode && (
-                    <p className="mt-2 text-sm text-gray-600">
+                    <p className="mt-2 text-sm text-ink-secondary">
                       {selectedSymbols.length} symbol(s) selected
                     </p>
                   )}
@@ -948,7 +948,7 @@ export default function BacktestConfig({
 
                 {/* Split Ratio */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-ink-secondary mb-2">
                     Training/Test Split Ratio: {Math.round(splitRatio * 100)}% / {Math.round((1 - splitRatio) * 100)}%
                   </label>
                   <input
@@ -964,7 +964,7 @@ export default function BacktestConfig({
 
                 {/* Initial Capital */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-ink-secondary mb-2">
                     Initial Capital ($)
                   </label>
                   <input
@@ -973,15 +973,15 @@ export default function BacktestConfig({
                     step="0.01"
                     value={initialCapital}
                     onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 10000.0)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                     placeholder="10000.00"
                   />
-                  <p className="mt-1 text-xs text-gray-500">Starting capital for the backtest</p>
+                  <p className="mt-1 text-xs text-ink-tertiary">Starting capital for the backtest</p>
                 </div>
 
                 {/* Bet Size Percentage */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-ink-secondary mb-2">
                     Bet Size Per Trade (%): {betSizePercentage}%
                   </label>
                   <input
@@ -993,57 +993,57 @@ export default function BacktestConfig({
                     onChange={(e) => setBetSizePercentage(parseFloat(e.target.value))}
                     className="w-full"
                   />
-                  <p className="mt-1 text-xs text-gray-500">Percentage of available capital to bet per trade (0.1% - 100%)</p>
+                  <p className="mt-1 text-xs text-ink-tertiary">Percentage of available capital to bet per trade (0.1% - 100%)</p>
                 </div>
 
                 {/* Position directions to simulate (multi-select) */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Position modes to run</label>
-                  <p className="text-xs text-gray-500 mb-3">
+                  <label className="block text-sm font-medium text-ink-secondary mb-2">Position modes to run</label>
+                  <p className="text-xs text-ink-tertiary mb-3">
                     Select one or both. Each selected mode runs as a separate simulation (same as checking both for full long+short backtest).
                   </p>
                   <div className="flex flex-col sm:flex-row gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-gray-200 px-4 py-3 hover:bg-gray-50">
+                    <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-border px-4 py-3 hover:bg-bg">
                       <input
                         type="checkbox"
                         checked={runPositionLong}
                         onChange={(e) => setRunPositionLong(e.target.checked)}
-                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        className="rounded border-border-strong text-accent focus:ring-accent"
                       />
                       <div>
-                        <span className="text-sm font-medium text-gray-900">Long</span>
-                        <p className="text-xs text-gray-500">Long / buy-side signals</p>
+                        <span className="text-sm font-medium text-ink">Long</span>
+                        <p className="text-xs text-ink-tertiary">Long / buy-side signals</p>
                       </div>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-gray-200 px-4 py-3 hover:bg-gray-50">
+                    <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-border px-4 py-3 hover:bg-bg">
                       <input
                         type="checkbox"
                         checked={runPositionShort}
                         onChange={(e) => setRunPositionShort(e.target.checked)}
-                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        className="rounded border-border-strong text-accent focus:ring-accent"
                       />
                       <div>
-                        <span className="text-sm font-medium text-gray-900">Short</span>
-                        <p className="text-xs text-gray-500">Short-side signals</p>
+                        <span className="text-sm font-medium text-ink">Short</span>
+                        <p className="text-xs text-ink-tertiary">Short-side signals</p>
                       </div>
                     </label>
                   </div>
                 </div>
 
                 {/* Hybrid VIX hedge: split each trade between strategy and VIX sleeve */}
-                <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                <div className="border border-border rounded-lg p-4 bg-bg">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={hedgeEnabled}
                       onChange={(e) => setHedgeEnabled(e.target.checked)}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      className="rounded border-border-strong text-accent focus:ring-accent"
                     />
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className="text-sm font-medium text-ink">
                       Enable hybrid VIX hedge on trades
                     </span>
                   </label>
-                  <p className="mt-2 text-xs text-gray-600">
+                  <p className="mt-2 text-xs text-ink-secondary">
                     Splits each trade&apos;s bet using the hybrid VIX regime (same rules as Hedge lab): part of capital
                     goes to your strategy position and part to a VIXM/VIXY sleeve (or VIXY in panic). PnL and the
                     equity curve include both legs. Use <strong>Hedge lab</strong> for the SPY illustration only.
@@ -1054,9 +1054,9 @@ export default function BacktestConfig({
                         type="checkbox"
                         checked={runStrategyOnlyBaseline}
                         onChange={(e) => setRunStrategyOnlyBaseline(e.target.checked)}
-                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        className="rounded border-border-strong text-accent focus:ring-accent"
                       />
-                      <span className="text-sm text-gray-800">
+                      <span className="text-sm text-ink">
                         Also run strategy-only (no-hedge) baseline for comparison
                       </span>
                     </label>
@@ -1065,7 +1065,7 @@ export default function BacktestConfig({
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto pr-1">
                       {HEDGE_FIELD_DEFS.map(({ key, label, step }) => (
                         <div key={key}>
-                          <label className="block text-xs text-gray-600 mb-1">{label}</label>
+                          <label className="block text-xs text-ink-secondary mb-1">{label}</label>
                           <input
                             type="number"
                             step={step}
@@ -1076,7 +1076,7 @@ export default function BacktestConfig({
                                 [key]: parseHedgeField(key, e.target.value, prev),
                               }))
                             }
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                            className="w-full px-2 py-1.5 border border-border-strong rounded text-sm"
                           />
                         </div>
                       ))}
@@ -1087,13 +1087,13 @@ export default function BacktestConfig({
                 {/* Strategy Parameters */}
                 {selectedStrategy && Object.keys(selectedStrategy.default_parameters || {}).length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-ink-secondary mb-2">
                       Strategy Parameters
                     </label>
                     <div className="grid grid-cols-2 gap-4">
                       {Object.entries(selectedStrategy.default_parameters || {}).map(([key, defaultValue]) => (
                         <div key={key}>
-                          <label className="block text-xs text-gray-600 mb-1 capitalize">
+                          <label className="block text-xs text-ink-secondary mb-1 capitalize">
                             {key.replace(/_/g, ' ')}
                           </label>
                           <input
@@ -1103,7 +1103,7 @@ export default function BacktestConfig({
                               const value = typeof defaultValue === 'number' ? parseFloat(e.target.value) : e.target.value;
                               updateParameter(key, value);
                             }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                             step={typeof defaultValue === 'number' ? 'any' : undefined}
                           />
                         </div>
@@ -1119,7 +1119,7 @@ export default function BacktestConfig({
                       setShowModal(false);
                       resetForm();
                     }}
-                    className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="px-6 py-2 border border-border-strong rounded-lg hover:bg-bg transition-colors"
                     disabled={creating}
                   >
                     Cancel
@@ -1137,7 +1137,7 @@ export default function BacktestConfig({
                         : (!selectAllActive && !randomCountMode && selectedSymbols.length === 0) ||
                           (randomCountMode && randomSelectedSymbols.length === 0))
                     }
-                    className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-6 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {creating ? 'Creating...' : (
                       <>

@@ -4,10 +4,12 @@
  * URL: /strategies/:id/backtests/:backtestId
  */
 
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, TrendingUp, TrendingDown, BarChart3, Loader, ChevronLeft, ChevronRight, Search, List } from 'lucide-react';
+import { TrendingUp, TrendingDown, BarChart3, Loader, ChevronLeft, ChevronRight, Search, List } from 'lucide-react';
+import BackButton from '../components/BackButton';
+import { useNavigateBack } from '../lib/navigation';
 import { getStrategy } from '../data/strategies';
 import {
   getBacktest,
@@ -19,6 +21,8 @@ import {
 import { marketDataAPI } from '../data/api';
 import StatisticsCard from '../components/StatisticsCard';
 import Chart from 'react-apexcharts';
+import { getChartTheme } from '../lib/chartTheme';
+import EquityCurveChart from '../components/charts/EquityCurveChart';
 import TaskProgress from '../components/TaskProgress';
 import TopPerformersChart from '../components/TopPerformersChart';
 import { buildChronologicalTradeTableRows } from '../utils/chronologicalTradeTableRows';
@@ -26,6 +30,8 @@ import { exportTradesToCsvFile } from '../utils/tradeHistoryExport';
 import { downloadJson } from '../utils/exportCsv';
 import ExportTableToolbar from '../components/ExportTableToolbar';
 import {
+  HedgeQtySplitBodyCells,
+  HedgeQtySplitHeaderCells,
   HedgeTradeInvestedHeaderCells,
   HedgeTradePnlHeaderCells,
   HedgeTradeInvestedBodyCells,
@@ -36,8 +42,9 @@ import SymbolCard from '../components/SymbolCard';
 import { positionModesAvailable, positionModeRunLabel } from '../utils/backtestPositionMode';
 
 export default function StrategyBacktestDetail() {
+  const chartTheme = getChartTheme();
   const { id, backtestId } = useParams();
-  const navigate = useNavigate();
+  const { goBack, navigateWithReturn } = useNavigateBack(`/strategies/${id}`);
   const [strategy, setStrategy] = useState(null);
   const [backtest, setBacktest] = useState(null);
   const [statistics, setStatistics] = useState({ portfolio: null, symbols: [] });
@@ -477,10 +484,10 @@ export default function StrategyBacktestDetail() {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center py-8">
-          <p className="text-gray-600">Backtest or strategy not found</p>
+          <p className="text-ink-secondary">Backtest or strategy not found</p>
           <button
-            onClick={() => navigate(`/strategies/${id}`)}
-            className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            onClick={goBack}
+            className="mt-4 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover"
           >
             Back to Strategy
           </button>
@@ -508,19 +515,13 @@ export default function StrategyBacktestDetail() {
         />
       )}
       
-      <button
-        onClick={() => navigate(`/strategies/${id}`)}
-        className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-900"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Strategy
-      </button>
+      <BackButton to={`/strategies/${id}`} label="Back to Strategy" className="mb-6 flex items-center gap-2 text-ink-secondary hover:text-ink" iconClassName="w-4 h-4" />
 
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="text-3xl font-bold text-ink mb-2">
           {backtest.name || `${strategy.name} - Backtest #${backtest.id}`}
         </h1>
-        <div className="flex items-center gap-4 text-sm text-gray-600">
+        <div className="flex items-center gap-4 text-sm text-ink-secondary">
           <span>Strategy: {strategy.name}</span>
           <span>•</span>
           <span>Date Range: {formatDate(backtest.start_date)} - {formatDate(backtest.end_date)}</span>
@@ -530,13 +531,13 @@ export default function StrategyBacktestDetail() {
           <span className="flex items-center gap-2">
             Status: 
             {backtest.status === 'running' && <Loader className="w-4 h-4 animate-spin" />}
-            <span className={`font-medium ${backtest.status === 'completed' ? 'text-green-600' : backtest.status === 'failed' ? 'text-red-600' : 'text-yellow-600'}`}>
+            <span className={`font-medium ${backtest.status === 'completed' ? 'text-profit' : backtest.status === 'failed' ? 'text-loss' : 'text-status-pending'}`}>
               {backtest.status}
             </span>
           </span>
           {backtest.status === 'failed' && backtest.error_message && (
-            <div className="mt-2 p-3 bg-red-50 border-l-4 border-red-400 rounded">
-              <p className="text-sm text-red-700">
+            <div className="mt-2 p-3 bg-loss-soft border-l-4 border-red-400 rounded">
+              <p className="text-sm text-loss-ink">
                 <strong>Error:</strong> {backtest.error_message}
               </p>
             </div>
@@ -545,8 +546,8 @@ export default function StrategyBacktestDetail() {
       </div>
 
       {/* Mode Selector */}
-      <div className="mb-6 bg-white rounded-lg shadow-lg p-4">
-        <h2 className="text-lg font-bold text-gray-900 mb-3">Position Mode</h2>
+      <div className="mb-6 bg-surface rounded-lg shadow-lg p-4">
+        <h2 className="text-lg font-bold text-ink mb-3">Position Mode</h2>
         {positionModesAvailable(backtest).length > 1 ? (
           <div className="flex gap-3">
             {positionModesAvailable(backtest).map((mode) => (
@@ -559,8 +560,8 @@ export default function StrategyBacktestDetail() {
                 }}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors capitalize ${
                   selectedMode === mode
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-accent text-white'
+                    : 'bg-surface-sunken text-ink-secondary hover:bg-surface-sunken'
                 }`}
               >
                 {mode.toUpperCase()}
@@ -568,7 +569,7 @@ export default function StrategyBacktestDetail() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-secondary">
             This backtest was run in <strong>{positionModesAvailable(backtest)[0].toUpperCase()}</strong> mode only.
           </p>
         )}
@@ -581,7 +582,7 @@ export default function StrategyBacktestDetail() {
           const totalSkipped = (skippedTrades.long || 0) + (skippedTrades.short || 0);
           if (totalSkipped > 0) {
             return (
-              <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+              <div className="mb-6 bg-status-pending-soft border-l-4 border-yellow-400 p-4 rounded-lg">
                 <div className="flex items-start">
                   <div className="flex-shrink-0">
                     <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
@@ -589,10 +590,10 @@ export default function StrategyBacktestDetail() {
                     </svg>
                   </div>
                   <div className="ml-3 flex-1">
-                    <h3 className="text-sm font-medium text-yellow-800">
+                    <h3 className="text-sm font-medium text-status-pending">
                       {totalSkipped} trade{totalSkipped !== 1 ? 's' : ''} skipped due to insufficient cash
                     </h3>
-                    <div className="mt-2 text-sm text-yellow-700">
+                    <div className="mt-2 text-sm text-status-pending">
                       <p>
                         The bet size ({backtest.bet_size_percentage}%) may be too high for the trading volume. 
                         Consider lowering the bet size to avoid missing trading opportunities.
@@ -612,20 +613,20 @@ export default function StrategyBacktestDetail() {
       {backtest && <BacktestParametersPanel backtest={backtest} title="Backtest parameters" />}
 
       {/* Symbols in this portfolio backtest — quick navigation to per-symbol view (same backtest id) */}
-      <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
+      <div className="mb-6 bg-surface rounded-lg shadow-lg p-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <h2 className="text-xl font-bold text-ink flex items-center gap-2">
             <List className="w-5 h-5 shrink-0" />
             Symbols in this backtest ({symbolList.count ?? 0})
           </h2>
         </div>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-ink-secondary mb-4">
           These are the tickers included in this portfolio run. Open a card to see trades and charts for that symbol
           within backtest #{backtestId} (shared bankroll simulation).
         </p>
         <div className="mb-6">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary w-5 h-5" />
             <input
               type="text"
               value={symbolSearch}
@@ -634,7 +635,7 @@ export default function StrategyBacktestDetail() {
                 setSymbolPage(1);
               }}
               placeholder="Search symbols by ticker..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-3 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
             />
             {symbolSearch ? (
               <button
@@ -643,7 +644,7 @@ export default function StrategyBacktestDetail() {
                   setSymbolSearch('');
                   setSymbolPage(1);
                 }}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary hover:text-ink-secondary"
                 title="Clear search"
               >
                 ✕
@@ -654,8 +655,8 @@ export default function StrategyBacktestDetail() {
 
         {symbolListLoading ? (
           <div className="text-center py-12">
-            <Loader className="w-8 h-8 animate-spin mx-auto text-primary-600" />
-            <p className="text-gray-600 mt-4">Loading symbols…</p>
+            <Loader className="w-8 h-8 animate-spin mx-auto text-accent" />
+            <p className="text-ink-secondary mt-4">Loading symbols…</p>
           </div>
         ) : symbolList.results && symbolList.results.length > 0 ? (
           <>
@@ -671,7 +672,7 @@ export default function StrategyBacktestDetail() {
                     symbol={sym}
                     footer="Open symbol view in this backtest"
                     onClick={(s) => {
-                      navigate(`/strategies/${id}/backtests/${backtestId}/${encodeURIComponent(s.ticker)}`);
+                      navigateWithReturn(`/strategies/${id}/backtests/${backtestId}/${encodeURIComponent(s.ticker)}`);
                     }}
                   />
                 </motion.div>
@@ -682,21 +683,21 @@ export default function StrategyBacktestDetail() {
               const totalPages = Math.max(1, Math.ceil(total / SYMBOL_PAGE_SIZE));
               if (totalPages <= 1) return null;
               return (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
                   <button
                     type="button"
                     onClick={() => setSymbolPage((p) => Math.max(1, p - 1))}
                     disabled={symbolPage <= 1}
                     className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
                       symbolPage > 1
-                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                        ? 'bg-surface-sunken text-ink-secondary hover:bg-surface-sunken'
+                        : 'bg-bg text-ink-tertiary cursor-not-allowed'
                     }`}
                   >
                     <ChevronLeft className="w-4 h-4" />
                     Previous
                   </button>
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-ink-secondary">
                     Page {symbolPage} of {totalPages} ({total} symbols)
                   </span>
                   <button
@@ -705,8 +706,8 @@ export default function StrategyBacktestDetail() {
                     disabled={symbolPage >= totalPages}
                     className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
                       symbolPage < totalPages
-                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                        ? 'bg-surface-sunken text-ink-secondary hover:bg-surface-sunken'
+                        : 'bg-bg text-ink-tertiary cursor-not-allowed'
                     }`}
                   >
                     Next
@@ -717,8 +718,8 @@ export default function StrategyBacktestDetail() {
             })()}
           </>
         ) : (
-          <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <p className="text-gray-500 text-lg">
+          <div className="text-center py-12 bg-bg rounded-lg">
+            <p className="text-ink-tertiary text-lg">
               {symbolSearch.trim() ? 'No symbols match your search.' : 'No symbols linked to this backtest.'}
             </p>
           </div>
@@ -727,8 +728,8 @@ export default function StrategyBacktestDetail() {
 
       {/* Statistics Cards */}
       {currentStatsForDisplay ? (
-        <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
+        <div className="mb-6 bg-surface rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-bold text-ink mb-4">
             {selectedSymbol ? `Performance Metrics - ${selectedSymbol} (${selectedMode.toUpperCase()})` : `Portfolio Performance Metrics (${selectedMode.toUpperCase()})`}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -811,11 +812,11 @@ export default function StrategyBacktestDetail() {
           {backtest.hedge_enabled &&
             currentStatsForDisplay.strategy_only_metrics &&
             Object.keys(currentStatsForDisplay.strategy_only_metrics).length > 0 && (
-              <div className="mt-6 border-t border-gray-200 pt-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">
+              <div className="mt-6 border-t border-border pt-6">
+                <h3 className="text-lg font-semibold text-ink mb-1">
                   Strategy only vs strategy + hedge
                 </h3>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-ink-secondary mb-4">
                   Cards above reflect the <strong>strategy + hedge</strong> run (trades saved to this backtest).
                   The left column is a separate baseline pass <strong>without</strong> the VIX sleeve split (capital
                   path can differ, so trade counts may not match).
@@ -826,7 +827,7 @@ export default function StrategyBacktestDetail() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                   <div className="rounded-lg bg-slate-50 border border-slate-200 p-4">
                     <h4 className="font-medium text-slate-800 mb-3">Strategy only (baseline)</h4>
-                    <ul className="space-y-2 text-gray-700">
+                    <ul className="space-y-2 text-ink-secondary">
                       <li>
                         Total return:{' '}
                         {formatPercentage(currentStatsForDisplay.strategy_only_metrics.total_return)}
@@ -856,9 +857,9 @@ export default function StrategyBacktestDetail() {
                       </li>
                     </ul>
                   </div>
-                  <div className="rounded-lg bg-blue-50 border border-blue-100 p-4">
+                  <div className="rounded-lg bg-accent-soft border border-accent-soft p-4">
                     <h4 className="font-medium text-blue-900 mb-3">Strategy + hedge (primary)</h4>
-                    <ul className="space-y-2 text-gray-800">
+                    <ul className="space-y-2 text-ink">
                       <li>Total return: {formatPercentage(currentStatsForDisplay.total_return)}</li>
                       <li>Total PnL: {formatCurrency(currentStatsForDisplay.total_pnl)}</li>
                       <li>Trades: {currentStatsForDisplay.total_trades ?? '—'}</li>
@@ -887,16 +888,16 @@ export default function StrategyBacktestDetail() {
             )}
         </div>
       ) : (
-        <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
-          <p className="text-gray-600">No statistics available for this backtest.</p>
+        <div className="mb-6 bg-surface rounded-lg shadow-lg p-6">
+          <p className="text-ink-secondary">No statistics available for this backtest.</p>
         </div>
       )}
 
       {/* Top/Worst performers: from trade PnL aggregation (portfolio no longer stores per-symbol stats rows) */}
       {!selectedSymbol && backtest?.status === 'completed' && (
         performerTradesLoading ? (
-          <div className="mb-6 bg-white rounded-lg shadow-lg p-6 flex items-center gap-3 text-gray-600">
-            <Loader className="w-5 h-5 animate-spin text-primary-600" />
+          <div className="mb-6 bg-surface rounded-lg shadow-lg p-6 flex items-center gap-3 text-ink-secondary">
+            <Loader className="w-5 h-5 animate-spin text-accent" />
             <span>Loading symbol rankings…</span>
           </div>
         ) : symbolsForTopPerformers.length > 0 ? (
@@ -906,12 +907,12 @@ export default function StrategyBacktestDetail() {
 
       {/* Equity Curve Chart */}
       {equityCurveForMode && Array.isArray(equityCurveForMode) && equityCurveForMode.length > 0 && (
-        <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
+        <div className="mb-6 bg-surface rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-bold text-ink mb-4">
             Equity Curve ({selectedMode.toUpperCase()})
           </h2>
           {backtest.hedge_enabled && strategyOnlySeriesForChart && (
-            <p className="text-sm text-gray-600 mb-3">
+            <p className="text-sm text-ink-secondary mb-3">
               Blue = strategy + VIX sleeve; slate = strategy-only baseline
               {!selectedSymbol ? '; orange = S&P 500 buy-and-hold (if available)' : ''}.
             </p>
@@ -921,6 +922,18 @@ export default function StrategyBacktestDetail() {
               Benchmark (^GSPC) unavailable: {benchmarkErrorPortfolio}
             </p>
           )}
+          {!benchmarkSeriesForChart && !strategyOnlySeriesForChart ? (
+            <EquityCurveChart
+              data={equityCurveForMode.map((point) => ({
+                date: point.timestamp,
+                equity: parseFloat(point.equity),
+              }))}
+              xKey="date"
+              yKey="equity"
+              height={360}
+              initialCapital={backtest?.initial_capital ? Number(backtest.initial_capital) : null}
+            />
+          ) : (
           <Chart
             options={{
               chart: {
@@ -942,9 +955,9 @@ export default function StrategyBacktestDetail() {
                 align: 'left',
               },
               colors: (() => {
-                const c = ['#3B82F6'];
-                if (strategyOnlySeriesForChart) c.push('#64748B');
-                if (benchmarkSeriesForChart) c.push('#F97316');
+                const c = [chartTheme.accent];
+                if (strategyOnlySeriesForChart) c.push(chartTheme.inkSecondary);
+                if (benchmarkSeriesForChart) c.push(chartTheme.series[3]);
                 return c;
               })(),
               stroke: {
@@ -1005,13 +1018,14 @@ export default function StrategyBacktestDetail() {
             type="line"
             height={350}
           />
+          )}
         </div>
       )}
 
       {/* Trades Table with Pagination */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="bg-surface rounded-lg shadow-lg p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900">
+          <h2 className="text-xl font-bold text-ink">
             Trading History {selectedSymbol ? `- ${selectedSymbol}` : '(All Symbols)'} ({selectedMode.toUpperCase()})
           </h2>
           <ExportTableToolbar
@@ -1026,17 +1040,17 @@ export default function StrategyBacktestDetail() {
 
         {tradesLoading ? (
           <div className="text-center py-12">
-            <Loader className="w-8 h-8 animate-spin mx-auto text-primary-600" />
-            <p className="text-gray-600 mt-4">Loading trades...</p>
+            <Loader className="w-8 h-8 animate-spin mx-auto text-accent" />
+            <p className="text-ink-secondary mt-4">Loading trades...</p>
           </div>
         ) : (
           <>
             {totalTradesCount > 0 && (
               <div className="mb-4 flex items-center justify-between">
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-ink-secondary">
                   Found {totalTradesCount} trade{totalTradesCount !== 1 ? 's' : ''} ({selectedMode.toUpperCase()})
                   {chronologicalTradeRows.length > 0 && totalTradesCount > 0 && (
-                    <span className="text-gray-500">
+                    <span className="text-ink-tertiary">
                       {' '}(Showing {((tradesPage - 1) * 20) + 1}-{Math.min(tradesPage * 20, totalTradesCount)})
                     </span>
                   )}
@@ -1045,13 +1059,13 @@ export default function StrategyBacktestDetail() {
                   <button
                     onClick={() => setTradesPage(prev => Math.max(1, prev - 1))}
                     disabled={!hasPreviousPage}
-                    className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                    className="px-3 py-2 border border-border-strong rounded-lg hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                   >
                     <ChevronLeft className="w-4 h-4" />
                     Previous
                   </button>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Page</span>
+                    <span className="text-sm text-ink-secondary">Page</span>
                     <input
                       type="number"
                       min="1"
@@ -1067,16 +1081,16 @@ export default function StrategyBacktestDetail() {
                       onBlur={(e) => {
                         handleTradesPageChange(e.target.value);
                       }}
-                      className="w-16 px-2 py-1 text-sm text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-16 px-2 py-1 text-sm text-center border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                     />
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-ink-secondary">
                       {totalPages > 0 && `of ${totalPages}`}
                     </span>
                   </div>
                   <button
                     onClick={() => setTradesPage(prev => prev + 1)}
                     disabled={!hasNextPage}
-                    className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                    className="px-3 py-2 border border-border-strong rounded-lg hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                   >
                     Next
                     <ChevronRight className="w-4 h-4" />
@@ -1087,46 +1101,48 @@ export default function StrategyBacktestDetail() {
 
             {chronologicalTradeRows.length > 0 ? (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="min-w-full divide-y divide-border">
+                  <thead className="bg-bg">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ticker</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Invested</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Ticker</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Position</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Total Invested</th>
                       <HedgeTradeInvestedHeaderCells show={!!backtest?.hedge_enabled} />
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entry Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exit Date</th>
+                      <HedgeQtySplitHeaderCells split={!!backtest?.hedge_enabled} />
+                      <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Entry Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Exit Date</th>
                       <HedgeTradePnlHeaderCells show={!!backtest?.hedge_enabled} />
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PnL</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ROI %</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Max Drawdown</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">PnL</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">ROI %</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Max Drawdown</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-surface divide-y divide-border">
                     {chronologicalTradeRows.map(({ key, rowType, trade }) => {
+                      const hedgeSplit = !!backtest?.hedge_enabled;
                       const tradeSymbolTicker = trade?.symbol_info?.ticker || trade?.symbol?.ticker || trade?.symbol_ticker || 'N/A';
                       const positionType = trade.trade_type === 'buy' ? 'Long' : 'Short';
+                      const isHedge = !!trade?.metadata?.is_hedge_leg;
                       const maxDrawdown = trade.max_drawdown;
 
                       if (rowType === 'entry') {
                         return (
-                          <tr key={key} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm text-gray-900">
+                          <tr key={key} className="hover:bg-bg">
+                            <td className="px-4 py-3 text-sm text-ink">
                               {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
                             </td>
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{tradeSymbolTicker}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">
+                            <td className="px-4 py-3 text-sm font-medium text-ink">{tradeSymbolTicker}</td>
+                            <td className="px-4 py-3 text-sm text-ink">
                               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                 positionType === 'Long'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-blue-100 text-blue-800'
+                                  ? 'bg-profit-soft text-profit-ink'
+                                  : 'bg-status-running-soft text-accent-ink'
                               }`}>
                                 {positionType}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-sm text-gray-900">
+                            <td className="px-4 py-3 text-sm text-ink">
                               {(() => {
                                 const betAmount = trade.metadata?.bet_amount;
                                 if (betAmount !== undefined && betAmount !== null) {
@@ -1139,23 +1155,23 @@ export default function StrategyBacktestDetail() {
                               })()}
                             </td>
                             <HedgeTradeInvestedBodyCells
-                              show={!!backtest?.hedge_enabled}
+                              show={hedgeSplit}
                               trade={trade}
                               formatCurrency={formatCurrency}
                             />
-                            <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">
+                            <HedgeQtySplitBodyCells split={hedgeSplit} trade={trade} isHedgeLeg={isHedge} />
+                            <td className="px-4 py-3 text-sm text-ink">
                               {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
                             </td>
-                            <td className="px-4 py-3 text-sm text-gray-900">-</td>
+                            <td className="px-4 py-3 text-sm text-ink">-</td>
                             <HedgeTradePnlBodyCells
-                              show={!!backtest?.hedge_enabled}
+                              show={hedgeSplit}
                               rowType="entry"
                               trade={trade}
                               formatCurrency={formatCurrency}
                             />
-                            <td className="px-4 py-3 text-sm text-gray-900">-</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">-</td>
+                            <td className="px-4 py-3 text-sm text-ink">-</td>
+                            <td className="px-4 py-3 text-sm text-ink">-</td>
                           </tr>
                         );
                       }
@@ -1163,22 +1179,22 @@ export default function StrategyBacktestDetail() {
                       return (
                         <tr
                           key={key}
-                          className={`hover:bg-gray-50 ${trade.is_winner ? 'bg-green-50' : 'bg-red-50'}`}
+                          className={`hover:bg-bg ${trade.is_winner ? 'bg-profit-soft' : 'bg-loss-soft'}`}
                         >
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <td className="px-4 py-3 text-sm text-ink">
                             {new Date(trade.exit_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{tradeSymbolTicker}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <td className="px-4 py-3 text-sm font-medium text-ink">{tradeSymbolTicker}</td>
+                          <td className="px-4 py-3 text-sm text-ink">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                               positionType === 'Long'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-orange-100 text-orange-800'
+                                ? 'bg-loss-soft text-loss-ink'
+                                : 'bg-status-warning-soft text-status-warning'
                             }`}>
                               Exit
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <td className="px-4 py-3 text-sm text-ink">
                             {(() => {
                               const betAmount = trade.metadata?.bet_amount;
                               if (betAmount !== undefined && betAmount !== null) {
@@ -1191,30 +1207,30 @@ export default function StrategyBacktestDetail() {
                             })()}
                           </td>
                           <HedgeTradeInvestedBodyCells
-                            show={!!backtest?.hedge_enabled}
+                            show={hedgeSplit}
                             trade={trade}
                             formatCurrency={formatCurrency}
                           />
-                          <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <HedgeQtySplitBodyCells split={hedgeSplit} trade={trade} isHedgeLeg={isHedge} />
+                          <td className="px-4 py-3 text-sm text-ink">
                             {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <td className="px-4 py-3 text-sm text-ink">
                             {new Date(trade.exit_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </td>
                           <HedgeTradePnlBodyCells
-                            show={!!backtest?.hedge_enabled}
+                            show={hedgeSplit}
                             rowType="exit"
                             trade={trade}
                             formatCurrency={formatCurrency}
                           />
-                          <td className={`px-4 py-3 text-sm font-medium ${trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <td className={`px-4 py-3 text-sm font-medium ${trade.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                             {formatCurrency(trade.pnl)}
                           </td>
-                          <td className={`px-4 py-3 text-sm font-medium ${trade.pnl_percentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <td className={`px-4 py-3 text-sm font-medium ${trade.pnl_percentage >= 0 ? 'text-profit' : 'text-loss'}`}>
                             {formatPercentage(trade.pnl_percentage)}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <td className="px-4 py-3 text-sm text-ink">
                             {maxDrawdown !== null && maxDrawdown !== undefined ? formatPercentage(maxDrawdown) : 'N/A'}
                           </td>
                         </tr>
@@ -1224,7 +1240,7 @@ export default function StrategyBacktestDetail() {
                 </table>
               </div>
             ) : (
-              <p className="text-gray-600">
+              <p className="text-ink-secondary">
                 {backtest?.status === 'running' 
                   ? 'Backtest is still running. Trades will appear here once the backtest completes.'
                   : `No trades found for ${selectedMode.toUpperCase()} mode.`}

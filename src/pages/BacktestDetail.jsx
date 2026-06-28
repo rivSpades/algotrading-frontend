@@ -3,16 +3,18 @@
  * Displays detailed results of a backtest
  */
 
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, TrendingUp, TrendingDown, BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, BarChart3 } from 'lucide-react';
+import BackButton from '../components/BackButton';
+import { useNavigateBack } from '../lib/navigation';
 import { getBacktest, getBacktestStatistics, getBacktestTrades } from '../data/backtests';
 import StatisticsCard from '../components/StatisticsCard';
 import Chart from 'react-apexcharts';
 
 export default function BacktestDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
+  const { goBack } = useNavigateBack('/backtests');
   const [backtest, setBacktest] = useState(null);
   const [statistics, setStatistics] = useState([]);
   const [trades, setTrades] = useState([]);
@@ -78,10 +80,10 @@ export default function BacktestDetail() {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center py-8">
-          <p className="text-gray-600">Backtest not found</p>
+          <p className="text-ink-secondary">Backtest not found</p>
           <button
-            onClick={() => navigate('/backtests')}
-            className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            onClick={goBack}
+            className="mt-4 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover"
           >
             Back to Backtests
           </button>
@@ -126,24 +128,18 @@ export default function BacktestDetail() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <button
-        onClick={() => navigate('/backtests')}
-        className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-900"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Backtests
-      </button>
+      <BackButton to="/backtests" label="Back to Backtests" className="mb-6 flex items-center gap-2 text-ink-secondary hover:text-ink" iconClassName="w-4 h-4" />
 
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="text-3xl font-bold text-ink mb-2">
           {backtest.name || `${backtest.strategy_info?.name || 'Backtest'} #${backtest.id}`}
         </h1>
-        <div className="flex items-center gap-4 text-sm text-gray-600">
+        <div className="flex items-center gap-4 text-sm text-ink-secondary">
           <span>Strategy: {backtest.strategy_info?.name || 'N/A'}</span>
           <span>•</span>
           <span>Date Range: {formatDate(backtest.start_date)} - {formatDate(backtest.end_date)}</span>
           <span>•</span>
-          <span>Status: <span className={`font-medium ${backtest.status === 'completed' ? 'text-green-600' : backtest.status === 'failed' ? 'text-red-600' : 'text-yellow-600'}`}>{backtest.status}</span></span>
+          <span>Status: <span className={`font-medium ${backtest.status === 'completed' ? 'text-profit' : backtest.status === 'failed' ? 'text-loss' : 'text-status-pending'}`}>{backtest.status}</span></span>
         </div>
       </div>
 
@@ -159,13 +155,13 @@ export default function BacktestDetail() {
         
         return symbolsFromStats.length > 1 && (
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-ink-secondary mb-2">
               Select Symbol
             </label>
             <select
               value={selectedSymbol || ''}
               onChange={(e) => setSelectedSymbol(e.target.value || null)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
             >
               <option value="">All Symbols (Portfolio)</option>
               {symbolsFromStats.map((symbol) => (
@@ -181,7 +177,7 @@ export default function BacktestDetail() {
       {/* Statistics Cards */}
       {selectedStats && (
         <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Performance Metrics</h2>
+          <h2 className="text-xl font-bold text-ink mb-4">Performance Metrics</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatisticsCard
               title="Total Trades"
@@ -245,8 +241,8 @@ export default function BacktestDetail() {
 
       {/* Equity Curve Chart */}
       {equityCurveData.length > 0 && (
-        <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Equity Curve</h2>
+        <div className="mb-6 bg-surface rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-bold text-ink mb-4">Equity Curve</h2>
           <Chart
             options={equityChartOptions}
             series={equityChartSeries}
@@ -258,35 +254,35 @@ export default function BacktestDetail() {
 
       {/* Trades Table */}
       {selectedTrades.length > 0 && (
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Trade List</h2>
+        <div className="bg-surface rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-bold text-ink mb-4">Trade List</h2>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-bg">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entry Price</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exit Price</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entry Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exit Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PnL</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PnL %</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Symbol</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Entry Price</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Exit Price</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Entry Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Exit Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">PnL</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">PnL %</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-surface divide-y divide-border">
                 {selectedTrades.map((trade) => (
-                  <tr key={trade.id} className={trade.is_winner ? 'bg-green-50' : 'bg-red-50'}>
-                    <td className="px-4 py-3 text-sm text-gray-900">{trade.symbol_info?.ticker || 'N/A'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 capitalize">{trade.trade_type}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{formatCurrency(trade.entry_price)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{formatCurrency(trade.exit_price)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{formatDate(trade.entry_timestamp)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{formatDate(trade.exit_timestamp)}</td>
-                    <td className={`px-4 py-3 text-sm font-medium ${trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <tr key={trade.id} className={trade.is_winner ? 'bg-profit-soft' : 'bg-loss-soft'}>
+                    <td className="px-4 py-3 text-sm text-ink">{trade.symbol_info?.ticker || 'N/A'}</td>
+                    <td className="px-4 py-3 text-sm text-ink capitalize">{trade.trade_type}</td>
+                    <td className="px-4 py-3 text-sm text-ink">{formatCurrency(trade.entry_price)}</td>
+                    <td className="px-4 py-3 text-sm text-ink">{formatCurrency(trade.exit_price)}</td>
+                    <td className="px-4 py-3 text-sm text-ink">{formatDate(trade.entry_timestamp)}</td>
+                    <td className="px-4 py-3 text-sm text-ink">{formatDate(trade.exit_timestamp)}</td>
+                    <td className={`px-4 py-3 text-sm font-medium ${trade.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                       {formatCurrency(trade.pnl)}
                     </td>
-                    <td className={`px-4 py-3 text-sm font-medium ${trade.pnl_percentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <td className={`px-4 py-3 text-sm font-medium ${trade.pnl_percentage >= 0 ? 'text-profit' : 'text-loss'}`}>
                       {formatPercentage(trade.pnl_percentage)}
                     </td>
                   </tr>

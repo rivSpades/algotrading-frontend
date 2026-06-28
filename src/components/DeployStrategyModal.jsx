@@ -20,12 +20,12 @@ import {
 } from '../data/strategyDeployments';
 
 const COLOR_DOT = {
-  green: 'bg-green-500',
+  green: 'bg-profit-soft0',
   yellow: 'bg-yellow-400',
   orange: 'bg-orange-500',
-  red: 'bg-red-500',
+  red: 'bg-loss-soft0',
   black: 'bg-black',
-  gray: 'bg-gray-300',
+  gray: 'bg-surface-sunken',
 };
 
 const TIER_LABEL = {
@@ -218,20 +218,20 @@ export default function DeployStrategyModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+      <div className="bg-surface rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Deploy Strategy</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {strategyName} • parameter set <code className="bg-gray-100 px-1 rounded">{parameterSet?.slice(0, 12)}…</code>
+            <h2 className="text-lg font-semibold text-ink">Deploy Strategy</h2>
+            <p className="text-xs text-ink-tertiary mt-0.5">
+              {strategyName} • parameter set <code className="bg-surface-sunken px-1 rounded">{parameterSet?.slice(0, 12)}…</code>
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-ink-tertiary hover:text-ink-secondary">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2 text-xs">
+        <div className="px-6 py-4 border-b border-border flex items-center gap-2 text-xs">
           <Step active={step === 1} done={step > 1} index={1} label="Setup" />
           <Step active={step === 2} done={step > 2} index={2} label="Symbols" />
           <Step active={step === 3} done={false} index={3} label="Confirm" />
@@ -285,16 +285,16 @@ export default function DeployStrategyModal({
             />
           )}
           {submitError && (
-            <div className="mt-4 px-3 py-2 bg-red-50 border border-red-200 text-sm text-red-700 rounded">
+            <div className="mt-4 px-3 py-2 bg-loss-soft border border-loss text-sm text-loss-ink rounded">
               {submitError}
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-between px-6 py-3 border-t border-gray-100">
+        <div className="flex items-center justify-between px-6 py-3 border-t border-border">
           <button
             onClick={() => (step === 1 ? onClose() : setStep(step - 1))}
-            className="text-sm text-gray-600 hover:text-gray-900"
+            className="text-sm text-ink-secondary hover:text-ink"
           >
             {step === 1 ? 'Cancel' : 'Back'}
           </button>
@@ -302,7 +302,7 @@ export default function DeployStrategyModal({
             <button
               onClick={() => setStep(step + 1)}
               disabled={step === 1 && !brokerId}
-              className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 disabled:bg-blue-300"
+              className="bg-accent text-white px-4 py-2 rounded text-sm hover:bg-accent-hover disabled:opacity-50"
             >
               Next
             </button>
@@ -323,14 +323,14 @@ export default function DeployStrategyModal({
 
 function Step({ active, done, index, label }) {
   return (
-    <div className={`flex items-center gap-1 ${active ? 'text-blue-600 font-medium' : done ? 'text-green-600' : 'text-gray-400'}`}>
+    <div className={`flex items-center gap-1 ${active ? 'text-accent font-medium' : done ? 'text-profit' : 'text-ink-tertiary'}`}>
       <span className={`w-5 h-5 rounded-full text-xs flex items-center justify-center ${
-        active ? 'bg-blue-100' : done ? 'bg-green-100' : 'bg-gray-100'
+        active ? 'bg-status-running-soft' : done ? 'bg-profit-soft' : 'bg-surface-sunken'
       }`}>
         {index}
       </span>
       <span>{label}</span>
-      {index < 3 && <span className="ml-1 text-gray-300">→</span>}
+      {index < 3 && <span className="ml-1 text-ink-tertiary">→</span>}
     </div>
   );
 }
@@ -350,14 +350,14 @@ function SetupStep(props) {
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full border border-gray-300 rounded px-3 py-1.5"
+          className="w-full border border-border-strong rounded px-3 py-1.5"
         />
       </Field>
       <Field label="Broker (paper credentials required)">
         <select
           value={brokerId}
           onChange={(e) => setBrokerId(e.target.value)}
-          className="w-full border border-gray-300 rounded px-3 py-1.5"
+          className="w-full border border-border-strong rounded px-3 py-1.5"
         >
           <option value="">Select…</option>
           {brokers.map((b) => (
@@ -374,7 +374,7 @@ function SetupStep(props) {
         <select
           value={positionMode}
           onChange={(e) => setPositionMode(e.target.value)}
-          className="w-full border border-gray-300 rounded px-3 py-1.5"
+          className="w-full border border-border-strong rounded px-3 py-1.5"
         >
           <option value="long">Long only</option>
           <option value="short">Short only</option>
@@ -389,10 +389,10 @@ function SetupStep(props) {
             setCapital(e.target.value);
             setCapitalFromBroker(false);
           }}
-          className="w-full border border-gray-300 rounded px-3 py-1.5"
+          className="w-full border border-border-strong rounded px-3 py-1.5"
         />
         {capitalFromBroker && (
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-ink-tertiary mt-1">
             Prefilled from this broker&apos;s <strong>paper</strong> account (total equity, or cash if equity unavailable).
           </p>
         )}
@@ -405,7 +405,7 @@ function SetupStep(props) {
           type="number"
           value={betSize}
           onChange={(e) => setBetSize(e.target.value)}
-          className="w-full border border-gray-300 rounded px-3 py-1.5"
+          className="w-full border border-border-strong rounded px-3 py-1.5"
         />
       </Field>
       <Field label="Evaluation criteria (JSON)">
@@ -413,7 +413,7 @@ function SetupStep(props) {
           rows={3}
           value={evalCriteria}
           onChange={(e) => setEvalCriteria(e.target.value)}
-          className="w-full border border-gray-300 rounded px-3 py-1.5 font-mono text-xs"
+          className="w-full border border-border-strong rounded px-3 py-1.5 font-mono text-xs"
         />
       </Field>
       <div className="md:col-span-2 border border-slate-200 rounded-lg p-3 bg-slate-50/80">
@@ -426,10 +426,10 @@ function SetupStep(props) {
             disabled={hedgeLoading}
             className="mt-0.5"
           />
-          <label htmlFor="hedge-opt-in" className="text-sm text-gray-800">
+          <label htmlFor="hedge-opt-in" className="text-sm text-ink">
             <span className="font-medium">Hybrid VIX hedge (live)</span>
-            {hedgeLoading && <span className="text-gray-500 ml-2">Loading…</span>}
-            <span className="block text-xs text-gray-600 mt-1">
+            {hedgeLoading && <span className="text-ink-tertiary ml-2">Loading…</span>}
+            <span className="block text-xs text-ink-secondary mt-1">
               When enabled, each entry splits notional like your symbol backtests: strategy leg + a{' '}
               <strong>{`VIXY`}</strong> sleeve (weights from the same regime model as the backtest engine).
               {hedgePreview?._error && ' Could not read symbol backtest settings — you can still toggle or leave off.'}
@@ -453,11 +453,11 @@ function SymbolsStep({ loading, preview, selectedTickers, setSelectedTickers, sh
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-ink-secondary">
           {symbols.length} candidate(s){showAllSymbols ? ' (all snapshot symbols)' : ' (default: green only)'}.
           Toggle entries to refine the selection.
         </p>
-        <label className="flex items-center gap-2 text-xs text-gray-600">
+        <label className="flex items-center gap-2 text-xs text-ink-secondary">
           <input
             type="checkbox"
             checked={showAllSymbols}
@@ -469,11 +469,11 @@ function SymbolsStep({ loading, preview, selectedTickers, setSelectedTickers, sh
       {loading ? (
         <div className="flex justify-center py-12"><Loader className="w-6 h-6 animate-spin text-blue-500" /></div>
       ) : symbols.length === 0 ? (
-        <p className="text-center text-gray-500 py-12">No candidates returned.</p>
+        <p className="text-center text-ink-tertiary py-12">No candidates returned.</p>
       ) : (
-        <div className="overflow-y-auto max-h-[40vh] border border-gray-200 rounded">
+        <div className="overflow-y-auto max-h-[40vh] border border-border rounded">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0">
+            <thead className="bg-bg text-xs uppercase text-ink-tertiary sticky top-0">
               <tr>
                 <th className="px-3 py-2 text-left"></th>
                 <th className="px-3 py-2 text-left">Ticker</th>
@@ -484,7 +484,7 @@ function SymbolsStep({ loading, preview, selectedTickers, setSelectedTickers, sh
                 <th className="px-3 py-2 text-right">Trades (L/S)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border">
               {symbols.map((s) => (
                 <tr key={s.ticker} className={selectedTickers[s.ticker] ? '' : 'opacity-60'}>
                   <td className="px-3 py-1.5">
@@ -496,8 +496,8 @@ function SymbolsStep({ loading, preview, selectedTickers, setSelectedTickers, sh
                   </td>
                   <td className="px-3 py-1.5 font-medium">{s.ticker}</td>
                   <td className="px-3 py-1.5">
-                    <span className={`inline-block w-3 h-3 rounded-full mr-1.5 ${COLOR_DOT[s.color_overall] || 'bg-gray-300'}`} />
-                    <span className="text-xs text-gray-600">{s.color_overall}</span>
+                    <span className={`inline-block w-3 h-3 rounded-full mr-1.5 ${COLOR_DOT[s.color_overall] || 'bg-surface-sunken'}`} />
+                    <span className="text-xs text-ink-secondary">{s.color_overall}</span>
                   </td>
                   <td className="px-3 py-1.5 text-xs">{TIER_LABEL[s.tier] || s.tier}</td>
                   <td className="px-3 py-1.5 text-right text-xs">{fmt(s.sharpe_long)} / {fmt(s.sharpe_short)}</td>
@@ -519,7 +519,7 @@ function ConfirmStep({
 }) {
   const broker = brokers.find((b) => String(b.id) === String(brokerId));
   return (
-    <div className="space-y-3 text-sm text-gray-700">
+    <div className="space-y-3 text-sm text-ink-secondary">
       <Row label="Broker" value={broker ? `${broker.name} (${broker.code})` : '—'} />
       <Row label="Position mode" value={positionMode.toUpperCase()} />
       <Row label="Initial capital" value={`$${Number(capital).toLocaleString()}`} />
@@ -530,7 +530,7 @@ function ConfirmStep({
       />
       <Row label="Parameter set" value={parameterSetLabel || '—'} />
       <Row label="Symbols selected" value={selectedCount === 0 ? 'Default green selection' : `${selectedCount} symbol(s)`} />
-      <p className="text-xs text-gray-500 mt-2">
+      <p className="text-xs text-ink-tertiary mt-2">
         The deployment will be created in <strong>paper trading</strong> mode and will start in <strong>pending</strong> status. Activate it from the deployment detail page when you are ready.
       </p>
     </div>
@@ -540,7 +540,7 @@ function ConfirmStep({
 function Field({ label, children }) {
   return (
     <label className="block">
-      <span className="text-xs uppercase tracking-wide text-gray-500 mb-1 block">{label}</span>
+      <span className="text-xs uppercase tracking-wide text-ink-tertiary mb-1 block">{label}</span>
       {children}
     </label>
   );
@@ -548,8 +548,8 @@ function Field({ label, children }) {
 
 function Row({ label, value }) {
   return (
-    <div className="flex items-center justify-between border-b border-gray-100 pb-1.5">
-      <span className="text-gray-500">{label}</span>
+    <div className="flex items-center justify-between border-b border-border pb-1.5">
+      <span className="text-ink-tertiary">{label}</span>
       <span className="font-medium">{value}</span>
     </div>
   );

@@ -5,7 +5,9 @@
 
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { ArrowLeft, Play, BarChart3, Plus } from 'lucide-react';
+import { Play, BarChart3, Plus } from 'lucide-react';
+import BackButton from '../components/BackButton';
+import { useNavigateBack } from '../lib/navigation';
 import {
   getStrategy,
   getStrategySymbolSnapshot,
@@ -28,6 +30,7 @@ function snapshotRunSelectLabel(s) {
 export default function StrategySymbolDetail() {
   const { id, ticker } = useParams();
   const navigate = useNavigate();
+  const { goBack } = useNavigateBack(`/strategies/${id}`);
   const [searchParams, setSearchParams] = useSearchParams();
   const [strategy, setStrategy] = useState(null);
   const [snapshotPayload, setSnapshotPayload] = useState(null);
@@ -216,11 +219,11 @@ export default function StrategySymbolDetail() {
   if (!strategy) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <p className="text-center text-gray-600">Strategy not found</p>
+        <p className="text-center text-ink-secondary">Strategy not found</p>
         <button
           type="button"
-          onClick={() => navigate('/strategies')}
-          className="mt-4 mx-auto block px-4 py-2 bg-primary-600 text-white rounded-lg"
+          onClick={goBack}
+          className="mt-4 mx-auto block px-4 py-2 bg-accent text-white rounded-lg"
         >
           Back
         </button>
@@ -234,28 +237,21 @@ export default function StrategySymbolDetail() {
         {showTaskProgress && taskId && (
           <TaskProgress taskId={taskId} onComplete={handleTaskComplete} onClose={handleTaskComplete} />
         )}
-        <button
-          type="button"
-          onClick={() => navigate(`/strategies/${id}`)}
-          className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to strategy
-        </button>
+        <BackButton to={`/strategies/${id}`} label="Back to strategy" className="mb-6 flex items-center gap-2 text-ink-secondary hover:text-ink" iconClassName="w-4 h-4" />
 
-        <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-xl mx-auto">
-          <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+        <div className="bg-surface rounded-lg shadow-lg p-8 text-center max-w-xl mx-auto">
+          <BarChart3 className="w-12 h-12 text-ink-tertiary mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-ink mb-2">
             {strategy.name} — {ticker}
           </h1>
-          <p className="text-gray-600 mb-6">
+          <p className="text-ink-secondary mb-6">
             No single-symbol runs yet. Create one to store results for this strategy and ticker. You can add more runs
             with different parameters later.
           </p>
           <button
             type="button"
             onClick={openNewRun}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent-hover"
           >
             <Play className="w-5 h-5" />
             New single-symbol run
@@ -281,26 +277,25 @@ export default function StrategySymbolDetail() {
         <TaskProgress taskId={taskId} onComplete={handleTaskComplete} onClose={handleTaskComplete} />
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 border-b border-gray-200 bg-gray-50/80">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 border-b border-border bg-bg/80">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => navigate(`/strategies/${id}`)}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 text-sm"
+              onClick={goBack}
+              className="flex items-center gap-2 text-ink-secondary hover:text-ink text-sm"
             >
-              <ArrowLeft className="w-4 h-4" />
               Strategy
             </button>
-            <span className="text-gray-300">|</span>
-            <label htmlFor="snap-select" className="text-sm text-gray-600">
+            <span className="text-ink-tertiary">|</span>
+            <label htmlFor="snap-select" className="text-sm text-ink-secondary">
               Run to view
             </label>
             <select
               id="snap-select"
               value={effectiveRunId != null ? String(effectiveRunId) : ''}
               onChange={onSelectSnapshot}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white min-w-0 max-w-xl flex-1 sm:min-w-[20rem]"
+              className="border border-border-strong rounded-lg px-3 py-1.5 text-sm bg-surface min-w-0 max-w-xl flex-1 sm:min-w-[20rem]"
             >
               {runs.map((r) => (
                 <option key={r.id} value={String(r.run_id ?? r.id)}>
@@ -323,7 +318,7 @@ export default function StrategySymbolDetail() {
             <button
               type="button"
               onClick={openNewRun}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover"
             >
               <Plus className="w-4 h-4" />
               New run

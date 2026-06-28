@@ -5,7 +5,9 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Loader, Eye, EyeOff, CheckCircle2, XCircle } from 'lucide-react';
+import { Save, Loader, Eye, EyeOff, CheckCircle2, XCircle } from 'lucide-react';
+import BackButton from '../components/BackButton';
+import { useNavigateBack } from '../lib/navigation';
 import { getBroker, createBroker, updateBroker } from '../data/liveTrading';
 import { liveTradingAPI } from '../data/liveTrading';
 import { motion } from 'framer-motion';
@@ -19,6 +21,7 @@ export default function BrokerForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditing = !!id;
+  const { goBack } = useNavigateBack(isEditing ? `/brokers/${id}` : '/brokers');
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
@@ -74,7 +77,7 @@ export default function BrokerForm() {
     } catch (error) {
       console.error('Error loading broker:', error);
       alert('Failed to load broker: ' + (error.message || 'Unknown error'));
-      navigate('/brokers');
+      goBack();
     } finally {
       setLoading(false);
     }
@@ -193,7 +196,7 @@ export default function BrokerForm() {
       } else {
         await createBroker(formData);
       }
-      navigate('/brokers');
+      goBack();
     } catch (error) {
       console.error('Error saving broker:', error);
       alert('Failed to save broker: ' + (error.message || 'Unknown error'));
@@ -222,29 +225,25 @@ export default function BrokerForm() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <motion.button
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        onClick={() => navigate('/brokers')}
-        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
-      >
-        <ArrowLeft className="w-5 h-5" />
-        Back to Brokers
-      </motion.button>
+      <BackButton
+        to={isEditing ? `/brokers/${id}` : '/brokers'}
+        label={isEditing ? 'Back to Broker' : 'Back to Brokers'}
+        className="flex items-center gap-2 text-ink-secondary hover:text-ink mb-6"
+      />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-lg shadow-md p-6"
+        className="bg-surface rounded-lg shadow-md p-6"
       >
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">
+        <h1 className="text-2xl font-bold text-ink mb-6">
           {isEditing ? 'Edit Broker' : 'Add New Broker'}
         </h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-ink-secondary mb-2">
                 Name *
               </label>
               <input
@@ -252,20 +251,20 @@ export default function BrokerForm() {
                 required
                 value={formData.name}
                 onChange={(e) => handleChange('name', e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                 placeholder="e.g., Alpaca"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-ink-secondary mb-2">
                 Broker Code *
               </label>
               <select
                 required
                 value={formData.code}
                 onChange={(e) => handleChange('code', e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
               >
                 {BROKER_CODES.map(broker => (
                   <option key={broker.value} value={broker.value}>
@@ -279,9 +278,9 @@ export default function BrokerForm() {
           {/* Paper Trading Section */}
           <div className="border-t pt-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Paper Trading</h2>
+              <h2 className="text-lg font-semibold text-ink">Paper Trading</h2>
               {formData.paper_trading_active && (
-                <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium flex items-center gap-1">
+                <span className="px-3 py-1 bg-profit-soft text-profit-ink rounded-full text-xs font-medium flex items-center gap-1">
                   <CheckCircle2 className="w-4 h-4" />
                   Active
                 </span>
@@ -289,20 +288,20 @@ export default function BrokerForm() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   Endpoint URL
                 </label>
                 <input
                   type="url"
                   value={formData.paper_trading_endpoint_url}
                   onChange={(e) => handleChange('paper_trading_endpoint_url', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                   placeholder="e.g., https://paper-api.alpaca.markets"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   API Key
                 </label>
                 <div className="relative">
@@ -310,13 +309,13 @@ export default function BrokerForm() {
                     type={showPaperKey ? 'text' : 'password'}
                     value={formData.paper_trading_api_key}
                     onChange={(e) => handleChange('paper_trading_api_key', e.target.value)}
-                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 pr-10 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                     placeholder="Enter paper trading API key"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPaperKey(!showPaperKey)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary hover:text-ink-secondary"
                   >
                     {showPaperKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
@@ -324,7 +323,7 @@ export default function BrokerForm() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   Secret Key
                 </label>
                 <div className="relative">
@@ -332,13 +331,13 @@ export default function BrokerForm() {
                     type={showPaperSecret ? 'text' : 'password'}
                     value={formData.paper_trading_secret_key}
                     onChange={(e) => handleChange('paper_trading_secret_key', e.target.value)}
-                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 pr-10 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                     placeholder="Enter paper trading secret key"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPaperSecret(!showPaperSecret)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary hover:text-ink-secondary"
                   >
                     {showPaperSecret ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
@@ -349,8 +348,8 @@ export default function BrokerForm() {
               {testResultPaper && (
                 <div className={`p-4 rounded-lg border ${
                   testResultPaper.success 
-                    ? 'bg-green-50 border-green-200 text-green-800' 
-                    : 'bg-red-50 border-red-200 text-red-800'
+                    ? 'bg-profit-soft border-profit text-profit-ink' 
+                    : 'bg-loss-soft border-loss text-loss-ink'
                 }`}>
                   <div className="flex items-center gap-2">
                     {testResultPaper.success ? (
@@ -369,7 +368,7 @@ export default function BrokerForm() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleTestConnection('paper')}
                 disabled={testingPaper || !formData.paper_trading_endpoint_url || !formData.paper_trading_api_key || !formData.paper_trading_secret_key}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {testingPaper ? (
                   <>
@@ -386,9 +385,9 @@ export default function BrokerForm() {
           {/* Real Money Trading Section */}
           <div className="border-t pt-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Real Money Trading</h2>
+              <h2 className="text-lg font-semibold text-ink">Real Money Trading</h2>
               {formData.real_money_active && (
-                <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium flex items-center gap-1">
+                <span className="px-3 py-1 bg-profit-soft text-profit-ink rounded-full text-xs font-medium flex items-center gap-1">
                   <CheckCircle2 className="w-4 h-4" />
                   Active
                 </span>
@@ -396,20 +395,20 @@ export default function BrokerForm() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   Endpoint URL
                 </label>
                 <input
                   type="url"
                   value={formData.real_money_endpoint_url}
                   onChange={(e) => handleChange('real_money_endpoint_url', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                   placeholder="e.g., https://api.alpaca.markets"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   API Key
                 </label>
                 <div className="relative">
@@ -417,13 +416,13 @@ export default function BrokerForm() {
                     type={showRealMoneyKey ? 'text' : 'password'}
                     value={formData.real_money_api_key}
                     onChange={(e) => handleChange('real_money_api_key', e.target.value)}
-                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 pr-10 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                     placeholder="Enter real money API key"
                   />
                   <button
                     type="button"
                     onClick={() => setShowRealMoneyKey(!showRealMoneyKey)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary hover:text-ink-secondary"
                   >
                     {showRealMoneyKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
@@ -431,7 +430,7 @@ export default function BrokerForm() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   Secret Key
                 </label>
                 <div className="relative">
@@ -439,13 +438,13 @@ export default function BrokerForm() {
                     type={showRealMoneySecret ? 'text' : 'password'}
                     value={formData.real_money_secret_key}
                     onChange={(e) => handleChange('real_money_secret_key', e.target.value)}
-                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 pr-10 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                     placeholder="Enter real money secret key"
                   />
                   <button
                     type="button"
                     onClick={() => setShowRealMoneySecret(!showRealMoneySecret)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary hover:text-ink-secondary"
                   >
                     {showRealMoneySecret ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
@@ -456,8 +455,8 @@ export default function BrokerForm() {
               {testResultRealMoney && (
                 <div className={`p-4 rounded-lg border ${
                   testResultRealMoney.success 
-                    ? 'bg-green-50 border-green-200 text-green-800' 
-                    : 'bg-red-50 border-red-200 text-red-800'
+                    ? 'bg-profit-soft border-profit text-profit-ink' 
+                    : 'bg-loss-soft border-loss text-loss-ink'
                 }`}>
                   <div className="flex items-center gap-2">
                     {testResultRealMoney.success ? (
@@ -476,7 +475,7 @@ export default function BrokerForm() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleTestConnection('real_money')}
                 disabled={testingRealMoney || !formData.real_money_endpoint_url || !formData.real_money_api_key || !formData.real_money_secret_key}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {testingRealMoney ? (
                   <>
@@ -495,8 +494,8 @@ export default function BrokerForm() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               type="button"
-              onClick={() => navigate('/brokers')}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              onClick={goBack}
+              className="px-6 py-2 border border-border-strong text-ink-secondary rounded-lg hover:bg-bg transition-colors"
             >
               Cancel
             </motion.button>

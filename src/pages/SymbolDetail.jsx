@@ -3,9 +3,11 @@
  * Displays symbol information, OHLCV data, and charts
  */
 
-import { useLoaderData, useNavigate, useParams, useRevalidator, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, RefreshCw, Trash2, Download, RotateCcw, TrendingUp } from 'lucide-react';
+import { useLoaderData, useParams, useRevalidator, useSearchParams } from 'react-router-dom';
+import { Calendar, RefreshCw, Trash2, Download, RotateCcw, TrendingUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import BackButton from '../components/BackButton';
+import { useNavigateBack } from '../lib/navigation';
 import CandlestickChart from '../components/CandlestickChart';
 import DataTable from '../components/DataTable';
 import TaskProgress from '../components/TaskProgress';
@@ -28,7 +30,7 @@ export default function SymbolDetail() {
       console.log('Statistics keys:', Object.keys(statistics));
     }
   }, [statistics]);
-  const navigate = useNavigate();
+  const { goBack } = useNavigateBack('/market-data');
   const { ticker } = useParams();
   const revalidator = useRevalidator();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -206,10 +208,10 @@ export default function SymbolDetail() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-500 text-lg">Symbol not found</p>
+          <p className="text-ink-tertiary text-lg">Symbol not found</p>
           <button
-            onClick={() => navigate('/')}
-            className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            onClick={goBack}
+            className="mt-4 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover"
           >
             Go Back
           </button>
@@ -299,7 +301,7 @@ export default function SymbolDetail() {
     setIsDeleting(true);
     try {
       await deleteSymbol(ticker);
-      navigate('/');
+      goBack();
     } catch (error) {
       alert(`Failed to delete symbol: ${error.message}`);
       setIsDeleting(false);
@@ -307,7 +309,7 @@ export default function SymbolDetail() {
   };
 
   const statusColor = symbol.status === 'active' ? 'green' : 'gray';
-  const statusBg = symbol.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
+  const statusBg = symbol.status === 'active' ? 'bg-profit-soft text-profit-ink' : 'bg-surface-sunken text-ink';
 
   const rangeLabel = searchParams.get('range') || initialRange || '5Y';
 
@@ -339,7 +341,8 @@ export default function SymbolDetail() {
         }}
         onConfirm={handleDateModalConfirm}
         title={dateModalMode === 'fetch' ? 'Fetch OHLCV Data' : 'Refetch OHLCV Data'}
-        showProvider={dateModalMode === 'refetch'}
+        showProvider
+        providerHint={dateModalMode === 'refetch' ? 'refetch' : 'fetch'}
       />
 
       {/* Task Progress Overlay */}
@@ -352,24 +355,17 @@ export default function SymbolDetail() {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate('/')}
-          className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back to Symbols
-        </button>
+        <BackButton to="/market-data" label="Back to Symbols" className="mb-6 flex items-center gap-2 text-ink-secondary hover:text-ink transition-colors" />
 
         {/* Symbol Header */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+        <div className="bg-surface rounded-lg shadow-lg p-6 mb-6">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">{symbol.ticker}</h1>
+              <h1 className="text-3xl font-bold text-ink mb-2">{symbol.ticker}</h1>
               {symbol.name && symbol.name !== symbol.ticker && (
-                <p className="text-lg text-gray-600 mb-2">{symbol.name}</p>
+                <p className="text-lg text-ink-secondary mb-2">{symbol.name}</p>
               )}
-              <div className="flex items-center gap-4 text-sm text-gray-600">
+              <div className="flex items-center gap-4 text-sm text-ink-secondary">
                 <span>Exchange: {symbol.exchange?.code || (typeof symbol.exchange === 'string' ? symbol.exchange : 'N/A')}</span>
                 {symbol.exchange?.name && symbol.exchange.name !== symbol.exchange?.code && (
                   <>
@@ -379,12 +375,11 @@ export default function SymbolDetail() {
                 )}
                 <span>•</span>
                 <span>Type: {symbol.type}</span>
-                {symbol.provider && (
-                  <>
-                    <span>•</span>
-                    <span>Data Provider: {symbol.provider?.name || symbol.provider?.code || symbol.provider}</span>
-                  </>
-                )}
+                <span>•</span>
+                <span>
+                  Data Provider:{' '}
+                  {symbol.provider?.name || symbol.provider?.code || 'Not set'}
+                </span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -394,10 +389,10 @@ export default function SymbolDetail() {
               {symbol.validation_status && (
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                   symbol.validation_status === 'valid' 
-                    ? 'bg-green-100 text-green-800' 
+                    ? 'bg-profit-soft text-profit-ink' 
                     : symbol.validation_status === 'invalid'
-                    ? 'bg-red-100 text-red-800'
-                    : 'bg-yellow-100 text-yellow-800'
+                    ? 'bg-loss-soft text-loss-ink'
+                    : 'bg-status-pending-soft text-status-pending'
                 }`}>
                   {symbol.validation_status === 'valid' ? 'Valid Data' : 
                    symbol.validation_status === 'invalid' ? 'Invalid Data' : 
@@ -407,16 +402,18 @@ export default function SymbolDetail() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
+          <div className="flex items-center gap-4 text-sm text-ink-tertiary mb-4">
             <div className="flex items-center gap-1">
               <Calendar className="w-4 h-4" />
               <span>Last updated: {new Date(symbol.last_updated).toLocaleString()}</span>
             </div>
           </div>
-          {symbol.validation_reason && symbol.validation_status === 'invalid' && (
-            <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm font-medium text-red-800 mb-1">Data Validation Failed:</p>
-              <p className="text-sm text-red-700">{symbol.validation_reason}</p>
+          {symbol.validation_reason && symbol.validation_status !== 'valid' && (
+            <div className="mt-2 p-3 bg-loss-soft border border-loss rounded-lg">
+              <p className="text-sm font-medium text-loss-ink mb-1">
+                {symbol.validation_status === 'pending' ? 'Data status:' : 'Data Validation Failed:'}
+              </p>
+              <p className="text-sm text-loss-ink">{symbol.validation_reason}</p>
             </div>
           )}
 
@@ -440,7 +437,7 @@ export default function SymbolDetail() {
                 <button
                   onClick={handleUpdate}
                   disabled={isUpdating || isFetching || isRefetching}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                  className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
                 >
                   <RefreshCw className={`w-4 h-4 ${isUpdating ? 'animate-spin' : ''}`} />
                   {isUpdating ? 'Updating...' : 'Update Data'}
@@ -448,7 +445,7 @@ export default function SymbolDetail() {
                 <button
                   onClick={handleRefetchClick}
                   disabled={isRefetching || isFetching || isUpdating}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                  className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
                 >
                   <RotateCcw className={`w-4 h-4 ${isRefetching ? 'animate-spin' : ''}`} />
                   {isRefetching ? 'Refetching...' : 'Refetch All'}
@@ -459,7 +456,7 @@ export default function SymbolDetail() {
             <button
               onClick={handleDelete}
               disabled={isDeleting || isFetching || isUpdating || isRefetching}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+              className="px-4 py-2 bg-loss text-white rounded-lg hover:bg-loss disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               {isDeleting ? 'Deleting...' : 'Delete Symbol'}
@@ -470,7 +467,7 @@ export default function SymbolDetail() {
         {/* Volatility Section */}
         {hasOHLCVData && statistics && Object.keys(statistics).length > 0 && (
           <div className="mb-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Volatility</h2>
+            <h2 className="text-xl font-bold text-ink mb-4">Volatility</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {statistics.volatility !== undefined && (
                 <StatisticsCard
@@ -509,26 +506,7 @@ export default function SymbolDetail() {
           </div>
         )}
 
-        {/* Timeframe Selector */}
-        <div className="mb-6 bg-white rounded-lg shadow p-4">
-          <div className="flex gap-2">
-            {['daily', 'hourly'].map((tf) => (
-              <button
-                key={tf}
-                onClick={() => setTimeframe(tf)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  timeframe === tf
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {tf.charAt(0).toUpperCase() + tf.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Chart */}
+        {/* Chart (daily OHLCV only) */}
         <div className="mb-6">
           <CandlestickChart 
             data={ohlcv} 
@@ -550,9 +528,9 @@ export default function SymbolDetail() {
         </div>
 
         {/* Data Table */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="bg-surface rounded-lg shadow-lg p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">OHLCV Data</h2>
+            <h2 className="text-xl font-bold text-ink">OHLCV Data</h2>
             <ExportTableToolbar
               onExportCsv={handleExportOhlcvCsv}
               onExportJson={handleExportOhlcvJson}

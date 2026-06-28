@@ -4,9 +4,11 @@
  * URL: /strategies/:id/backtests/:backtestId
  */
 
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { ArrowLeft, Search, BarChart3, TrendingUp, TrendingDown, List, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, BarChart3, TrendingUp, TrendingDown, List, ChevronLeft, ChevronRight } from 'lucide-react';
+import BackButton from '../components/BackButton';
+import { useNavigateBack } from '../lib/navigation';
 import { getStrategy } from '../data/strategies';
 import { getBacktest, getBacktestTrades, getBacktestStatisticsOptimized } from '../data/backtests';
 import { motion } from 'framer-motion';
@@ -14,6 +16,8 @@ import TaskProgress from '../components/TaskProgress';
 import StatisticsCard from '../components/StatisticsCard';
 import Chart from 'react-apexcharts';
 import {
+  HedgeQtySplitBodyCells,
+  HedgeQtySplitHeaderCells,
   HedgeTradeInvestedHeaderCells,
   HedgeTradePnlHeaderCells,
   HedgeTradeInvestedBodyCells,
@@ -22,7 +26,7 @@ import {
 
 export default function StrategyBacktestSymbols() {
   const { id, backtestId } = useParams();
-  const navigate = useNavigate();
+  const { goBack, navigateWithReturn } = useNavigateBack(`/strategies/${id}`);
   const [strategy, setStrategy] = useState(null);
   const [backtest, setBacktest] = useState(null);
   const [symbols, setSymbols] = useState([]);
@@ -238,7 +242,7 @@ export default function StrategyBacktestSymbols() {
   };
 
   const handleSymbolClick = (ticker) => {
-    navigate(`/strategies/${id}/${ticker}`);
+    navigateWithReturn(`/strategies/${id}/${ticker}`);
   };
 
   const filteredSymbols = symbols.filter(symbol => {
@@ -302,10 +306,10 @@ export default function StrategyBacktestSymbols() {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center py-8">
-          <p className="text-gray-600">Backtest or strategy not found</p>
+          <p className="text-ink-secondary">Backtest or strategy not found</p>
           <button
-            onClick={() => navigate(`/strategies/${id}`)}
-            className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            onClick={goBack}
+            className="mt-4 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover"
           >
             Back to Strategy
           </button>
@@ -325,22 +329,16 @@ export default function StrategyBacktestSymbols() {
       )}
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <button
-        onClick={() => navigate(`/strategies/${id}`)}
-        className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-900"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Strategy
-      </button>
+      <BackButton to={`/strategies/${id}`} label="Back to Strategy" className="mb-6 flex items-center gap-2 text-ink-secondary hover:text-ink" iconClassName="w-4 h-4" />
 
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="text-3xl font-bold text-ink mb-2">
           {backtest.name || `${strategy.name} - Backtest #${backtest.id}`}
         </h1>
-        <div className="flex items-center gap-4 text-sm text-gray-600">
+        <div className="flex items-center gap-4 text-sm text-ink-secondary">
           <span>Strategy: {strategy.name}</span>
           <span>•</span>
-          <span>Status: <span className={`font-medium ${backtest.status === 'completed' ? 'text-green-600' : backtest.status === 'failed' ? 'text-red-600' : 'text-yellow-600'}`}>{backtest.status}</span></span>
+          <span>Status: <span className={`font-medium ${backtest.status === 'completed' ? 'text-profit' : backtest.status === 'failed' ? 'text-loss' : 'text-status-pending'}`}>{backtest.status}</span></span>
         </div>
       </div>
 
@@ -348,15 +346,15 @@ export default function StrategyBacktestSymbols() {
       {backtest.status === 'completed' && portfolioStats && (
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Portfolio Statistics</h2>
+            <h2 className="text-xl font-bold text-ink">Portfolio Statistics</h2>
             {/* Tabs for filtering by trade type */}
             <div className="flex gap-2">
               <button
                 onClick={() => setPortfolioStatsTab('long')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   portfolioStatsTab === 'long'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-accent text-white'
+                    : 'bg-surface-sunken text-ink-secondary hover:bg-surface-sunken'
                 }`}
               >
                 LONG
@@ -365,8 +363,8 @@ export default function StrategyBacktestSymbols() {
                 onClick={() => setPortfolioStatsTab('short')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   portfolioStatsTab === 'short'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-accent text-white'
+                    : 'bg-surface-sunken text-ink-secondary hover:bg-surface-sunken'
                 }`}
               >
                 SHORT
@@ -379,8 +377,8 @@ export default function StrategyBacktestSymbols() {
             const currentStats = portfolioStats[portfolioStatsTab] || portfolioStats.long;
             if (!currentStats || Object.keys(currentStats).length === 0) {
               return (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <p className="text-yellow-800 text-sm font-medium">
+                <div className="bg-status-pending-soft border border-yellow-200 rounded-lg p-4">
+                  <p className="text-status-pending text-sm font-medium">
                     No statistics available for {portfolioStatsTab.toUpperCase()} trades
                   </p>
                 </div>
@@ -514,12 +512,12 @@ export default function StrategyBacktestSymbols() {
           if (strategyOnlyData?.length) colors.push('#64748B');
           if (benchData?.length) colors.push('#F97316');
           return (
-            <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">
+            <div className="mb-6 bg-surface rounded-lg shadow-lg p-6">
+              <h2 className="text-xl font-bold text-ink mb-4">
                 Portfolio Equity Curve ({portfolioStatsTab.toUpperCase()})
               </h2>
               {backtest.hedge_enabled && strategyOnlyData?.length ? (
-                <p className="text-sm text-gray-600 mb-3">
+                <p className="text-sm text-ink-secondary mb-3">
                   Blue = strategy + hedge; slate = strategy-only baseline; orange = S&P 500 (if shown).
                 </p>
               ) : null}
@@ -584,13 +582,13 @@ export default function StrategyBacktestSymbols() {
       <div className="mb-6">
         <form onSubmit={(e) => e.preventDefault()} className="mb-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary w-5 h-5" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search symbols by ticker..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-3 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
             />
           </div>
         </form>
@@ -598,9 +596,9 @@ export default function StrategyBacktestSymbols() {
 
       {/* Symbols Grid */}
       {filteredSymbols.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
-          <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600 text-lg">
+        <div className="text-center py-12 bg-surface rounded-lg shadow">
+          <BarChart3 className="w-16 h-16 text-ink-tertiary mx-auto mb-4" />
+          <p className="text-ink-secondary text-lg">
             {searchTerm ? 'No symbols found matching your search' : 'No symbols in this backtest'}
           </p>
         </div>
@@ -612,28 +610,28 @@ export default function StrategyBacktestSymbols() {
               <motion.div
                 key={symbol.ticker}
                 whileHover={{ y: -4 }}
-                className="bg-white rounded-lg shadow-md p-6 cursor-pointer hover:shadow-lg transition-shadow"
+                className="bg-surface rounded-lg shadow-md p-6 cursor-pointer hover:shadow-lg transition-shadow"
                 onClick={() => handleSymbolClick(symbol.ticker)}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-1">{symbol.ticker}</h3>
-                    <p className="text-sm text-gray-600">
+                    <h3 className="text-xl font-bold text-ink mb-1">{symbol.ticker}</h3>
+                    <p className="text-sm text-ink-secondary">
                       {symbol.exchange_name || symbol.exchange || 'N/A'}
                     </p>
                   </div>
-                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-profit-soft text-profit-ink">
                     Active
                   </span>
                 </div>
 
-                <div className="space-y-2 text-sm text-gray-600 mb-4">
+                <div className="space-y-2 text-sm text-ink-secondary mb-4">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">Exchange:</span>
                     <span>{symbol.exchange || 'N/A'}</span>
                   </div>
                   {symbol.name && symbol.name !== symbol.ticker && (
-                    <div className="text-xs text-gray-500 truncate" title={symbol.name}>
+                    <div className="text-xs text-ink-tertiary truncate" title={symbol.name}>
                       {symbol.name}
                     </div>
                   )}
@@ -643,30 +641,30 @@ export default function StrategyBacktestSymbols() {
                 {backtest.status === 'completed' && symbolStats && (
                   <div className="border-t pt-4 space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Trades:</span>
-                      <span className="font-semibold text-gray-900">{symbolStats.total_trades || 0}</span>
+                      <span className="text-ink-secondary">Trades:</span>
+                      <span className="font-semibold text-ink">{symbolStats.total_trades || 0}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Win Rate:</span>
-                      <span className="font-semibold text-gray-900">
+                      <span className="text-ink-secondary">Win Rate:</span>
+                      <span className="font-semibold text-ink">
                         {symbolStats.win_rate ? formatPercentage(symbolStats.win_rate) : 'N/A'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">PnL:</span>
-                      <span className={`font-semibold ${symbolStats.total_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <span className="text-ink-secondary">PnL:</span>
+                      <span className={`font-semibold ${symbolStats.total_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                         {formatCurrency(symbolStats.total_pnl)}
                       </span>
                     </div>
                   </div>
                 )}
                 {backtest.status === 'completed' && !symbolStats && (
-                  <div className="border-t pt-4 text-xs text-gray-500 text-center">
+                  <div className="border-t pt-4 text-xs text-ink-tertiary text-center">
                     No statistics available
                   </div>
                 )}
                 {backtest.status === 'running' && (
-                  <div className="border-t pt-4 text-xs text-yellow-600 text-center">
+                  <div className="border-t pt-4 text-xs text-status-pending text-center">
                     Computing...
                   </div>
                 )}
@@ -678,8 +676,8 @@ export default function StrategyBacktestSymbols() {
 
       {/* Trading History Datatable */}
       {backtest.status === 'completed' && (
-        <div className="mt-8 bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <div className="mt-8 bg-surface rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-bold text-ink mb-4 flex items-center gap-2">
             <List className="w-5 h-5" />
             Trading History
           </h2>
@@ -687,10 +685,10 @@ export default function StrategyBacktestSymbols() {
           {/* Results Count and Pagination Info */}
           {filteredTradesCount > 0 && (
             <div className="mb-4 flex items-center justify-between">
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-ink-secondary">
                 Found {filteredTradesCount} trade{filteredTradesCount !== 1 ? 's' : ''} ({portfolioStatsTab.toUpperCase()})
                 {filteredTrades.length > 0 && filteredTradesCount > 0 && (
-                  <span className="text-gray-500">
+                  <span className="text-ink-tertiary">
                     {' '}(Showing {((currentPage - 1) * 20) + 1}-{Math.min(currentPage * 20, filteredTradesCount)})
                   </span>
                 )}
@@ -706,12 +704,12 @@ export default function StrategyBacktestSymbols() {
                       }
                     }}
                     disabled={!tradesPrevious}
-                    className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                    className="px-3 py-2 border border-border-strong rounded-lg hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                   >
                     <ChevronLeft className="w-4 h-4" />
                     Previous
                   </button>
-                  <span className="text-sm text-gray-600 px-2">
+                  <span className="text-sm text-ink-secondary px-2">
                     Page {currentPage}
                   </span>
                   <button
@@ -723,7 +721,7 @@ export default function StrategyBacktestSymbols() {
                       }
                     }}
                     disabled={!tradesNext}
-                    className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                    className="px-3 py-2 border border-border-strong rounded-lg hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                   >
                     Next
                     <ChevronRight className="w-4 h-4" />
@@ -735,25 +733,27 @@ export default function StrategyBacktestSymbols() {
 
           {filteredTrades.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-border">
+                <thead className="bg-bg">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ticker</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Invested</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Ticker</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Position</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Total Invested</th>
                     <HedgeTradeInvestedHeaderCells show={!!backtest?.hedge_enabled} />
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entry Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exit Date</th>
+                    <HedgeQtySplitHeaderCells split={!!backtest?.hedge_enabled} />
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Entry Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Exit Date</th>
                     <HedgeTradePnlHeaderCells show={!!backtest?.hedge_enabled} />
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PnL</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ROI %</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Max Drawdown</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">PnL</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">ROI %</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Max Drawdown</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-surface divide-y divide-border">
                   {filteredTrades.flatMap((trade) => {
+                    const hedgeSplit = !!backtest?.hedge_enabled;
+                    const isHedge = !!trade?.metadata?.is_hedge_leg;
                     const symbolTicker = trade?.symbol_info?.ticker || trade?.symbol?.ticker || trade?.symbol_ticker || 'N/A';
                     const tradeType = trade.trade_type || trade.tradeType;
                     const positionType = tradeType === 'buy' ? 'Long' : 'Short';
@@ -766,40 +766,40 @@ export default function StrategyBacktestSymbols() {
                     rows.push(
                       <tr 
                         key={`${trade.id}-entry`} 
-                        className="hover:bg-gray-50 bg-blue-50"
+                        className="hover:bg-bg bg-accent-soft"
                       >
-                        <td className="px-4 py-3 text-sm text-gray-900">
+                        <td className="px-4 py-3 text-sm text-ink">
                           {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
                         </td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{symbolTicker}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
+                        <td className="px-4 py-3 text-sm font-medium text-ink">{symbolTicker}</td>
+                        <td className="px-4 py-3 text-sm text-ink">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                             positionType === 'Long'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
+                              ? 'bg-profit-soft text-profit-ink'
+                              : 'bg-loss-soft text-loss-ink'
                           }`}>
                             {positionType}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{formatTotalInvestedForTrade(trade)}</td>
+                        <td className="px-4 py-3 text-sm text-ink">{formatTotalInvestedForTrade(trade)}</td>
                         <HedgeTradeInvestedBodyCells
-                          show={!!backtest?.hedge_enabled}
+                          show={hedgeSplit}
                           trade={trade}
                           formatCurrency={formatCurrency}
                         />
-                        <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
+                        <HedgeQtySplitBodyCells split={hedgeSplit} trade={trade} isHedgeLeg={isHedge} />
+                        <td className="px-4 py-3 text-sm text-ink">
                           {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">-</td>
+                        <td className="px-4 py-3 text-sm text-ink">-</td>
                         <HedgeTradePnlBodyCells
                           show={!!backtest?.hedge_enabled}
                           rowType="entry"
                           trade={trade}
                           formatCurrency={formatCurrency}
                         />
-                        <td className="px-4 py-3 text-sm text-gray-900">-</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">-</td>
+                        <td className="px-4 py-3 text-sm text-ink">-</td>
+                        <td className="px-4 py-3 text-sm text-ink">-</td>
                       </tr>
                     );
                     
@@ -808,28 +808,28 @@ export default function StrategyBacktestSymbols() {
                       rows.push(
                         <tr 
                           key={`${trade.id}-exit`} 
-                          className={`hover:bg-gray-50 ${trade.is_winner ? 'bg-green-50' : 'bg-red-50'}`}
+                          className={`hover:bg-bg ${trade.is_winner ? 'bg-profit-soft' : 'bg-loss-soft'}`}
                         >
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <td className="px-4 py-3 text-sm text-ink">
                             {new Date(trade.exit_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{symbolTicker}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          <td className="px-4 py-3 text-sm font-medium text-ink">{symbolTicker}</td>
+                          <td className="px-4 py-3 text-sm text-ink">
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-surface-sunken text-ink">
                               Exit
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{formatTotalInvestedForTrade(trade)}</td>
+                          <td className="px-4 py-3 text-sm text-ink">{formatTotalInvestedForTrade(trade)}</td>
                           <HedgeTradeInvestedBodyCells
-                            show={!!backtest?.hedge_enabled}
+                            show={hedgeSplit}
                             trade={trade}
                             formatCurrency={formatCurrency}
                           />
-                          <td className="px-4 py-3 text-sm text-gray-900">{trade.quantity ? parseFloat(trade.quantity).toFixed(4) : 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <HedgeQtySplitBodyCells split={hedgeSplit} trade={trade} isHedgeLeg={isHedge} />
+                          <td className="px-4 py-3 text-sm text-ink">
                             {trade.entry_timestamp ? new Date(trade.entry_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <td className="px-4 py-3 text-sm text-ink">
                             {new Date(trade.exit_timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </td>
                           <HedgeTradePnlBodyCells
@@ -838,13 +838,13 @@ export default function StrategyBacktestSymbols() {
                             trade={trade}
                             formatCurrency={formatCurrency}
                           />
-                          <td className={`px-4 py-3 text-sm font-medium ${trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <td className={`px-4 py-3 text-sm font-medium ${trade.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                             {formatCurrency(trade.pnl)}
                           </td>
-                          <td className={`px-4 py-3 text-sm font-medium ${trade.pnl_percentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <td className={`px-4 py-3 text-sm font-medium ${trade.pnl_percentage >= 0 ? 'text-profit' : 'text-loss'}`}>
                             {trade.pnl_percentage !== null && trade.pnl_percentage !== undefined ? formatPercentage(trade.pnl_percentage) : 'N/A'}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <td className="px-4 py-3 text-sm text-ink">
                             {maxDrawdown !== null ? formatPercentage(maxDrawdown) : 'N/A'}
                           </td>
                         </tr>
@@ -858,8 +858,8 @@ export default function StrategyBacktestSymbols() {
             </div>
           ) : (
             <div className="text-center py-12">
-              <List className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No trades found for this backtest</p>
+              <List className="w-12 h-12 text-ink-tertiary mx-auto mb-4" />
+              <p className="text-ink-secondary">No trades found for this backtest</p>
             </div>
           )}
         </div>

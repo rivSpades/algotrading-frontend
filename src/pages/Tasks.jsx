@@ -4,8 +4,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Calendar,
-  Download,
+  BarChart3,
   Play,
   Pause,
   Trash2,
@@ -14,11 +13,12 @@ import {
   Search,
   Zap,
 } from 'lucide-react';
-import FetchSymbolsModal from '../components/FetchSymbolsModal';
+import FetchOHLCVModal from '../components/FetchOHLCVModal';
 import ScheduleTaskModal from '../components/ScheduleTaskModal';
 import TaskProgress from '../components/TaskProgress';
 import EditPeriodicTaskModal from '../components/EditPeriodicTaskModal';
 import { marketDataAPI } from '../data/api';
+import { fetchOHLCVData } from '../data/symbols';
 import { motion } from 'framer-motion';
 
 function normalizeScheduledList(responseData) {
@@ -51,7 +51,7 @@ function previewJson(obj) {
 }
 
 export default function Tasks() {
-  const [showFetchModal, setShowFetchModal] = useState(false);
+  const [showFetchOHLCVModal, setShowFetchOHLCVModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [taskId, setTaskId] = useState(null);
   const [showProgress, setShowProgress] = useState(false);
@@ -63,15 +63,13 @@ export default function Tasks() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [loadError, setLoadError] = useState(null);
 
-  const handleFetchSymbols = async (exchangeCodes, fetchAll) => {
+  const handleFetchOHLCV = async (fetchData) => {
     try {
-      const response = await marketDataAPI.fetchSymbols(exchangeCodes, fetchAll);
-      if (response.success) {
-        setTaskId(response.data.task_id);
-        setShowProgress(true);
-      }
+      const result = await fetchOHLCVData(fetchData);
+      setTaskId(result.taskId);
+      setShowProgress(true);
     } catch (error) {
-      alert(`Failed to start symbol fetch: ${error.message}`);
+      alert(`Failed to start OHLCV data fetch: ${error.message}`);
     }
   };
 
@@ -135,28 +133,6 @@ export default function Tasks() {
       return blob.includes(q);
     });
   }, [scheduledTasks, search]);
-
-  const handleScheduleTask = (taskType, config = {}) => {
-    if (taskType === 'fetch_symbols') {
-      setScheduleTaskConfig({ taskType, ...config });
-      setShowFetchModal(true);
-    } else {
-      setScheduleTaskConfig({ taskType, ...config });
-      setShowScheduleModal(true);
-    }
-  };
-
-  const handleFetchAndSchedule = (exchangeCodes, fetchAll) => {
-    setShowFetchModal(false);
-    setScheduleTaskConfig((prev) => ({
-      ...prev,
-      exchange_codes: exchangeCodes,
-      fetch_all: fetchAll,
-    }));
-    setTimeout(() => {
-      setShowScheduleModal(true);
-    }, 100);
-  };
 
   const handleCreateSchedule = async (scheduleData) => {
     try {
@@ -238,15 +214,10 @@ export default function Tasks() {
         />
       )}
 
-      <FetchSymbolsModal
-        isOpen={showFetchModal}
-        onClose={() => {
-          setShowFetchModal(false);
-          if (scheduleTaskConfig) {
-            setShowScheduleModal(true);
-          }
-        }}
-        onFetch={scheduleTaskConfig ? handleFetchAndSchedule : handleFetchSymbols}
+      <FetchOHLCVModal
+        isOpen={showFetchOHLCVModal}
+        onClose={() => setShowFetchOHLCVModal(false)}
+        onFetch={handleFetchOHLCV}
       />
 
       <ScheduleTaskModal
@@ -273,16 +244,16 @@ export default function Tasks() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-1">Task Scheduler</h1>
-            <p className="text-gray-600 text-sm">
-              Ad-hoc work below. <strong>Beat schedules</strong> shows every <code className="text-xs bg-gray-100 px-1 rounded">django_celery_beat</code> periodic task
+            <h1 className="text-3xl font-bold text-ink mb-1">Task Scheduler</h1>
+            <p className="text-ink-secondary text-sm">
+              Ad-hoc work below. <strong>Beat schedules</strong> shows every <code className="text-xs bg-surface-sunken px-1 rounded">django_celery_beat</code> periodic task
               (market open, weekend recalcs, symbol fetch, etc.); edit in place or in Django admin for solar/clocked.
             </p>
           </div>
           <button
             type="button"
             onClick={() => loadScheduledTasks()}
-            className="inline-flex items-center gap-2 self-start px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="inline-flex items-center gap-2 self-start px-3 py-2 text-sm border border-border-strong rounded-lg hover:bg-bg"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh list
@@ -290,45 +261,37 @@ export default function Tasks() {
         </div>
 
         <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">On-demand (run / schedule fetch)</h2>
+          <h2 className="text-xl font-semibold text-ink mb-4">On-demand (run / schedule fetch)</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <motion.div
               whileHover={{ y: -2 }}
-              className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
+              className="bg-surface rounded-lg shadow-md p-6 border border-border"
             >
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 bg-primary-100 rounded-lg">
-                  <Download className="w-6 h-6 text-primary-600" />
+                <div className="p-3 bg-accent-soft rounded-lg">
+                  <BarChart3 className="w-6 h-6 text-accent" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">Fetch symbols</h3>
-                  <p className="text-sm text-gray-500">EOD / exchange import</p>
+                  <h3 className="font-semibold text-ink">Fetch OHLCV data</h3>
+                  <p className="text-sm text-ink-tertiary">Symbols + historical bars</p>
                 </div>
               </div>
-              <p className="text-sm text-gray-600 mb-4">
-                One-off fetch or build a <strong>new</strong> interval/crontab entry for the fetch Celery task.
+              <p className="text-sm text-ink-secondary mb-4">
+                Resolves symbols via EOD when needed, then fetches OHLCV from the selected provider.
               </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowFetchModal(true)}
-                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
-                >
-                  Run now
-                </button>
-                <button
-                  onClick={() => handleScheduleTask('fetch_symbols', {})}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm flex items-center gap-2"
-                >
-                  <Calendar className="w-4 h-4" />
-                  Schedule
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowFetchOHLCVModal(true)}
+                className="w-full px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover text-sm font-medium"
+              >
+                Run now
+              </button>
             </motion.div>
           </div>
         </div>
 
         {loadError && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800">
+          <div className="mb-4 p-3 rounded-lg bg-loss-soft border border-loss text-sm text-loss-ink">
             <strong>Could not load Beat schedules.</strong> {loadError} Check the API response in the network tab
             (e.g. 500) and the Django log.
           </div>
@@ -336,33 +299,33 @@ export default function Tasks() {
 
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h2 className="text-xl font-semibold text-ink">
               Celery Beat — all periodic tasks ({filteredTasks.length}
               {search.trim() ? ` of ${scheduledTasks.length}` : ''})
             </h2>
             <div className="relative max-w-md w-full">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-tertiary" />
               <input
                 type="search"
                 placeholder="Filter by name, task, description…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg"
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-border-strong rounded-lg"
               />
             </div>
           </div>
 
           {loading ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">Loading…</div>
+            <div className="bg-surface rounded-lg shadow p-8 text-center text-ink-tertiary">Loading…</div>
           ) : scheduledTasks.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+            <div className="bg-surface rounded-lg shadow p-8 text-center text-ink-tertiary">
               No periodic tasks. Run migrations and{' '}
               <code className="text-xs">bootstrap_market_schedules</code> if you expect market-open / weekend jobs.
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
+            <div className="bg-surface rounded-lg shadow border border-border overflow-x-auto">
               <table className="min-w-full text-sm text-left">
-                <thead className="bg-gray-50 text-xs uppercase text-gray-500 border-b border-gray-200">
+                <thead className="bg-bg text-xs uppercase text-ink-tertiary border-b border-border">
                   <tr>
                     <th className="px-3 py-2 font-medium">Name</th>
                     <th className="px-3 py-2 font-medium">Task</th>
@@ -375,34 +338,34 @@ export default function Tasks() {
                     <th className="px-3 py-2 font-medium text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {filteredTasks.map((task) => (
-                    <tr key={task.id} className="hover:bg-gray-50/80">
-                      <td className="px-3 py-2 font-medium text-gray-900 align-top max-w-[180px]">
+                    <tr key={task.id} className="hover:bg-bg/80">
+                      <td className="px-3 py-2 font-medium text-ink align-top max-w-[180px]">
                         <span
                           className={`inline-block px-1.5 py-0.5 rounded text-xs font-normal mr-1 ${
-                            task.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                            task.enabled ? 'bg-profit-soft text-profit-ink' : 'bg-surface-sunken text-ink-secondary'
                           }`}
                         >
                           {task.enabled ? 'on' : 'off'}
                         </span>
                         {task.name}
                       </td>
-                      <td className="px-3 py-2 font-mono text-xs text-gray-700 align-top break-all max-w-xs">{task.task}</td>
-                      <td className="px-3 py-2 text-gray-600 align-top text-xs whitespace-pre-wrap max-w-[320px]">
+                      <td className="px-3 py-2 font-mono text-xs text-ink-secondary align-top break-all max-w-xs">{task.task}</td>
+                      <td className="px-3 py-2 text-ink-secondary align-top text-xs whitespace-pre-wrap max-w-[320px]">
                         {task.description || '—'}
                       </td>
-                      <td className="px-3 py-2 text-gray-600 align-top whitespace-nowrap">
+                      <td className="px-3 py-2 text-ink-secondary align-top whitespace-nowrap">
                         {task.schedule_type || '—'}
                       </td>
-                      <td className="px-3 py-2 text-gray-600 align-top text-xs">
+                      <td className="px-3 py-2 text-ink-secondary align-top text-xs">
                         {formatScheduleSummary(task)}
                       </td>
-                      <td className="px-3 py-2 text-gray-500 align-top text-xs font-mono">{previewJson(task.kwargs)}</td>
-                      <td className="px-3 py-2 text-gray-600 align-top whitespace-nowrap">
+                      <td className="px-3 py-2 text-ink-tertiary align-top text-xs font-mono">{previewJson(task.kwargs)}</td>
+                      <td className="px-3 py-2 text-ink-secondary align-top whitespace-nowrap">
                         {task.total_run_count != null ? task.total_run_count : '—'}
                       </td>
-                      <td className="px-3 py-2 text-gray-600 align-top text-xs whitespace-nowrap">
+                      <td className="px-3 py-2 text-ink-secondary align-top text-xs whitespace-nowrap">
                         {task.last_run_at
                           ? new Date(task.last_run_at).toLocaleString()
                           : '—'}
@@ -420,7 +383,7 @@ export default function Tasks() {
                           <button
                             type="button"
                             onClick={() => openEdit(task)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                            className="p-1.5 text-accent hover:bg-accent-soft rounded"
                             title="Edit"
                           >
                             <Pencil className="w-4 h-4" />
@@ -429,7 +392,7 @@ export default function Tasks() {
                             <button
                               type="button"
                               onClick={() => handleDisableTask(task.id)}
-                              className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
+                              className="p-1.5 text-ink-secondary hover:bg-surface-hover rounded"
                               title="Disable"
                             >
                               <Pause className="w-4 h-4" />
@@ -438,7 +401,7 @@ export default function Tasks() {
                             <button
                               type="button"
                               onClick={() => handleEnableTask(task.id)}
-                              className="p-1.5 text-gray-600 hover:text-green-600 rounded"
+                              className="p-1.5 text-ink-secondary hover:text-profit rounded"
                               title="Enable"
                             >
                               <Play className="w-4 h-4" />
@@ -447,7 +410,7 @@ export default function Tasks() {
                           <button
                             type="button"
                             onClick={() => handleDeleteTask(task.id)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                            className="p-1.5 text-loss hover:bg-loss-soft rounded"
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -459,7 +422,7 @@ export default function Tasks() {
                 </tbody>
               </table>
               {search.trim() && filteredTasks.length === 0 && (
-                <p className="p-4 text-center text-sm text-gray-500">No tasks match the filter.</p>
+                <p className="p-4 text-center text-sm text-ink-tertiary">No tasks match the filter.</p>
               )}
             </div>
           )}

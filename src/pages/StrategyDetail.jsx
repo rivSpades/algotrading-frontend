@@ -3,12 +3,11 @@
  * Shows strategy details and allows backtesting
  */
 
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Chart from 'react-apexcharts';
 import {
-  ArrowLeft,
   TrendingUp,
   Code,
   Settings,
@@ -35,10 +34,12 @@ import { getBacktests, deleteBacktest } from '../data/backtests';
 import BacktestConfig from '../components/BacktestConfig';
 import SymbolCard from '../components/SymbolCard';
 import DeployStrategyModal from '../components/DeployStrategyModal';
+import BackButton from '../components/BackButton';
+import { useNavigateBack } from '../lib/navigation';
 
 export default function StrategyDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
+  const { goBack, navigateWithReturn } = useNavigateBack('/strategies');
   const [strategy, setStrategy] = useState(null);
   const [backtests, setBacktests] = useState([]);
   const [backtestsCount, setBacktestsCount] = useState(0);
@@ -303,25 +304,25 @@ export default function StrategyDetail() {
       setSnapshotPage(1);
       refreshAllSnapshotPanels({ preferParameterSet: ps || null });
       if (q) {
-        navigate(`/strategies/${id}/${q.ticker}?run=${q.run_id || q.id}`);
+        navigateWithReturn(`/strategies/${id}/${q.ticker}?run=${q.run_id || q.id}`);
       } else {
-        navigate(`/strategies/${id}`);
+        navigateWithReturn(`/strategies/${id}`);
       }
       return;
     }
     if (ctx?.runMode === 'single_symbol' && ctx?.ticker && backtest?.id) {
       loadBacktests();
       refreshAllSnapshotPanels();
-      navigate(`/strategies/${id}/${ctx.ticker}?run=${backtest.id}`);
+      navigateWithReturn(`/strategies/${id}/${ctx.ticker}?run=${backtest.id}`);
       return;
     }
     if (backtest?.id) {
-      navigate(`/strategies/${id}/backtests/${backtest.id}`);
+      navigateWithReturn(`/strategies/${id}/backtests/${backtest.id}`);
       loadBacktests();
       refreshAllSnapshotPanels();
       return;
     }
-    navigate(`/strategies/${id}`);
+    navigateWithReturn(`/strategies/${id}`);
     loadBacktests();
     refreshAllSnapshotPanels();
   };
@@ -379,13 +380,13 @@ export default function StrategyDetail() {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
+        return <CheckCircle className="w-5 h-5 text-profit" />;
       case 'failed':
-        return <XCircle className="w-5 h-5 text-red-600" />;
+        return <XCircle className="w-5 h-5 text-loss" />;
       case 'running':
-        return <Clock className="w-5 h-5 text-yellow-600 animate-spin" />;
+        return <Clock className="w-5 h-5 text-status-pending animate-spin" />;
       default:
-        return <Clock className="w-5 h-5 text-gray-600" />;
+        return <Clock className="w-5 h-5 text-ink-secondary" />;
     }
   };
 
@@ -401,10 +402,10 @@ export default function StrategyDetail() {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center py-8">
-          <p className="text-gray-600">Strategy not found</p>
+          <p className="text-ink-secondary">Strategy not found</p>
           <button
-            onClick={() => navigate('/strategies')}
-            className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            onClick={goBack}
+            className="mt-4 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover"
           >
             Back to Strategies
           </button>
@@ -415,25 +416,19 @@ export default function StrategyDetail() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <button
-        onClick={() => navigate('/strategies')}
-        className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-900"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Strategies
-      </button>
+      <BackButton to="/strategies" label="Back to Strategies" className="mb-6 flex items-center gap-2 text-ink-secondary hover:text-ink" iconClassName="w-4 h-4" />
 
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+      <div className="bg-surface rounded-lg shadow-lg p-6 mb-6">
         <div className="flex items-start justify-between mb-6">
           <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{strategy.name}</h1>
+            <h1 className="text-3xl font-bold text-ink mb-2">{strategy.name}</h1>
             {strategy.description_short && (
-              <p className="text-lg text-gray-600 mb-4">{strategy.description_short}</p>
+              <p className="text-lg text-ink-secondary mb-4">{strategy.description_short}</p>
             )}
             <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
               strategy.globally_enabled
-                ? 'bg-green-100 text-green-800'
-                : 'bg-gray-100 text-gray-800'
+                ? 'bg-profit-soft text-profit-ink'
+                : 'bg-surface-sunken text-ink'
             }`}>
               {strategy.globally_enabled ? 'Globally Enabled' : 'Disabled'}
             </span>
@@ -455,12 +450,12 @@ export default function StrategyDetail() {
         {/* Long Description */}
         {strategy.description_long && (
           <div className="mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <h2 className="text-xl font-semibold text-ink mb-3 flex items-center gap-2">
               <Settings className="w-5 h-5" />
               Description
             </h2>
             <div className="prose max-w-none">
-              <p className="text-gray-700 whitespace-pre-line">{strategy.description_long.trim()}</p>
+              <p className="text-ink-secondary whitespace-pre-line">{strategy.description_long.trim()}</p>
             </div>
           </div>
         )}
@@ -468,7 +463,7 @@ export default function StrategyDetail() {
         {/* Analytical Tools Used */}
         {strategy.analytic_tools_used && strategy.analytic_tools_used.length > 0 && (
           <div className="mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <h2 className="text-xl font-semibold text-ink mb-3 flex items-center gap-2">
               <TrendingUp className="w-5 h-5" />
               Required Indicators
             </h2>
@@ -476,7 +471,7 @@ export default function StrategyDetail() {
               {strategy.analytic_tools_used.map((tool) => (
                 <span
                   key={tool}
-                  className="px-4 py-2 bg-primary-50 text-primary-700 rounded-lg font-medium"
+                  className="px-4 py-2 bg-accent-soft text-accent-ink rounded-lg font-medium"
                 >
                   {tool}
                 </span>
@@ -489,18 +484,18 @@ export default function StrategyDetail() {
         {/* Default Parameters */}
         {strategy.default_parameters && Object.keys(strategy.default_parameters).length > 0 && (
           <div className="mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <h2 className="text-xl font-semibold text-ink mb-3 flex items-center gap-2">
               <Settings className="w-5 h-5" />
               Default Parameters
             </h2>
-            <div className="bg-gray-50 rounded-lg p-4">
+            <div className="bg-bg rounded-lg p-4">
               <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {Object.entries(strategy.default_parameters).map(([key, value]) => (
                   <div key={key}>
-                    <dt className="text-sm font-medium text-gray-500 capitalize mb-1">
+                    <dt className="text-sm font-medium text-ink-tertiary capitalize mb-1">
                       {key.replace(/_/g, ' ')}
                     </dt>
-                    <dd className="text-lg font-semibold text-gray-900">{value}</dd>
+                    <dd className="text-lg font-semibold text-ink">{value}</dd>
                   </div>
                 ))}
               </dl>
@@ -511,12 +506,12 @@ export default function StrategyDetail() {
         {/* Example Code */}
         {strategy.example_code && (
           <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <h2 className="text-xl font-semibold text-ink mb-3 flex items-center gap-2">
               <Code className="w-5 h-5" />
               Example Code
             </h2>
-            <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
-              <pre className="text-sm text-gray-100 whitespace-pre-wrap">
+            <div className="bg-surface-sunken rounded-lg p-4 overflow-x-auto">
+              <pre className="text-sm text-ink whitespace-pre-wrap">
                 {strategy.example_code.trim()}
               </pre>
             </div>
@@ -525,9 +520,9 @@ export default function StrategyDetail() {
       </div>
 
       {/* Single-symbol snapshots (card grid + search); portfolio runs also list symbols on each backtest detail page */}
-      <div className="mb-6 bg-white rounded-lg shadow-lg p-6">
+      <div className="mb-6 bg-surface rounded-lg shadow-lg p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <h2 className="text-xl font-bold text-ink flex items-center gap-2">
             <List className="w-5 h-5 shrink-0" />
             Single-symbol snapshots ({snapshotSymbolsCount || 0})
           </h2>
@@ -537,7 +532,7 @@ export default function StrategyDetail() {
                 type="button"
                 onClick={() => setDeployModalOpen(true)}
                 disabled={snapshotSymbolsLoading}
-                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-accent-soft text-accent-ink bg-accent-soft hover:bg-status-running-soft disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Rocket className="w-4 h-4" />
                 Deploy
@@ -548,7 +543,7 @@ export default function StrategyDetail() {
                 type="button"
                 onClick={handleDeleteAllSnapshots}
                 disabled={deletingAllSnapshots || snapshotSymbolsLoading}
-                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-loss text-loss-ink bg-loss-soft hover:bg-loss-soft disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Trash2 className="w-4 h-4" />
                 {deletingAllSnapshots
@@ -560,7 +555,7 @@ export default function StrategyDetail() {
             )}
           </div>
         </div>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-ink-secondary mb-4">
           Click a card to open the symbol page for this strategy (latest run is pre-selected). Use{' '}
           <strong>Delete all snapshots</strong> to remove every stored single-symbol run for this strategy; portfolio
           backtests stay.
@@ -568,7 +563,7 @@ export default function StrategyDetail() {
 
         <div className="mb-6 space-y-3">
           <label className="text-sm block">
-            <span className="text-gray-600">Global test</span>
+            <span className="text-ink-secondary">Global test</span>
             <select
               value={selectedSnapshotParameterSet}
               onChange={(e) => {
@@ -578,7 +573,7 @@ export default function StrategyDetail() {
                 riskScatterLoadedForRef.current = '';
                 loadRiskScatter({ parameterSet: next, force: true });
               }}
-              className="mt-1 w-full px-3 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="mt-1 w-full px-3 py-3 border border-border-strong rounded-lg bg-surface focus:ring-2 focus:ring-accent focus:border-transparent"
             >
               {snapshotParameterSets.map((ps) => (
                 <option key={ps.signature} value={ps.signature}>
@@ -589,13 +584,13 @@ export default function StrategyDetail() {
           </label>
 
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary w-5 h-5" />
             <input
               type="text"
               value={snapshotSearch}
               onChange={handleSnapshotSearchChange}
               placeholder="Search symbols by ticker..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-3 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
             />
             {snapshotSearch && (
               <button
@@ -604,7 +599,7 @@ export default function StrategyDetail() {
                   setSnapshotSearch('');
                   setSnapshotPage(1);
                 }}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary hover:text-ink-secondary"
                 title="Clear search"
               >
                 ✕
@@ -615,8 +610,8 @@ export default function StrategyDetail() {
 
         {snapshotSymbolsLoading ? (
           <div className="text-center py-12">
-            <Loader className="w-8 h-8 animate-spin mx-auto text-primary-600" />
-            <p className="text-gray-600 mt-4">Loading symbols...</p>
+            <Loader className="w-8 h-8 animate-spin mx-auto text-accent" />
+            <p className="text-ink-secondary mt-4">Loading symbols...</p>
           </div>
         ) : snapshotSymbols.length > 0 ? (
           <>
@@ -638,11 +633,11 @@ export default function StrategyDetail() {
                       footer={footer}
                       onClick={(s) => {
                         if (s.latest_run_id) {
-                          navigate(
+                          navigateWithReturn(
                             `/strategies/${id}/${encodeURIComponent(s.ticker)}?run=${s.latest_run_id}`,
                           );
                         } else {
-                          navigate(`/strategies/${id}/${encodeURIComponent(s.ticker)}`);
+                          navigateWithReturn(`/strategies/${id}/${encodeURIComponent(s.ticker)}`);
                         }
                       }}
                     />
@@ -652,7 +647,7 @@ export default function StrategyDetail() {
             </div>
 
             {snapshotTotalPages > 1 && (
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
@@ -662,14 +657,14 @@ export default function StrategyDetail() {
                   disabled={snapshotPage <= 1}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
                     snapshotPage > 1
-                      ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                      ? 'bg-surface-sunken text-ink-secondary hover:bg-surface-sunken'
+                      : 'bg-bg text-ink-tertiary cursor-not-allowed'
                   }`}
                 >
                   <ChevronLeft className="w-4 h-4" />
                   Previous
                 </button>
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-ink-secondary">
                   Page {snapshotPage} of {snapshotTotalPages} ({snapshotSymbolsCount || 0} total)
                 </span>
                 <button
@@ -681,8 +676,8 @@ export default function StrategyDetail() {
                   disabled={snapshotPage >= snapshotTotalPages}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
                     snapshotPage < snapshotTotalPages
-                      ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                      ? 'bg-surface-sunken text-ink-secondary hover:bg-surface-sunken'
+                      : 'bg-bg text-ink-tertiary cursor-not-allowed'
                   }`}
                 >
                   Next
@@ -692,19 +687,19 @@ export default function StrategyDetail() {
             )}
           </>
         ) : (
-          <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <p className="text-gray-500 text-lg">
+          <div className="text-center py-12 bg-bg rounded-lg">
+            <p className="text-ink-tertiary text-lg">
               {snapshotSymbolsCount === 0 ? 'No single-symbol snapshots yet.' : 'No symbols match your search.'}
             </p>
           </div>
         )}
 
         {selectedSnapshotParameterSet && (
-          <div className="mt-6 border border-gray-200 rounded-lg p-4 bg-white">
+          <div className="mt-6 border border-border rounded-lg p-4 bg-surface">
             <div className="flex items-center justify-between gap-3 mb-3">
-              <h3 className="text-sm font-semibold text-gray-900">Sharpe vs Max Drawdown (scatter)</h3>
+              <h3 className="text-sm font-semibold text-ink">Sharpe vs Max Drawdown (scatter)</h3>
               {riskScatterLoading && (
-                <div className="flex items-center gap-2 text-xs text-gray-600">
+                <div className="flex items-center gap-2 text-xs text-ink-secondary">
                   <Loader className="w-4 h-4 animate-spin" />
                   Loading…
                 </div>
@@ -818,8 +813,8 @@ export default function StrategyDetail() {
                             onClick={() => setRiskScatterTab('long')}
                             className={`px-3 py-1.5 text-sm rounded-md border ${
                               riskScatterTab === 'long'
-                                ? 'bg-white border-gray-300 text-gray-900 shadow-sm'
-                                : 'bg-transparent border-transparent text-gray-600 hover:text-gray-900'
+                                ? 'bg-surface border-border-strong text-ink shadow-sm'
+                                : 'bg-transparent border-transparent text-ink-secondary hover:text-ink'
                             }`}
                           >
                             LONG
@@ -829,13 +824,13 @@ export default function StrategyDetail() {
                             onClick={() => setRiskScatterTab('short')}
                             className={`px-3 py-1.5 text-sm rounded-md border ${
                               riskScatterTab === 'short'
-                                ? 'bg-white border-gray-300 text-gray-900 shadow-sm'
-                                : 'bg-transparent border-transparent text-gray-600 hover:text-gray-900'
+                                ? 'bg-surface border-border-strong text-ink shadow-sm'
+                                : 'bg-transparent border-transparent text-ink-secondary hover:text-ink'
                             }`}
                           >
                             SHORT
                           </button>
-                          <span className="text-xs text-gray-600 ml-auto">
+                          <span className="text-xs text-ink-secondary ml-auto">
                             Showing {points.length} symbol(s)
                           </span>
                         </div>
@@ -862,7 +857,7 @@ export default function StrategyDetail() {
                               const point = chartContext?.w?.config?.series?.[0]?.data?.[pIdx];
                               const ticker = point?._ticker;
                               if (!ticker) return;
-                              navigate(`/strategies/${id}/${encodeURIComponent(ticker)}`);
+                              navigateWithReturn(`/strategies/${id}/${encodeURIComponent(ticker)}`);
                             } catch (e) {
                               console.error(e);
                             }
@@ -907,7 +902,7 @@ export default function StrategyDetail() {
                     }}
                   />
                   <div className="mt-3 overflow-x-auto">
-                    <div className="min-w-[560px] text-xs text-gray-700">
+                    <div className="min-w-[560px] text-xs text-ink-secondary">
                       <div className="font-medium mb-2">Color = Sharpe bucket × |Max drawdown| bucket</div>
                       <div className="grid grid-cols-[120px_repeat(4,1fr)] gap-2 items-center">
                         <div />
@@ -942,7 +937,7 @@ export default function StrategyDetail() {
                       </div>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-600 mt-2">
+                  <p className="text-xs text-ink-secondary mt-2">
                     Tip: click a point to open the symbol page.
                   </p>
                       </>
@@ -951,7 +946,7 @@ export default function StrategyDetail() {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-ink-secondary">
                 No statistics yet for this global test (runs may still be running or missing statistics).
               </p>
             )}
@@ -960,25 +955,25 @@ export default function StrategyDetail() {
       </div>
 
       {/* Backtest History */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+      <div className="bg-surface rounded-lg shadow-lg p-6">
+        <h2 className="text-2xl font-bold text-ink mb-4 flex items-center gap-2">
           <Clock className="w-6 h-6" />
           Backtest History
         </h2>
         
         {backtestsLoading ? (
-          <div className="text-center py-8 text-gray-500">Loading backtest history...</div>
+          <div className="text-center py-8 text-ink-tertiary">Loading backtest history...</div>
         ) : backtests.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">No backtests yet. Run a backtest to see results here.</div>
+          <div className="text-center py-8 text-ink-tertiary">No backtests yet. Run a backtest to see results here.</div>
         ) : (
           <>
             {/* Results Count and Pagination Info */}
             {backtestsCount > 0 && (
               <div className="mb-4 flex items-center justify-between">
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-ink-secondary">
                   Found {backtestsCount} backtest{backtestsCount !== 1 ? 's' : ''}
                   {backtests.length > 0 && backtestsCount > 0 && (
-                    <span className="text-gray-500">
+                    <span className="text-ink-tertiary">
                       {' '}(Showing {((currentPage - 1) * 20) + 1}-{Math.min(currentPage * 20, backtestsCount)})
                     </span>
                   )}
@@ -994,12 +989,12 @@ export default function StrategyDetail() {
                         }
                       }}
                       disabled={!backtestsPrevious}
-                      className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                      className="px-3 py-2 border border-border-strong rounded-lg hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                     >
                       <ChevronLeft className="w-4 h-4" />
                       Previous
                     </button>
-                    <span className="text-sm text-gray-600 px-2">
+                    <span className="text-sm text-ink-secondary px-2">
                       Page {currentPage}
                     </span>
                     <button
@@ -1011,7 +1006,7 @@ export default function StrategyDetail() {
                         }
                       }}
                       disabled={!backtestsNext}
-                      className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                      className="px-3 py-2 border border-border-strong rounded-lg hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                     >
                       Next
                       <ChevronRight className="w-4 h-4" />
@@ -1022,57 +1017,57 @@ export default function StrategyDetail() {
             )}
 
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-border">
+                <thead className="bg-bg">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date Range</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Symbols</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Date Range</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Symbols</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Created</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-surface divide-y divide-border">
                   {backtests.map((backtest) => (
-                    <tr key={backtest.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    <tr key={backtest.id} className="hover:bg-bg">
+                      <td className="px-4 py-3 text-sm font-medium text-ink">
                         {backtest.name || `Backtest #${backtest.id}`}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-ink-secondary">
                         {formatDate(backtest.start_date)} - {formatDate(backtest.end_date)}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-ink-secondary">
                         {backtest.symbols_count ?? backtest.symbols_info?.length ?? backtest.symbols?.length ?? 0} symbol(s)
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <div className="flex items-center gap-2">
                           {getStatusIcon(backtest.status)}
                           <span className={`font-medium capitalize ${
-                            backtest.status === 'completed' ? 'text-green-600' :
-                            backtest.status === 'failed' ? 'text-red-600' :
-                            backtest.status === 'running' ? 'text-yellow-600' :
-                            'text-gray-600'
+                            backtest.status === 'completed' ? 'text-profit' :
+                            backtest.status === 'failed' ? 'text-loss' :
+                            backtest.status === 'running' ? 'text-status-pending' :
+                            'text-ink-secondary'
                           }`}>
                             {backtest.status}
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-ink-secondary">
                         {formatDate(backtest.created_at)}
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <div className="flex items-center gap-3">
                           <button
-                            onClick={() => navigate(`/strategies/${id}/backtests/${backtest.id}`)}
-                            className="text-primary-600 hover:text-primary-800 font-medium"
+                            onClick={() => navigateWithReturn(`/strategies/${id}/backtests/${backtest.id}`)}
+                            className="text-accent hover:text-accent-ink font-medium"
                           >
                             View Symbols
                           </button>
                           <button
                             onClick={() => handleDeleteBacktest(backtest.id)}
                             disabled={deleting || backtest.status === 'running'}
-                            className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                            className="text-loss hover:text-loss-ink disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                             title={backtest.status === 'running' ? 'Cannot delete running backtest' : 'Delete backtest'}
                           >
                             <Trash2 className="w-4 h-4" />

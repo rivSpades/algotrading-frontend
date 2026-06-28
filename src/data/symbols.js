@@ -54,6 +54,17 @@ export async function getSymbolOHLCV(ticker, timeframe = 'daily', startDate = nu
 }
 
 /**
+ * Resolve symbol via EOD (ambiguous → candidates for user pick)
+ */
+export async function resolveSymbol(ticker, exchangeCode = null) {
+  const response = await marketDataAPI.resolveSymbol(ticker, exchangeCode);
+  if (response.success) {
+    return response.data;
+  }
+  throw new Error(response.error || 'Failed to resolve symbol');
+}
+
+/**
  * Fetch OHLCV data (single, multiple, or by exchange)
  */
 export async function fetchOHLCVData(data) {
@@ -147,5 +158,32 @@ export async function deleteSymbol(ticker) {
     console.error('Error deleting symbol:', error);
     throw error;
   }
+}
+
+export async function updateAllSymbolsData({ exchangeCode = null, brokerId = null } = {}) {
+  const payload = {};
+  if (exchangeCode) payload.exchange_code = exchangeCode;
+  if (brokerId) payload.broker_id = brokerId;
+  const response = await marketDataAPI.updateAllSymbolsData(payload);
+  if (response.success) {
+    return { taskId: response.data.task_id, message: response.data.message };
+  }
+  throw new Error(response.error || 'Failed to start bulk update');
+}
+
+export async function deleteOHLCVDataBulk(data) {
+  const response = await marketDataAPI.deleteOHLCVData(data);
+  if (response.success) {
+    return { taskId: response.data.task_id, message: response.data.message };
+  }
+  throw new Error(response.error || 'Failed to start OHLCV deletion');
+}
+
+export async function deleteSymbolsBulk(data) {
+  const response = await marketDataAPI.deleteSymbolsBulk(data);
+  if (response.success) {
+    return { taskId: response.data.task_id, message: response.data.message };
+  }
+  throw new Error(response.error || 'Failed to start symbol deletion');
 }
 

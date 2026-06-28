@@ -118,12 +118,12 @@ export default function TaskProgress({ taskId, onComplete, onClose }) {
     switch (status) {
       case 'completed':
       case 'success':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
+        return <CheckCircle className="w-5 h-5 text-profit" />;
       case 'failed':
       case 'error':
-        return <XCircle className="w-5 h-5 text-red-500" />;
+        return <XCircle className="w-5 h-5 text-loss" />;
       default:
-        return <Loader className="w-5 h-5 text-primary-600 animate-spin" />;
+        return <Loader className="w-5 h-5 text-accent animate-spin" />;
     }
   };
 
@@ -131,12 +131,12 @@ export default function TaskProgress({ taskId, onComplete, onClose }) {
     switch (status) {
       case 'completed':
       case 'success':
-        return 'bg-green-500';
+        return 'bg-profit-soft0';
       case 'failed':
       case 'error':
-        return 'bg-red-500';
+        return 'bg-loss-soft0';
       default:
-        return 'bg-primary-600';
+        return 'bg-accent';
     }
   };
 
@@ -148,16 +148,16 @@ export default function TaskProgress({ taskId, onComplete, onClose }) {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
-        className="fixed top-4 right-4 z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-4 min-w-[320px] max-w-md"
+        className="fixed top-4 right-4 z-50 bg-surface rounded-lg shadow-xl border border-border p-4 min-w-[320px] max-w-md"
       >
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2">
             {getStatusIcon()}
-            <h3 className="font-semibold text-gray-900">Task Progress</h3>
+            <h3 className="font-semibold text-ink">Task Progress</h3>
           </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-ink-tertiary hover:text-ink-secondary transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -165,10 +165,10 @@ export default function TaskProgress({ taskId, onComplete, onClose }) {
 
         <div className="mb-2">
           <div className="flex items-center justify-between text-sm mb-1">
-            <span className="text-gray-600">{message}</span>
-            <span className="text-gray-600 font-medium">{progress}%</span>
+            <span className="text-ink-secondary">{message}</span>
+            <span className="text-ink-secondary font-medium">{progress}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+          <div className="w-full bg-surface-sunken rounded-full h-2 overflow-hidden">
             <motion.div
               className={`h-full ${getStatusColor()}`}
               initial={{ width: 0 }}
@@ -185,13 +185,13 @@ export default function TaskProgress({ taskId, onComplete, onClose }) {
         )}
 
         {(status === 'completed' || status === 'success') && (
-          <div className="text-sm text-green-600 mt-2 font-medium">
+          <div className="text-sm text-profit mt-2 font-medium">
             Task completed successfully!
           </div>
         )}
 
         {(status === 'failed' || status === 'error') && (
-          <div className="text-sm text-red-600 mt-2 font-medium">
+          <div className="text-sm text-loss mt-2 font-medium">
             Task failed. Please try again.
           </div>
         )}

@@ -130,8 +130,8 @@ export default function PlatformLogs() {
         <div className="flex items-center gap-3">
           <FileText className="w-7 h-7 text-slate-600" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Platform log</h1>
-            <p className="text-sm text-gray-500">
+            <h1 className="text-2xl font-bold text-ink">Platform log</h1>
+            <p className="text-sm text-ink-tertiary">
               All deployment and system events, paginated from the server.
             </p>
           </div>
@@ -140,7 +140,7 @@ export default function PlatformLogs() {
           type="button"
           onClick={() => load()}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-ink-secondary bg-surface border border-border-strong rounded-md hover:bg-bg"
         >
           {loading ? <Loader className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           Refresh
@@ -149,7 +149,7 @@ export default function PlatformLogs() {
 
       <form
         key={searchParams.toString()}
-        className="mb-4 p-4 bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col gap-3"
+        className="mb-4 p-4 bg-surface rounded-lg border border-border shadow-sm flex flex-col gap-3"
         onSubmit={(e) => {
           e.preventDefault();
           const fd = new FormData(e.currentTarget);
@@ -166,21 +166,21 @@ export default function PlatformLogs() {
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Search (message, type, actor id)</label>
+            <label className="block text-xs font-medium text-ink-tertiary mb-1">Search (message, type, actor id)</label>
             <input
               name="q"
               type="search"
               defaultValue={q}
               placeholder="Search…"
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+              className="w-full px-2 py-1.5 text-sm border border-border-strong rounded-md"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Event type</label>
+            <label className="block text-xs font-medium text-ink-tertiary mb-1">Event type</label>
             <select
               name="event_type"
               defaultValue={eventType}
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+              className="w-full px-2 py-1.5 text-sm border border-border-strong rounded-md"
             >
               {EVENT_TYPES.map((t) => (
                 <option key={t || 'all'} value={t}>
@@ -190,11 +190,11 @@ export default function PlatformLogs() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Level</label>
+            <label className="block text-xs font-medium text-ink-tertiary mb-1">Level</label>
             <select
               name="level"
               defaultValue={level}
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+              className="w-full px-2 py-1.5 text-sm border border-border-strong rounded-md"
             >
               {LEVELS.map((t) => (
                 <option key={t || 'all-l'} value={t}>
@@ -204,11 +204,11 @@ export default function PlatformLogs() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Actor</label>
+            <label className="block text-xs font-medium text-ink-tertiary mb-1">Actor</label>
             <select
               name="actor_type"
               defaultValue={actorType}
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+              className="w-full px-2 py-1.5 text-sm border border-border-strong rounded-md"
             >
               {ACTOR_TYPES.map((t) => (
                 <option key={t || 'all-a'} value={t}>
@@ -220,22 +220,22 @@ export default function PlatformLogs() {
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Deployment id</label>
+            <label className="block text-xs font-medium text-ink-tertiary mb-1">Deployment id</label>
             <input
               name="deployment"
               type="text"
               inputMode="numeric"
               defaultValue={deployment}
               placeholder="Optional"
-              className="w-40 px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+              className="w-40 px-2 py-1.5 text-sm border border-border-strong rounded-md"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Page size</label>
+            <label className="block text-xs font-medium text-ink-tertiary mb-1">Page size</label>
             <select
               name="page_size"
               defaultValue={String(pageSize)}
-              className="w-full max-w-[8rem] px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+              className="w-full max-w-[8rem] px-2 py-1.5 text-sm border border-border-strong rounded-md"
             >
               {PAGE_SIZES.map((n) => (
                 <option key={n} value={n}>
@@ -246,7 +246,7 @@ export default function PlatformLogs() {
           </div>
           <button
             type="submit"
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+            className="px-4 py-2 text-sm font-medium text-white bg-accent rounded-md hover:bg-accent-hover"
           >
             Apply
           </button>
@@ -254,17 +254,17 @@ export default function PlatformLogs() {
       </form>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-800 text-sm rounded-md">{error}</div>
+        <div className="mb-4 p-3 bg-loss-soft border border-loss text-loss-ink text-sm rounded-md">{error}</div>
       )}
 
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-4 py-2 border-b bg-gray-50 text-xs text-gray-600">
+      <div className="bg-surface rounded-lg border border-border shadow-sm overflow-hidden">
+        <div className="px-4 py-2 border-b bg-bg text-xs text-ink-secondary">
           {data.count} total log entries
           {loading && <Loader className="inline w-3 h-3 ml-2 animate-spin" />}
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+          <table className="min-w-full divide-y divide-border text-sm">
+            <thead className="bg-bg text-xs uppercase text-ink-tertiary">
               <tr>
                 <th className="px-3 py-2 text-left whitespace-nowrap">Time</th>
                 <th className="px-3 py-2 text-left">Level</th>
@@ -275,22 +275,22 @@ export default function PlatformLogs() {
                 <th className="px-3 py-2 text-left">Symbol</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border">
               {!loading && data.results.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-3 py-8 text-center text-ink-tertiary">
                     No log entries.
                   </td>
                 </tr>
               )}
               {data.results.map((row) => (
-                <tr key={row.id} className="hover:bg-gray-50/80">
-                  <td className="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">{fmtTime(row.created_at)}</td>
+                <tr key={row.id} className="hover:bg-bg/80">
+                  <td className="px-3 py-2 text-xs text-ink-secondary whitespace-nowrap">{fmtTime(row.created_at)}</td>
                   <td className="px-3 py-2">
                     <span
                       className={`px-1.5 py-0.5 rounded text-xs font-medium ${
                         row.level === 'error'
-                          ? 'bg-red-100 text-red-800'
+                          ? 'bg-loss-soft text-loss-ink'
                           : row.level === 'warning'
                             ? 'bg-amber-100 text-amber-800'
                             : 'bg-slate-100 text-slate-700'
@@ -299,12 +299,12 @@ export default function PlatformLogs() {
                       {row.level}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-xs font-mono text-gray-800">{row.event_type}</td>
+                  <td className="px-3 py-2 text-xs font-mono text-ink">{row.event_type}</td>
                   <td className="px-3 py-2 text-xs">
                     {row.deployment ? (
                       <Link
                         to={`/deployments/${row.deployment}`}
-                        className="text-primary-600 hover:underline"
+                        className="text-accent hover:underline"
                         title={row.deployment_name || row.deployment}
                       >
                         {row.deployment_name || `#${row.deployment}`}
@@ -313,25 +313,25 @@ export default function PlatformLogs() {
                       '—'
                     )}
                   </td>
-                  <td className="px-3 py-2 text-xs text-gray-600">
+                  <td className="px-3 py-2 text-xs text-ink-secondary">
                     {row.actor_type}
-                    {row.actor_id ? <span className="text-gray-400"> · {row.actor_id}</span> : null}
+                    {row.actor_id ? <span className="text-ink-tertiary"> · {row.actor_id}</span> : null}
                   </td>
-                  <td className="px-3 py-2 text-xs text-gray-800 max-w-md">
+                  <td className="px-3 py-2 text-xs text-ink max-w-md">
                     {row.message || '—'}
                     {row.error ? (
-                      <pre className="mt-1 text-red-700 whitespace-pre-wrap break-words text-[11px]">{row.error}</pre>
+                      <pre className="mt-1 text-loss-ink whitespace-pre-wrap break-words text-[11px]">{row.error}</pre>
                     ) : null}
                     {row.context && Object.keys(row.context).length > 0 ? (
                       <details className="mt-1">
-                        <summary className="cursor-pointer text-gray-500">Context</summary>
-                        <pre className="mt-1 p-2 bg-gray-100 rounded text-[11px] overflow-x-auto max-h-32">
+                        <summary className="cursor-pointer text-ink-tertiary">Context</summary>
+                        <pre className="mt-1 p-2 bg-surface-sunken rounded text-[11px] overflow-x-auto max-h-32">
                           {JSON.stringify(row.context, null, 2)}
                         </pre>
                       </details>
                     ) : null}
                   </td>
-                  <td className="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">
+                  <td className="px-3 py-2 text-xs text-ink-secondary whitespace-nowrap">
                     {row.deployment_symbol_ticker || '—'}
                   </td>
                 </tr>
@@ -340,7 +340,7 @@ export default function PlatformLogs() {
           </table>
         </div>
         {data.count > 0 && (
-          <div className="px-4 py-3 border-t flex flex-wrap items-center justify-between gap-2 text-sm text-gray-700">
+          <div className="px-4 py-3 border-t flex flex-wrap items-center justify-between gap-2 text-sm text-ink-secondary">
             <span>
               Page {page} of {totalPages}
             </span>
@@ -349,7 +349,7 @@ export default function PlatformLogs() {
                 type="button"
                 disabled={!canPrev || loading}
                 onClick={() => updateParams({ page: String(page - 1) })}
-                className="px-3 py-1.5 border border-gray-300 rounded-md disabled:opacity-40"
+                className="px-3 py-1.5 border border-border-strong rounded-md disabled:opacity-40"
               >
                 Previous
               </button>
@@ -357,7 +357,7 @@ export default function PlatformLogs() {
                 type="button"
                 disabled={!canNext || loading}
                 onClick={() => updateParams({ page: String(page + 1) })}
-                className="px-3 py-1.5 border border-gray-300 rounded-md disabled:opacity-40"
+                className="px-3 py-1.5 border border-border-strong rounded-md disabled:opacity-40"
               >
                 Next
               </button>

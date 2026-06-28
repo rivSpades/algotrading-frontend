@@ -145,42 +145,42 @@ export default function EditPeriodicTaskModal({ isOpen, onClose, task, onSaved }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <h2 className="text-lg font-semibold text-gray-900">Edit scheduled task</h2>
-          <button type="button" onClick={onClose} className="text-gray-500 hover:text-gray-700" aria-label="Close">
+      <div className="bg-surface rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <h2 className="text-lg font-semibold text-ink">Edit scheduled task</h2>
+          <button type="button" onClick={onClose} className="text-ink-tertiary hover:text-ink-secondary" aria-label="Close">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="overflow-y-auto px-4 py-3 space-y-3 text-sm">
           {error && (
-            <div className="flex items-start gap-2 p-2 rounded bg-red-50 text-red-800 text-sm">
+            <div className="flex items-start gap-2 p-2 rounded bg-loss-soft text-loss-ink text-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-xs text-gray-500 mb-0.5">Name (unique in Beat)</label>
+            <label className="block text-xs text-ink-tertiary mb-0.5">Name (unique in Beat)</label>
             <input
-              className="w-full border border-gray-300 rounded px-2 py-1.5"
+              className="w-full border border-border-strong rounded px-2 py-1.5"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-0.5">Celery task path</label>
+            <label className="block text-xs text-ink-tertiary mb-0.5">Celery task path</label>
             <input
-              className="w-full border border-gray-300 rounded px-2 py-1.5 font-mono text-xs"
+              className="w-full border border-border-strong rounded px-2 py-1.5 font-mono text-xs"
               value={taskPath}
               onChange={(e) => setTaskPath(e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-0.5">Description</label>
+            <label className="block text-xs text-ink-tertiary mb-0.5">Description</label>
             <textarea
-              className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs"
+              className="w-full border border-border-strong rounded px-2 py-1.5 text-xs"
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -192,18 +192,18 @@ export default function EditPeriodicTaskModal({ isOpen, onClose, task, onSaved }
           </label>
 
           <div>
-            <label className="block text-xs text-gray-500 mb-0.5">Args (JSON array)</label>
+            <label className="block text-xs text-ink-tertiary mb-0.5">Args (JSON array)</label>
             <textarea
-              className="w-full border border-gray-300 rounded px-2 py-1.5 font-mono text-xs"
+              className="w-full border border-border-strong rounded px-2 py-1.5 font-mono text-xs"
               rows={3}
               value={argsText}
               onChange={(e) => setArgsText(e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-0.5">Kwargs (JSON object)</label>
+            <label className="block text-xs text-ink-tertiary mb-0.5">Kwargs (JSON object)</label>
             <textarea
-              className="w-full border border-gray-300 rounded px-2 py-1.5 font-mono text-xs"
+              className="w-full border border-border-strong rounded px-2 py-1.5 font-mono text-xs"
               rows={4}
               value={kwargsText}
               onChange={(e) => setKwargsText(e.target.value)}
@@ -211,26 +211,26 @@ export default function EditPeriodicTaskModal({ isOpen, onClose, task, onSaved }
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-gray-500 mb-0.5">Queue (optional)</label>
+              <label className="block text-xs text-ink-tertiary mb-0.5">Queue (optional)</label>
               <input
-                className="w-full border border-gray-300 rounded px-2 py-1.5"
+                className="w-full border border-border-strong rounded px-2 py-1.5"
                 value={queue}
                 onChange={(e) => setQueue(e.target.value)}
                 placeholder="default"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-0.5">Routing key (optional)</label>
+              <label className="block text-xs text-ink-tertiary mb-0.5">Routing key (optional)</label>
               <input
-                className="w-full border border-gray-300 rounded px-2 py-1.5"
+                className="w-full border border-border-strong rounded px-2 py-1.5"
                 value={routingKey}
                 onChange={(e) => setRoutingKey(e.target.value)}
               />
             </div>
           </div>
 
-          <div className="border-t border-gray-200 pt-3 mt-1">
-            <h3 className="text-sm font-medium text-gray-800 mb-2">Schedule</h3>
+          <div className="border-t border-border pt-3 mt-1">
+            <h3 className="text-sm font-medium text-ink mb-2">Schedule</h3>
             {st === 'solar' || st === 'clocked' ? (
               <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
                 This task uses a <strong>{st}</strong> schedule. Edit it in Django admin or the database; crontab/interval
@@ -238,8 +238,8 @@ export default function EditPeriodicTaskModal({ isOpen, onClose, task, onSaved }
               </p>
             ) : st === 'crontab' && task.crontab ? (
               <div className="space-y-2">
-                <p className="text-xs text-gray-500">
-                  Crontab id <code className="bg-gray-100 px-1 rounded">{task.crontab.id}</code>. Other tasks sharing this
+                <p className="text-xs text-ink-tertiary">
+                  Crontab id <code className="bg-surface-sunken px-1 rounded">{task.crontab.id}</code>. Other tasks sharing this
                   row will get the same times.
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -252,9 +252,9 @@ export default function EditPeriodicTaskModal({ isOpen, onClose, task, onSaved }
                     ['Timezone', cronTz, setCronTz],
                   ].map(([label, val, setVal]) => (
                     <div key={label}>
-                      <label className="block text-xs text-gray-500 mb-0.5">{label}</label>
+                      <label className="block text-xs text-ink-tertiary mb-0.5">{label}</label>
                       <input
-                        className="w-full border border-gray-300 rounded px-2 py-1 text-xs font-mono"
+                        className="w-full border border-border-strong rounded px-2 py-1 text-xs font-mono"
                         value={val}
                         onChange={(e) => setVal(e.target.value)}
                       />
@@ -264,24 +264,24 @@ export default function EditPeriodicTaskModal({ isOpen, onClose, task, onSaved }
               </div>
             ) : st === 'interval' && task.interval ? (
               <div className="space-y-2">
-                <p className="text-xs text-gray-500">
-                  Interval id <code className="bg-gray-100 px-1 rounded">{task.interval.id}</code>
+                <p className="text-xs text-ink-tertiary">
+                  Interval id <code className="bg-surface-sunken px-1 rounded">{task.interval.id}</code>
                 </p>
                 <div className="flex gap-2 items-end">
                   <div>
-                    <label className="block text-xs text-gray-500 mb-0.5">Every</label>
+                    <label className="block text-xs text-ink-tertiary mb-0.5">Every</label>
                     <input
                       type="number"
                       min={1}
-                      className="w-24 border border-gray-300 rounded px-2 py-1"
+                      className="w-24 border border-border-strong rounded px-2 py-1"
                       value={intEvery}
                       onChange={(e) => setIntEvery(parseInt(e.target.value, 10) || 1)}
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-0.5">Period</label>
+                    <label className="block text-xs text-ink-tertiary mb-0.5">Period</label>
                     <select
-                      className="w-full border border-gray-300 rounded px-2 py-1"
+                      className="w-full border border-border-strong rounded px-2 py-1"
                       value={intPeriod}
                       onChange={(e) => setIntPeriod(e.target.value)}
                     >
@@ -294,20 +294,20 @@ export default function EditPeriodicTaskModal({ isOpen, onClose, task, onSaved }
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-gray-500">No crontab or interval on this task.</p>
+              <p className="text-xs text-ink-tertiary">No crontab or interval on this task.</p>
             )}
           </div>
         </div>
 
-        <div className="border-t border-gray-100 px-4 py-3 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded">
+        <div className="border-t border-border px-4 py-3 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm text-ink-secondary hover:bg-surface-hover rounded">
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            className="px-3 py-1.5 text-sm bg-accent text-white rounded hover:bg-accent-hover disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>

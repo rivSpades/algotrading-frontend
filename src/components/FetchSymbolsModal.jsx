@@ -101,14 +101,14 @@ export default function FetchSymbolsModal({ isOpen, onClose, onFetch }) {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+          className="bg-surface rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
         >
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b">
-            <h2 className="text-2xl font-bold text-gray-900">Fetch Symbols</h2>
+            <h2 className="text-2xl font-bold text-ink">Fetch Symbols</h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-ink-tertiary hover:text-ink-secondary transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
@@ -117,15 +117,15 @@ export default function FetchSymbolsModal({ isOpen, onClose, onFetch }) {
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
             {/* Select All Option */}
-            <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+            <div className="mb-4 p-4 bg-bg rounded-lg">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={fetchAll}
                   onChange={toggleSelectAll}
-                  className="w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
+                  className="w-5 h-5 text-accent rounded focus:ring-accent"
                 />
-                <span className="font-semibold text-gray-900">Fetch from all exchanges</span>
+                <span className="font-semibold text-ink">Fetch from all exchanges</span>
               </label>
             </div>
 
@@ -136,14 +136,14 @@ export default function FetchSymbolsModal({ isOpen, onClose, onFetch }) {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search exchanges..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                 disabled={fetchAll}
               />
             </div>
 
             {/* Exchange List */}
             {loading ? (
-              <div className="text-center py-8 text-gray-500">Loading exchanges...</div>
+              <div className="text-center py-8 text-ink-tertiary">Loading exchanges...</div>
             ) : (
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {filteredExchanges.map((exchange) => {
@@ -153,8 +153,8 @@ export default function FetchSymbolsModal({ isOpen, onClose, onFetch }) {
                       key={exchange.Code}
                       className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
                         isSelected
-                          ? 'bg-primary-50 border-2 border-primary-500'
-                          : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'
+                          ? 'bg-accent-soft border-2 border-accent'
+                          : 'bg-bg border-2 border-transparent hover:bg-surface-hover'
                       }`}
                     >
                       <input
@@ -162,13 +162,13 @@ export default function FetchSymbolsModal({ isOpen, onClose, onFetch }) {
                         checked={isSelected}
                         onChange={() => toggleExchange(exchange.Code)}
                         disabled={fetchAll}
-                        className="w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
+                        className="w-5 h-5 text-accent rounded focus:ring-accent"
                       />
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900">{exchange.Name}</div>
-                        <div className="text-sm text-gray-500">Code: {exchange.Code}</div>
+                        <div className="font-medium text-ink">{exchange.Name}</div>
+                        <div className="text-sm text-ink-tertiary">Code: {exchange.Code}</div>
                         {exchange.Country && (
-                          <div className="text-xs text-gray-400">{exchange.Country}</div>
+                          <div className="text-xs text-ink-tertiary">{exchange.Country}</div>
                         )}
                       </div>
                     </label>
@@ -182,14 +182,14 @@ export default function FetchSymbolsModal({ isOpen, onClose, onFetch }) {
           <div className="flex items-center justify-end gap-3 p-6 border-t">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-4 py-2 text-ink-secondary bg-surface-sunken rounded-lg hover:bg-surface-sunken transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleFetch}
               disabled={!fetchAll && selectedExchanges.length === 0}
-              className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+              className="px-6 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
             >
               <Download className="w-5 h-5" />
               Fetch Symbols

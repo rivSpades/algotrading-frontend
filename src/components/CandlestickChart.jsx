@@ -6,6 +6,7 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import Chart from 'react-apexcharts';
+import { getChartTheme } from '../lib/chartTheme';
 
 const TIMEFRAME_OPTIONS = [
   { label: '1D', days: 1 },
@@ -17,6 +18,7 @@ const TIMEFRAME_OPTIONS = [
 ];
 
 export default function CandlestickChart({ data = [], ticker, indicators = [], signals = [], onTimeframeChange }) {
+  const chartTheme = getChartTheme();
   const [selectedTimeframe, setSelectedTimeframe] = useState('5Y');
   // Use a stable key that only changes with ticker to prevent unnecessary remounts
   const chartKey = useMemo(() => `${ticker || 'default'}`, [ticker]);
@@ -232,7 +234,7 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
         name: ind.toolName || ind.tool?.name || 'Unknown',
         type: 'line',
         data: indicatorData,
-        color: ind.style?.color || '#3B82F6',
+        color: ind.style?.color || chartTheme.accent,
         strokeWidth: ind.style?.line_width || 2,
       };
     };
@@ -454,7 +456,7 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
         },
         colors: [ind.color],
         grid: {
-          borderColor: '#e5e7eb',
+          borderColor: chartTheme.border,
           strokeDashArray: 4,
         },
         legend: {
@@ -474,7 +476,7 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
 
   // Main chart configuration (candlestick + main chart indicators)
   const mainChartOptions = useMemo(() => {
-    const colors = ['#3B82F6', ...mainChartIndicators.map(ind => ind.color)];
+    const colors = [chartTheme.accent, ...mainChartIndicators.map(ind => ind.color)];
     const strokeWidths = [2, ...mainChartIndicators.map(ind => ind.strokeWidth || 2)];
     
     // Use stable chart ID based on ticker only
@@ -565,7 +567,7 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
             const series = w.globals.initialSeries[i];
             if (series.data && series.data[dataPointIndex]) {
               const value = series.data[dataPointIndex][1];
-              const color = series.color || '#3B82F6';
+              const color = series.color || chartTheme.accent;
               tooltipContent += `
                 <div style="margin-top: 4px;">
                   <span style="display: inline-block; width: 12px; height: 12px; background-color: ${color}; margin-right: 6px; border-radius: 2px;"></span>
@@ -582,8 +584,8 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
       plotOptions: {
         candlestick: {
           colors: {
-            upward: '#10b981', // Green for up candles
-            downward: '#ef4444', // Red for down candles
+            upward: chartTheme.profit,
+            downward: chartTheme.loss,
           },
         },
       },
@@ -626,26 +628,26 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
             
             // Determine color and triangle direction based on signal type and position
             // Colors must match the badge colors in the datatable exactly:
-            // Long entry: bg-green-100 text-green-800 -> Green #10b981 or #22c55e
-            // Short entry: bg-blue-100 text-blue-800 -> Blue #3b82f6 or #2563eb
-            // Long exit: bg-red-100 text-red-800 -> Red #ef4444 or #dc2626
-            // Short exit: bg-orange-100 text-orange-800 -> Orange #f97316 or #ea580c
+            // Long entry: bg-profit-soft text-profit-ink -> Green #10b981 or #22c55e
+            // Short entry: bg-status-running-soft text-accent-ink -> Blue #3b82f6 or #2563eb
+            // Long exit: bg-loss-soft text-loss-ink -> Red #ef4444 or #dc2626
+            // Short exit: bg-status-warning-soft text-status-warning -> Orange #f97316 or #ea580c
             let fillColor;
             let triangleDirection; // 'up' for entry, 'down' for exit
             
             if (signal.type === 'entry') {
               triangleDirection = 'up';
               if (signal.positionType === 'long') {
-                fillColor = '#22c55e'; // Green for long entry (matches bg-green-100 text-green-800)
+                fillColor = chartTheme.profit;
               } else {
-                fillColor = '#2563eb'; // Blue for short entry (matches bg-blue-100 text-blue-800)
+                fillColor = chartTheme.accent;
               }
             } else { // exit
               triangleDirection = 'down';
               if (signal.positionType === 'long') {
-                fillColor = '#dc2626'; // Red for long exit (matches bg-red-100 text-red-800)
+                fillColor = chartTheme.loss;
               } else {
-                fillColor = '#ea580c'; // Orange for short exit (matches bg-orange-100 text-orange-800)
+                fillColor = chartTheme.series[3];
               }
             }
             
@@ -691,21 +693,21 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
 
   if (seriesData.length === 0) {
     return (
-      <div className="h-[500px] flex items-center justify-center text-gray-500 bg-white rounded-lg border border-gray-200">
+      <div className="h-[500px] flex items-center justify-center text-ink-tertiary bg-surface rounded-lg border border-border">
         <div className="text-center">
           <p className="text-lg font-medium">No data available</p>
-          <p className="text-sm text-gray-400 mt-1">Fetch OHLCV data to see the chart</p>
+          <p className="text-sm text-ink-tertiary mt-1">Fetch OHLCV data to see the chart</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full bg-white rounded-lg border border-gray-200 p-4">
+    <div className="w-full bg-surface rounded-lg border border-border p-4">
       {/* Controls */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <h3 className="text-lg font-semibold text-gray-900">Price Chart</h3>
+          <h3 className="text-lg font-semibold text-ink">Price Chart</h3>
           
           {/* Timeframe filters */}
           <div className="flex gap-1">
@@ -721,8 +723,8 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
                 }}
                 className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
                   selectedTimeframe === tf.label
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-accent text-white'
+                    : 'bg-surface-sunken text-ink-secondary hover:bg-surface-sunken'
                 }`}
               >
                 {tf.label}
@@ -769,7 +771,7 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
         <div className="mt-4">
           {mainChartIndicators.length > 0 && (
             <div className="mb-2">
-              <span className="text-xs font-medium text-gray-500 uppercase">Main Chart:</span>
+              <span className="text-xs font-medium text-ink-tertiary uppercase">Main Chart:</span>
               <div className="mt-1 flex flex-wrap gap-3">
                 {mainChartIndicators.map((ind, idx) => (
                   <div key={idx} className="flex items-center gap-2">
@@ -777,7 +779,7 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
                       className="w-4 h-0.5"
                       style={{ backgroundColor: ind.color }}
                     />
-                    <span className="text-sm text-gray-600">{ind.name}</span>
+                    <span className="text-sm text-ink-secondary">{ind.name}</span>
                   </div>
                 ))}
               </div>
@@ -785,7 +787,7 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
           )}
           {subchartIndicators.length > 0 && (
             <div>
-              <span className="text-xs font-medium text-gray-500 uppercase">Subchart:</span>
+              <span className="text-xs font-medium text-ink-tertiary uppercase">Subchart:</span>
               <div className="mt-1 flex flex-wrap gap-3">
                 {subchartIndicators.map((ind, idx) => (
                   <div key={idx} className="flex items-center gap-2">
@@ -793,7 +795,7 @@ export default function CandlestickChart({ data = [], ticker, indicators = [], s
                       className="w-4 h-0.5"
                       style={{ backgroundColor: ind.color }}
                     />
-                    <span className="text-sm text-gray-600">{ind.name}</span>
+                    <span className="text-sm text-ink-secondary">{ind.name}</span>
                   </div>
                 ))}
               </div>

@@ -4,8 +4,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, CheckCircle2, XCircle, Search, Loader, RefreshCw } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { Plus, CheckCircle2, XCircle, Search, Loader, RefreshCw } from 'lucide-react';
+import BackButton from '../components/BackButton';
 import { getBroker, linkSymbolsToBroker, liveTradingAPI } from '../data/liveTrading';
 import TaskProgress from '../components/TaskProgress';
 import { getSymbols, marketDataAPI } from '../data/api';
@@ -13,7 +14,6 @@ import { motion } from 'framer-motion';
 
 export default function BrokerSymbols() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [broker, setBroker] = useState(null);
   const [symbols, setSymbols] = useState([]);
   const [associations, setAssociations] = useState([]);
@@ -166,26 +166,18 @@ export default function BrokerSymbols() {
           onClose={handleReverifyTaskClose}
         />
       )}
-      <motion.button
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        onClick={() => navigate('/brokers')}
-        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
-      >
-        <ArrowLeft className="w-5 h-5" />
-        Back to Brokers
-      </motion.button>
+      <BackButton to={`/brokers/${id}`} label="Back to Broker" className="flex items-center gap-2 text-ink-secondary hover:text-ink mb-6" />
 
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Manage Symbols for {broker?.name}</h1>
-        <p className="text-gray-600 mt-1">Link symbols and configure trading capabilities</p>
+        <h1 className="text-3xl font-bold text-ink">Manage Symbols for {broker?.name}</h1>
+        <p className="text-ink-secondary mt-1">Link symbols and configure trading capabilities</p>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Link Symbols</h2>
+      <div className="bg-surface rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-lg font-semibold text-ink mb-4">Link Symbols</h2>
         
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Link Mode</label>
+          <label className="block text-sm font-medium text-ink-secondary mb-2">Link Mode</label>
           <div className="flex gap-4">
             <label className="flex items-center gap-2">
               <input
@@ -193,7 +185,7 @@ export default function BrokerSymbols() {
                 value="individual"
                 checked={linkMode === 'individual'}
                 onChange={(e) => setLinkMode(e.target.value)}
-                className="w-4 h-4 text-blue-600"
+                className="w-4 h-4 text-accent"
               />
               <span>Individual Symbols</span>
             </label>
@@ -203,7 +195,7 @@ export default function BrokerSymbols() {
                 value="exchange"
                 checked={linkMode === 'exchange'}
                 onChange={(e) => setLinkMode(e.target.value)}
-                className="w-4 h-4 text-blue-600"
+                className="w-4 h-4 text-accent"
               />
               <span>By Exchange</span>
             </label>
@@ -213,20 +205,20 @@ export default function BrokerSymbols() {
         {linkMode === 'individual' ? (
           <div className="space-y-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-tertiary" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search symbols..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent"
               />
             </div>
-            <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-2">
+            <div className="max-h-60 overflow-y-auto border border-border rounded-lg p-2">
               {filteredSymbols.slice(0, 50).map((symbol) => {
                 const isSelected = selectedSymbols.includes(symbol.ticker);
                 return (
-                  <label key={symbol.ticker} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                  <label key={symbol.ticker} className="flex items-center gap-2 p-2 hover:bg-bg rounded cursor-pointer">
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -237,27 +229,27 @@ export default function BrokerSymbols() {
                           setSelectedSymbols(selectedSymbols.filter(t => t !== symbol.ticker));
                         }
                       }}
-                      className="w-4 h-4 text-blue-600"
+                      className="w-4 h-4 text-accent"
                     />
                     <span className="font-medium">{symbol.ticker}</span>
-                    <span className="text-gray-500 text-sm">{symbol.name}</span>
+                    <span className="text-ink-tertiary text-sm">{symbol.name}</span>
                   </label>
                 );
               })}
             </div>
             {selectedSymbols.length > 0 && (
-              <p className="text-sm text-gray-600">{selectedSymbols.length} symbol(s) selected</p>
+              <p className="text-sm text-ink-secondary">{selectedSymbols.length} symbol(s) selected</p>
             )}
           </div>
         ) : (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Exchange Code</label>
+            <label className="block text-sm font-medium text-ink-secondary mb-2">Exchange Code</label>
             <input
               type="text"
               value={exchangeCode}
               onChange={(e) => setExchangeCode(e.target.value)}
               placeholder="e.g., NASDAQ, NYSE"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent"
             />
           </div>
         )}
@@ -267,7 +259,7 @@ export default function BrokerSymbols() {
           whileTap={{ scale: 0.95 }}
           onClick={handleLinkSymbols}
           disabled={linking || reverifyBusy || !!symbolAsyncTaskId}
-          className="mt-4 flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          className="mt-4 flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
         >
           {linking ? (
             <>
@@ -283,9 +275,9 @@ export default function BrokerSymbols() {
         </motion.button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-gray-900">Linked Symbols</h2>
+      <div className="bg-surface rounded-lg shadow-md overflow-hidden">
+        <div className="px-6 py-4 border-b border-border flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-ink">Linked Symbols</h2>
           <button
             type="button"
             onClick={handleReverifyFromBroker}
@@ -299,7 +291,7 @@ export default function BrokerSymbols() {
               ))
             }
             title="Re-fetch long/short tradability from the broker API for every linked symbol"
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-ink-secondary bg-surface border border-border-strong rounded-lg hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RefreshCw className={`w-4 h-4 ${reverifyBusy || symbolAsyncTaskId || listRefreshing ? 'animate-spin' : ''}`} />
             Re-verify from broker
@@ -307,43 +299,43 @@ export default function BrokerSymbols() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-bg">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Long</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Short</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Verified</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Symbol</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Long</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Short</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Verified</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-border">
               {associations.length === 0 ? (
                 <tr>
-                  <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="4" className="px-6 py-8 text-center text-ink-tertiary">
                     No symbols linked yet
                   </td>
                 </tr>
               ) : (
                 associations.map((assoc) => (
-                  <tr key={assoc.id} className="hover:bg-gray-50">
+                  <tr key={assoc.id} className="hover:bg-bg">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-gray-900">{assoc.symbol_info?.ticker}</div>
-                      <div className="text-sm text-gray-500">{assoc.symbol_info?.name}</div>
+                      <div className="font-medium text-ink">{assoc.symbol_info?.ticker}</div>
+                      <div className="text-sm text-ink-tertiary">{assoc.symbol_info?.name}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {assoc.long_active ? (
-                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                        <CheckCircle2 className="w-5 h-5 text-profit" />
                       ) : (
-                        <XCircle className="w-5 h-5 text-gray-400" />
+                        <XCircle className="w-5 h-5 text-ink-tertiary" />
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {assoc.short_active ? (
-                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                        <CheckCircle2 className="w-5 h-5 text-profit" />
                       ) : (
-                        <XCircle className="w-5 h-5 text-gray-400" />
+                        <XCircle className="w-5 h-5 text-ink-tertiary" />
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-ink-tertiary">
                       {assoc.verified_at ? new Date(assoc.verified_at).toLocaleDateString() : 'Never'}
                     </td>
                   </tr>

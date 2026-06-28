@@ -259,11 +259,38 @@ export const marketDataAPI = {
     });
   },
 
+  async updateAllSymbolsData(data = {}) {
+    return apiRequest('/symbols/update-all-data/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteSymbolsBulk(data) {
+    return apiRequest('/symbols/delete-symbols-bulk/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   /**
    * Get exchanges
    */
   async getExchanges() {
     return apiRequest('/exchanges/');
+  },
+
+  /**
+   * Resolve symbol via EOD search (create when unambiguous)
+   */
+  async resolveSymbol(ticker, exchangeCode = null) {
+    return apiRequest('/symbols/resolve-symbol/', {
+      method: 'POST',
+      body: JSON.stringify({
+        ticker,
+        exchange_code: exchangeCode,
+      }),
+    });
   },
 
   /**

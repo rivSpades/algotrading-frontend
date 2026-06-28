@@ -127,10 +127,10 @@ export default function HedgeConfiguration() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-2">
-        <Shield className="w-8 h-8 text-primary-600" />
-        <h1 className="text-3xl font-bold text-gray-900">Hybrid VIX hedge</h1>
+        <Shield className="w-8 h-8 text-accent" />
+        <h1 className="text-3xl font-bold text-ink">Hybrid VIX hedge</h1>
       </div>
-      <p className="text-gray-600 mb-8 max-w-3xl">
+      <p className="text-ink-secondary mb-8 max-w-3xl">
         Configure and save default hedge parameters. Those defaults apply to new backtests when you enable &quot;Run
         hybrid VIX hedge comparison&quot; (you can still change values per backtest in the modal). Each{' '}
         <strong>Run preview</strong> fetches SPY, VIXM, VIXY, and ^VIX <strong>only from Yahoo Finance</strong> (no
@@ -139,25 +139,25 @@ export default function HedgeConfiguration() {
         Yahoo backfill like other benchmarks).
       </p>
 
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Saved defaults</h2>
-        <p className="text-sm text-gray-600 mb-4">
+      <div className="bg-surface rounded-lg shadow-lg p-6 mb-8">
+        <h2 className="text-lg font-semibold text-ink mb-2">Saved defaults</h2>
+        <p className="text-sm text-ink-secondary mb-4">
           Adjust thresholds and weights, then save. Hysteresis reset uses smoothed Z &lt; 0 (fixed in the engine).
         </p>
         {settingsLoading ? (
-          <p className="text-sm text-gray-500">Loading saved settings…</p>
+          <p className="text-sm text-ink-tertiary">Loading saved settings…</p>
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
               {HEDGE_FIELD_DEFS.map(({ key, label, step }) => (
                 <div key={key}>
-                  <label className="block text-sm text-gray-700 mb-1">{label}</label>
+                  <label className="block text-sm text-ink-secondary mb-1">{label}</label>
                   <input
                     type="number"
                     step={step}
                     value={hedgeParams[key] ?? ''}
                     onChange={(e) => updateHedgeField(key, e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border border-border-strong rounded-lg px-3 py-2"
                   />
                 </div>
               ))}
@@ -173,7 +173,7 @@ export default function HedgeConfiguration() {
                 Save defaults
               </button>
               {saveMessage && (
-                <span className={`text-sm ${saveMessage.includes('fail') ? 'text-red-600' : 'text-green-700'}`}>
+                <span className={`text-sm ${saveMessage.includes('fail') ? 'text-loss' : 'text-profit-ink'}`}>
                   {saveMessage}
                 </span>
               )}
@@ -182,36 +182,36 @@ export default function HedgeConfiguration() {
         )}
       </div>
 
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Preview window</h2>
+      <div className="bg-surface rounded-lg shadow-lg p-6 mb-8">
+        <h2 className="text-lg font-semibold text-ink mb-4">Preview window</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
           <div>
-            <label className="block text-sm text-gray-700 mb-1">Start date</label>
+            <label className="block text-sm text-ink-secondary mb-1">Start date</label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              className="w-full border border-border-strong rounded-lg px-3 py-2"
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-700 mb-1">End date</label>
+            <label className="block text-sm text-ink-secondary mb-1">End date</label>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              className="w-full border border-border-strong rounded-lg px-3 py-2"
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-700 mb-1">Initial capital ($)</label>
+            <label className="block text-sm text-ink-secondary mb-1">Initial capital ($)</label>
             <input
               type="number"
               min="1"
               step="100"
               value={initialCapital}
               onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 10000)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              className="w-full border border-border-strong rounded-lg px-3 py-2"
             />
           </div>
         </div>
@@ -219,26 +219,26 @@ export default function HedgeConfiguration() {
           type="button"
           onClick={runPreview}
           disabled={loading || settingsLoading}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50"
         >
           {loading ? <Loader className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
           Run preview
         </button>
-        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-4 text-sm text-loss">{error}</p>}
       </div>
 
       {result && (
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Metrics</h2>
+        <div className="bg-surface rounded-lg shadow-lg p-6 mb-8">
+          <h2 className="text-lg font-semibold text-ink mb-4">Metrics</h2>
           {result.data_source && (
-            <p className="text-xs text-gray-500 mb-3">
+            <p className="text-xs text-ink-tertiary mb-3">
               Data source: {result.data_source === 'yahoo_finance' ? 'Yahoo Finance (live fetch)' : result.data_source}
             </p>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
               <h3 className="font-medium text-violet-700 mb-2">Hybrid VIX hedge</h3>
-              <ul className="text-sm text-gray-700 space-y-1">
+              <ul className="text-sm text-ink-secondary space-y-1">
                 <li>Total return: {result.metrics?.total_return_pct ?? '—'}%</li>
                 <li>Sharpe (approx.): {result.metrics?.sharpe_ratio ?? '—'}</li>
                 <li>Max drawdown: {result.metrics?.max_drawdown_pct ?? '—'}%</li>
@@ -246,8 +246,8 @@ export default function HedgeConfiguration() {
               </ul>
             </div>
             <div>
-              <h3 className="font-medium text-gray-700 mb-2">SPY buy-and-hold</h3>
-              <ul className="text-sm text-gray-700 space-y-1">
+              <h3 className="font-medium text-ink-secondary mb-2">SPY buy-and-hold</h3>
+              <ul className="text-sm text-ink-secondary space-y-1">
                 <li>Total return: {result.spy_metrics?.total_return_pct ?? '—'}%</li>
                 <li>Sharpe (approx.): {result.spy_metrics?.sharpe_ratio ?? '—'}</li>
                 <li>Max drawdown: {result.spy_metrics?.max_drawdown_pct ?? '—'}%</li>
@@ -258,8 +258,8 @@ export default function HedgeConfiguration() {
       )}
 
       {hasChart && (
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Equity curves</h2>
+        <div className="bg-surface rounded-lg shadow-lg p-6">
+          <h2 className="text-lg font-semibold text-ink mb-4">Equity curves</h2>
           <Chart
             options={{
               chart: { type: 'line', toolbar: { show: true } },

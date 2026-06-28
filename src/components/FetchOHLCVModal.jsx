@@ -8,6 +8,8 @@ import { X, Download, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { marketDataAPI } from '../data/api';
 import { liveTradingAPI } from '../data/liveTrading';
+import { resolveSymbol } from '../data/symbols';
+import SymbolExchangePicker from './SymbolExchangePicker';
 
 const FETCH_MODES = {
   SINGLE: 'single',
@@ -15,6 +17,12 @@ const FETCH_MODES = {
   EXCHANGE: 'exchange',
   BROKER: 'broker',
 };
+
+const DEFAULT_OHLCV_PROVIDERS = [
+  { code: 'YAHOO', name: 'Yahoo Finance', requires_credentials: false, configured: true },
+  { code: 'ALPACA', name: 'Alpaca', requires_credentials: true, configured: false },
+  { code: 'ALPHA_VANTAGE', name: 'Alpha Vantage', requires_credentials: true, configured: false },
+];
 
 export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
   const [fetchMode, setFetchMode] = useState(FETCH_MODES.SINGLE);
@@ -31,8 +39,11 @@ export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
   const [loadingBrokers, setLoadingBrokers] = useState(false);
   const [brokerSearchTerm, setBrokerSearchTerm] = useState('');
   const [selectedProvider, setSelectedProvider] = useState('YAHOO');
-  const [providers, setProviders] = useState([]);
+  const [providers, setProviders] = useState(DEFAULT_OHLCV_PROVIDERS);
   const [loadingProviders, setLoadingProviders] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [ambiguousCandidates, setAmbiguousCandidates] = useState([]);
+  const [pendingFetchData, setPendingFetchData] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -45,7 +56,7 @@ export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
   const loadExchanges = async () => {
     setLoading(true);
     try {
-      const response = await marketDataAPI.getExchanges();
+      const response = await marketDataAPI.getAvailableExchanges();
       if (response.success && response.data) {
         let exchangesData = [];
         if (Array.isArray(response.data)) {
@@ -99,26 +110,29 @@ export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
         } else if (response.data.data && Array.isArray(response.data.data)) {
           providersData = response.data.data;
         }
-        setProviders(providersData);
-        // Set default to first provider or YAHOO if available
         if (providersData.length > 0) {
-          const yahooProvider = providersData.find(p => p.code === 'YAHOO');
-          if (yahooProvider) {
-            setSelectedProvider('YAHOO');
-          } else {
-            setSelectedProvider(providersData[0].code);
-          }
+          setProviders(providersData);
+          const yahooProvider = providersData.find((p) => p.code === 'YAHOO');
+          setSelectedProvider(yahooProvider ? 'YAHOO' : providersData[0].code);
+        } else {
+          setProviders(DEFAULT_OHLCV_PROVIDERS);
+          setSelectedProvider('YAHOO');
         }
+      } else {
+        setProviders(DEFAULT_OHLCV_PROVIDERS);
+        setSelectedProvider('YAHOO');
       }
     } catch (error) {
       console.error('Error loading providers:', error);
+      setProviders(DEFAULT_OHLCV_PROVIDERS);
+      setSelectedProvider('YAHOO');
     } finally {
       setLoadingProviders(false);
     }
   };
 
-  const handleFetch = async () => {
-    let fetchData = {
+  const buildFetchPayload = () => {
+    const fetchData = {
       provider_code: selectedProvider || 'YAHOO',
       start_date: startDate || null,
       end_date: endDate || null,
@@ -127,36 +141,37 @@ export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
     if (fetchMode === FETCH_MODES.SINGLE) {
       if (!singleTicker.trim()) {
         alert('Please enter a ticker symbol');
-        return;
+        return null;
       }
       fetchData.ticker = singleTicker.trim().toUpperCase();
     } else if (fetchMode === FETCH_MODES.MULTIPLE) {
       const tickers = multipleTickers
         .split(',')
-        .map(t => t.trim().toUpperCase())
-        .filter(t => t.length > 0);
+        .map((t) => t.trim().toUpperCase())
+        .filter((t) => t.length > 0);
       if (tickers.length === 0) {
         alert('Please enter at least one ticker symbol');
-        return;
+        return null;
       }
       fetchData.tickers = tickers;
     } else if (fetchMode === FETCH_MODES.EXCHANGE) {
       if (!selectedExchange) {
         alert('Please select an exchange');
-        return;
+        return null;
       }
       fetchData.exchange_code = selectedExchange;
     } else if (fetchMode === FETCH_MODES.BROKER) {
       if (!selectedBroker) {
         alert('Please select a broker');
-        return;
+        return null;
       }
-      fetchData.broker_id = parseInt(selectedBroker);
+      fetchData.broker_id = parseInt(selectedBroker, 10);
     }
 
-    onFetch(fetchData);
-    onClose();
-    // Reset form
+    return fetchData;
+  };
+
+  const resetForm = () => {
     setSingleTicker('');
     setMultipleTickers('');
     setSelectedExchange('');
@@ -164,324 +179,375 @@ export default function FetchOHLCVModal({ isOpen, onClose, onFetch }) {
     setEndDate('');
     setSelectedBroker('');
     setBrokerSearchTerm('');
+    setAmbiguousCandidates([]);
+    setPendingFetchData(null);
   };
 
-  const filteredExchanges = exchanges.filter(exchange => {
-    // Handle both API response formats (Code/Name from EOD API or code/name from DB)
+  const submitFetch = (fetchData) => {
+    onFetch(fetchData);
+    onClose();
+    resetForm();
+  };
+
+  const resolveAndFetchSingle = async (fetchData) => {
+    setResolving(true);
+    try {
+      const result = await resolveSymbol(fetchData.ticker);
+      if (result.status === 'resolved') {
+        if (result.symbol?.exchange_code) {
+          fetchData.exchange_code = result.symbol.exchange_code;
+        }
+        submitFetch(fetchData);
+        return;
+      }
+      if (result.status === 'ambiguous') {
+        setPendingFetchData(fetchData);
+        setAmbiguousCandidates(result.candidates || []);
+        return;
+      }
+      alert(result.message || `Symbol ${fetchData.ticker} not found`);
+    } catch (error) {
+      alert(`Failed to resolve symbol: ${error.message}`);
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  const handleCandidateSelect = async (candidate) => {
+    if (!pendingFetchData) return;
+    setResolving(true);
+    try {
+      const result = await resolveSymbol(
+        pendingFetchData.ticker,
+        candidate.exchange_code,
+      );
+      if (result.status === 'resolved') {
+        const fetchData = {
+          ...pendingFetchData,
+          exchange_code: candidate.exchange_code,
+        };
+        setAmbiguousCandidates([]);
+        setPendingFetchData(null);
+        submitFetch(fetchData);
+      } else {
+        alert(result.message || 'Could not resolve symbol for selected exchange');
+      }
+    } catch (error) {
+      alert(`Failed to resolve symbol: ${error.message}`);
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  const handleFetch = async () => {
+    const fetchData = buildFetchPayload();
+    if (!fetchData) return;
+
+    if (fetchMode === FETCH_MODES.SINGLE) {
+      await resolveAndFetchSingle(fetchData);
+      return;
+    }
+
+    submitFetch(fetchData);
+  };
+
+  const filteredExchanges = exchanges.filter((exchange) => {
     const code = exchange.code || exchange.Code || '';
     const name = exchange.name || exchange.Name || '';
     const searchLower = searchTerm.toLowerCase();
     return code.toLowerCase().includes(searchLower) || name.toLowerCase().includes(searchLower);
   });
 
+  const displayProviders = providers.length > 0 ? providers : DEFAULT_OHLCV_PROVIDERS;
+
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b">
-            <h2 className="text-2xl font-bold text-gray-900">Fetch OHLCV Data</h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
+    <>
+      <SymbolExchangePicker
+        isOpen={ambiguousCandidates.length > 0}
+        ticker={pendingFetchData?.ticker}
+        candidates={ambiguousCandidates}
+        onSelect={handleCandidateSelect}
+        onClose={() => {
+          setAmbiguousCandidates([]);
+          setPendingFetchData(null);
+        }}
+      />
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {/* Provider Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Data Provider
-              </label>
-              {loadingProviders ? (
-                <div className="text-center py-2 text-gray-500">Loading providers...</div>
-              ) : providers.length === 0 ? (
-                <div className="text-center py-2 text-gray-500">No providers available</div>
-              ) : (
-                <select
-                  value={selectedProvider}
-                  onChange={(e) => setSelectedProvider(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  {providers.map((provider) => (
-                    <option key={provider.code} value={provider.code}>
-                      {provider.name} {provider.code === 'POLYGON' && '(Bulk/Fast)'}
-                    </option>
+      <AnimatePresence>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-surface rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+          >
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-2xl font-bold text-ink">Fetch OHLCV Data</h2>
+              <button
+                type="button"
+                onClick={onClose}
+                className="text-ink-tertiary hover:text-ink-secondary transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-ink-secondary mb-3">
+                  Data Provider
+                </label>
+                {loadingProviders ? (
+                  <div className="text-center py-2 text-ink-tertiary">Loading providers...</div>
+                ) : (
+                  <select
+                    value={selectedProvider}
+                    onChange={(e) => setSelectedProvider(e.target.value)}
+                    className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
+                  >
+                    {displayProviders.map((provider) => (
+                      <option key={provider.code} value={provider.code}>
+                        {provider.name}
+                        {provider.requires_credentials && !provider.configured
+                          ? ' (not configured)'
+                          : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-ink-secondary mb-3">
+                  Fetch Mode
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { mode: FETCH_MODES.SINGLE, label: 'Single Symbol' },
+                    { mode: FETCH_MODES.MULTIPLE, label: 'Multiple Symbols' },
+                    { mode: FETCH_MODES.EXCHANGE, label: 'By Exchange' },
+                    { mode: FETCH_MODES.BROKER, label: 'By Broker' },
+                  ].map(({ mode, label }) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setFetchMode(mode)}
+                      className={`px-4 py-3 rounded-lg border-2 transition-colors ${
+                        fetchMode === mode
+                          ? 'border-accent bg-accent-soft text-accent-ink'
+                          : 'border-border hover:border-border-strong'
+                      }`}
+                    >
+                      {label}
+                    </button>
                   ))}
-                </select>
+                </div>
+              </div>
+
+              {fetchMode === FETCH_MODES.SINGLE && (
+                <div>
+                  <label className="block text-sm font-medium text-ink-secondary mb-2">
+                    Ticker Symbol
+                  </label>
+                  <input
+                    type="text"
+                    value={singleTicker}
+                    onChange={(e) => setSingleTicker(e.target.value.toUpperCase())}
+                    placeholder="e.g., AAPL"
+                    className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
+                  />
+                  <p className="mt-2 text-sm text-ink-tertiary">
+                    Symbol is resolved via EOD. If multiple exchanges match, you will be asked to choose.
+                  </p>
+                </div>
               )}
-              {selectedProvider === 'POLYGON' && (
-                <p className="mt-2 text-sm text-blue-600">
-                  💡 Polygon uses bulk flat files for faster data fetching, especially for multiple symbols
-                </p>
+
+              {fetchMode === FETCH_MODES.MULTIPLE && (
+                <div>
+                  <label className="block text-sm font-medium text-ink-secondary mb-2">
+                    Ticker Symbols (comma-separated)
+                  </label>
+                  <textarea
+                    value={multipleTickers}
+                    onChange={(e) => setMultipleTickers(e.target.value.toUpperCase())}
+                    placeholder="e.g., AAPL, MSFT, GOOGL"
+                    rows={4}
+                    className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
+                  />
+                </div>
               )}
-            </div>
 
-            {/* Fetch Mode Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Fetch Mode
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setFetchMode(FETCH_MODES.SINGLE)}
-                  className={`px-4 py-3 rounded-lg border-2 transition-colors ${
-                    fetchMode === FETCH_MODES.SINGLE
-                      ? 'border-primary-500 bg-primary-50 text-primary-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  Single Symbol
-                </button>
-                <button
-                  onClick={() => setFetchMode(FETCH_MODES.MULTIPLE)}
-                  className={`px-4 py-3 rounded-lg border-2 transition-colors ${
-                    fetchMode === FETCH_MODES.MULTIPLE
-                      ? 'border-primary-500 bg-primary-50 text-primary-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  Multiple Symbols
-                </button>
-                <button
-                  onClick={() => setFetchMode(FETCH_MODES.EXCHANGE)}
-                  className={`px-4 py-3 rounded-lg border-2 transition-colors ${
-                    fetchMode === FETCH_MODES.EXCHANGE
-                      ? 'border-primary-500 bg-primary-50 text-primary-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  By Exchange
-                </button>
-                <button
-                  onClick={() => setFetchMode(FETCH_MODES.BROKER)}
-                  className={`px-4 py-3 rounded-lg border-2 transition-colors ${
-                    fetchMode === FETCH_MODES.BROKER
-                      ? 'border-primary-500 bg-primary-50 text-primary-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  By Broker
-                </button>
-              </div>
-            </div>
+              {fetchMode === FETCH_MODES.EXCHANGE && (
+                <div>
+                  <label className="block text-sm font-medium text-ink-secondary mb-2">
+                    Exchange
+                  </label>
+                  <div className="mb-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary w-5 h-5" />
+                      <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Search exchanges..."
+                        className="w-full pl-10 pr-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  {loading ? (
+                    <div className="text-center py-4 text-ink-tertiary">Loading exchanges...</div>
+                  ) : filteredExchanges.length === 0 ? (
+                    <div className="text-center py-4 text-ink-tertiary">No exchanges found.</div>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto space-y-2">
+                      {filteredExchanges.map((exchange) => {
+                        const exchangeCode = exchange.code || exchange.Code;
+                        const exchangeName = exchange.name || exchange.Name;
+                        return (
+                          <label
+                            key={exchangeCode}
+                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                              selectedExchange === exchangeCode
+                                ? 'bg-accent-soft border-2 border-accent'
+                                : 'bg-bg border-2 border-transparent hover:bg-surface-hover'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="exchange"
+                              value={exchangeCode}
+                              checked={selectedExchange === exchangeCode}
+                              onChange={(e) => setSelectedExchange(e.target.value)}
+                              className="w-4 h-4 text-accent focus:ring-accent"
+                            />
+                            <div className="flex-1">
+                              <div className="font-medium text-ink">{exchangeName}</div>
+                              <div className="text-sm text-ink-tertiary">Code: {exchangeCode}</div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className="mt-2 text-sm text-ink-tertiary">
+                    Symbols are imported from EOD automatically when needed, then OHLCV is fetched.
+                  </p>
+                </div>
+              )}
 
-            {/* Single Symbol Input */}
-            {fetchMode === FETCH_MODES.SINGLE && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ticker Symbol
+              {fetchMode === FETCH_MODES.BROKER && (
+                <div>
+                  <label className="block text-sm font-medium text-ink-secondary mb-2">
+                    Broker
+                  </label>
+                  <div className="mb-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary w-5 h-5" />
+                      <input
+                        type="text"
+                        value={brokerSearchTerm}
+                        onChange={(e) => setBrokerSearchTerm(e.target.value)}
+                        placeholder="Search brokers..."
+                        className="w-full pl-10 pr-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  {loadingBrokers ? (
+                    <div className="text-center py-4 text-ink-tertiary">Loading brokers...</div>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto space-y-2">
+                      {brokers
+                        .filter((broker) => {
+                          const searchLower = brokerSearchTerm.toLowerCase();
+                          return (
+                            broker.name.toLowerCase().includes(searchLower)
+                            || broker.code.toLowerCase().includes(searchLower)
+                          );
+                        })
+                        .map((broker) => (
+                          <label
+                            key={broker.id}
+                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                              selectedBroker === broker.id.toString()
+                                ? 'bg-accent-soft border-2 border-accent'
+                                : 'bg-bg border-2 border-transparent hover:bg-surface-hover'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="broker"
+                              value={broker.id}
+                              checked={selectedBroker === broker.id.toString()}
+                              onChange={(e) => setSelectedBroker(e.target.value)}
+                              className="w-4 h-4 text-accent focus:ring-accent"
+                            />
+                            <div className="flex-1">
+                              <div className="font-medium text-ink">{broker.name}</div>
+                              <div className="text-sm text-ink-tertiary">Code: {broker.code}</div>
+                            </div>
+                          </label>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="border-t pt-4">
+                <label className="block text-sm font-medium text-ink-secondary mb-3">
+                  Date Range (optional)
                 </label>
-                <input
-                  type="text"
-                  value={singleTicker}
-                  onChange={(e) => setSingleTicker(e.target.value.toUpperCase())}
-                  placeholder="e.g., AAPL"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
-            )}
-
-            {/* Multiple Symbols Input */}
-            {fetchMode === FETCH_MODES.MULTIPLE && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ticker Symbols (comma-separated)
-                </label>
-                <textarea
-                  value={multipleTickers}
-                  onChange={(e) => setMultipleTickers(e.target.value.toUpperCase())}
-                  placeholder="e.g., AAPL, MSFT, GOOGL"
-                  rows={4}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-                <p className="mt-2 text-sm text-gray-500">
-                  Enter ticker symbols separated by commas
-                </p>
-              </div>
-            )}
-
-            {/* Exchange Selection */}
-            {fetchMode === FETCH_MODES.EXCHANGE && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Exchange
-                </label>
-                <div className="mb-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-ink-secondary mb-1">Start Date</label>
                     <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search exchanges..."
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      max={endDate || new Date().toISOString().split('T')[0]}
+                      className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-ink-secondary mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      min={startDate || undefined}
+                      max={new Date().toISOString().split('T')[0]}
+                      className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                     />
                   </div>
                 </div>
-                {loading ? (
-                  <div className="text-center py-4 text-gray-500">Loading exchanges...</div>
-                ) : filteredExchanges.length === 0 ? (
-                  <div className="text-center py-4 text-gray-500">
-                    No exchanges found. Please fetch symbols first to populate exchanges.
-                  </div>
-                ) : (
-                  <div className="max-h-64 overflow-y-auto space-y-2">
-                    {filteredExchanges.map((exchange) => {
-                      // Handle both API response formats (Code/Name from EOD API or code/name from DB)
-                      const exchangeCode = exchange.code || exchange.Code;
-                      const exchangeName = exchange.name || exchange.Name;
-                      return (
-                        <label
-                          key={exchangeCode}
-                          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                            selectedExchange === exchangeCode
-                              ? 'bg-primary-50 border-2 border-primary-500'
-                              : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="exchange"
-                            value={exchangeCode}
-                            checked={selectedExchange === exchangeCode}
-                            onChange={(e) => setSelectedExchange(e.target.value)}
-                            className="w-4 h-4 text-primary-600 focus:ring-primary-500"
-                          />
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">{exchangeName}</div>
-                            <div className="text-sm text-gray-500">Code: {exchangeCode}</div>
-                            {exchange.country && (
-                              <div className="text-xs text-gray-400">{exchange.country}</div>
-                            )}
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
+                <p className="mt-2 text-sm text-ink-tertiary">
+                  End date defaults to today when left empty.
+                </p>
               </div>
-            )}
-
-            {/* Broker Selection */}
-            {fetchMode === FETCH_MODES.BROKER && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Broker
-                </label>
-                <div className="mb-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                      type="text"
-                      value={brokerSearchTerm}
-                      onChange={(e) => setBrokerSearchTerm(e.target.value)}
-                      placeholder="Search brokers..."
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-                {loadingBrokers ? (
-                  <div className="text-center py-4 text-gray-500">Loading brokers...</div>
-                ) : (
-                  <div className="max-h-64 overflow-y-auto space-y-2">
-                    {brokers
-                      .filter(broker => {
-                        const searchLower = brokerSearchTerm.toLowerCase();
-                        return broker.name.toLowerCase().includes(searchLower) ||
-                               broker.code.toLowerCase().includes(searchLower);
-                      })
-                      .map((broker) => (
-                        <label
-                          key={broker.id}
-                          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                            selectedBroker === broker.id.toString()
-                              ? 'bg-primary-50 border-2 border-primary-500'
-                              : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="broker"
-                            value={broker.id}
-                            checked={selectedBroker === broker.id.toString()}
-                            onChange={(e) => setSelectedBroker(e.target.value)}
-                            className="w-4 h-4 text-primary-600 focus:ring-primary-500"
-                          />
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">{broker.name}</div>
-                            <div className="text-sm text-gray-500">Code: {broker.code}</div>
-                          </div>
-                        </label>
-                      ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Date Range */}
-            <div className="border-t pt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Date Range (optional)
-              </label>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    max={endDate || new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">End Date</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    min={startDate || undefined}
-                    max={new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              <p className="mt-2 text-sm text-gray-500">
-                Leave empty to fetch all available data
-              </p>
             </div>
-          </div>
 
-          {/* Footer */}
-          <div className="flex items-center justify-end gap-3 p-6 border-t">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleFetch}
-              className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
-            >
-              <Download className="w-5 h-5" />
-              Fetch Data
-            </button>
-          </div>
-        </motion.div>
-      </div>
-    </AnimatePresence>
+            <div className="flex items-center justify-end gap-3 p-6 border-t">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-ink-secondary bg-surface-sunken rounded-lg hover:bg-surface-sunken transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleFetch}
+                disabled={resolving}
+                className="px-6 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+              >
+                <Download className="w-5 h-5" />
+                {resolving ? 'Resolving…' : 'Fetch Data'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      </AnimatePresence>
+    </>
   );
 }
-

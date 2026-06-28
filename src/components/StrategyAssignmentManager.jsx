@@ -130,13 +130,13 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Strategy Assignments</h3>
+        <h3 className="text-lg font-semibold text-ink">Strategy Assignments</h3>
         <button
           onClick={() => {
             resetForm();
             setShowAddModal(true);
           }}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+          className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
           Add Strategy
@@ -144,7 +144,7 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
       </div>
 
       {assignments.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-ink-tertiary">
           No strategy assignments. Add one to get started.
         </div>
       ) : (
@@ -153,35 +153,35 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
             <div key={assignment.id} className="border rounded-lg p-4 flex items-center justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  <h3 className="font-semibold text-gray-900">{assignment.strategy_name}</h3>
+                  <h3 className="font-semibold text-ink">{assignment.strategy_name}</h3>
                   {assignment.symbol === null && (
-                    <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                    <span className="px-2 py-1 text-xs font-medium bg-status-running-soft text-accent-ink rounded-full">
                       Global
                     </span>
                   )}
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                     assignment.enabled
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
+                      ? 'bg-profit-soft text-profit-ink'
+                      : 'bg-surface-sunken text-ink'
                   }`}>
                     {assignment.enabled ? 'Enabled' : 'Disabled'}
                   </span>
                 </div>
                 {assignment.strategy_info?.description_short && (
-                  <p className="text-sm text-gray-600 mt-1">{assignment.strategy_info.description_short}</p>
+                  <p className="text-sm text-ink-secondary mt-1">{assignment.strategy_info.description_short}</p>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleEdit(assignment)}
-                  className="p-2 text-gray-600 hover:text-primary-600 transition-colors"
+                  className="p-2 text-ink-secondary hover:text-accent transition-colors"
                   title="Edit"
                 >
                   <Edit className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => handleDeleteAssignment(assignment.id)}
-                  className="p-2 text-gray-600 hover:text-red-600 transition-colors"
+                  className="p-2 text-ink-secondary hover:text-loss transition-colors"
                   title="Delete"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -195,15 +195,15 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
       {/* Add Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-surface rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Add Strategy Assignment</h2>
+              <h2 className="text-xl font-bold text-ink">Add Strategy Assignment</h2>
               <button
                 onClick={() => {
                   setShowAddModal(false);
                   resetForm();
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-ink-tertiary hover:text-ink-secondary"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -211,7 +211,7 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   Strategy
                 </label>
                 <select
@@ -220,7 +220,7 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
                     const strategy = strategies.find(s => s.id === parseInt(e.target.value));
                     handleStrategySelect(strategy);
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                 >
                   <option value="">Select a strategy</option>
                   {strategies.map((strategy) => (
@@ -234,19 +234,19 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
               {selectedStrategy && (
                 <>
                   {selectedStrategy.description_short && (
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <p className="text-sm text-gray-700">{selectedStrategy.description_short}</p>
+                    <div className="bg-bg p-3 rounded-lg">
+                      <p className="text-sm text-ink-secondary">{selectedStrategy.description_short}</p>
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-ink-secondary mb-2">
                       Parameters
                     </label>
                     <div className="space-y-2">
                       {Object.entries(selectedStrategy.default_parameters || {}).map(([key, defaultValue]) => (
                         <div key={key}>
-                          <label className="block text-xs text-gray-600 mb-1 capitalize">
+                          <label className="block text-xs text-ink-secondary mb-1 capitalize">
                             {key.replace(/_/g, ' ')}
                           </label>
                           <input
@@ -256,7 +256,7 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
                               const value = typeof defaultValue === 'number' ? parseFloat(e.target.value) : e.target.value;
                               updateParameter(key, value);
                             }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                             step={typeof defaultValue === 'number' ? 'any' : undefined}
                           />
                         </div>
@@ -270,9 +270,9 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
                       id="enabled"
                       checked={enabled}
                       onChange={(e) => setEnabled(e.target.checked)}
-                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      className="w-4 h-4 text-accent border-border-strong rounded focus:ring-accent"
                     />
-                    <label htmlFor="enabled" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="enabled" className="text-sm font-medium text-ink-secondary">
                       Enable this strategy
                     </label>
                   </div>
@@ -285,14 +285,14 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
                     setShowAddModal(false);
                     resetForm();
                   }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-4 py-2 border border-border-strong rounded-lg hover:bg-bg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleAddAssignment}
                   disabled={!selectedStrategy}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Add Assignment
                 </button>
@@ -305,15 +305,15 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
       {/* Edit Modal */}
       {showEditModal && editingAssignment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-surface rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Edit Strategy Assignment</h2>
+              <h2 className="text-xl font-bold text-ink">Edit Strategy Assignment</h2>
               <button
                 onClick={() => {
                   setShowEditModal(false);
                   resetForm();
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-ink-tertiary hover:text-ink-secondary"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -323,22 +323,22 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
               {selectedStrategy && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-ink-secondary mb-2">
                       Strategy
                     </label>
-                    <div className="px-3 py-2 bg-gray-50 rounded-lg">
+                    <div className="px-3 py-2 bg-bg rounded-lg">
                       {selectedStrategy.name}
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-ink-secondary mb-2">
                       Parameters
                     </label>
                     <div className="space-y-2">
                       {Object.entries(selectedStrategy.default_parameters || {}).map(([key, defaultValue]) => (
                         <div key={key}>
-                          <label className="block text-xs text-gray-600 mb-1 capitalize">
+                          <label className="block text-xs text-ink-secondary mb-1 capitalize">
                             {key.replace(/_/g, ' ')}
                           </label>
                           <input
@@ -348,7 +348,7 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
                               const value = typeof defaultValue === 'number' ? parseFloat(e.target.value) : e.target.value;
                               updateParameter(key, value);
                             }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                             step={typeof defaultValue === 'number' ? 'any' : undefined}
                           />
                         </div>
@@ -362,9 +362,9 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
                       id="edit-enabled"
                       checked={enabled}
                       onChange={(e) => setEnabled(e.target.checked)}
-                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      className="w-4 h-4 text-accent border-border-strong rounded focus:ring-accent"
                     />
-                    <label htmlFor="edit-enabled" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="edit-enabled" className="text-sm font-medium text-ink-secondary">
                       Enable this strategy
                     </label>
                   </div>
@@ -377,14 +377,14 @@ export default function StrategyAssignmentManager({ symbolTicker, onAssignmentCh
                     setShowEditModal(false);
                     resetForm();
                   }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-4 py-2 border border-border-strong rounded-lg hover:bg-bg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleUpdateAssignment}
                   disabled={!selectedStrategy}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Update Assignment
                 </button>

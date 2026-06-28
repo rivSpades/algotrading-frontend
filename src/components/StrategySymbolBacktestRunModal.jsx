@@ -96,34 +96,34 @@ export default function StrategySymbolBacktestRunModal({ open, onClose, strategy
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl">
+      <div className="bg-surface rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl">
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">New run — {ticker}</h2>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <h2 className="text-lg font-semibold text-ink">New run — {ticker}</h2>
+          <button type="button" onClick={onClose} className="text-ink-tertiary hover:text-ink-secondary">
             <X className="w-5 h-5" />
           </button>
         </div>
         <div className="p-4 space-y-4">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-secondary">
             Adds a new saved run for this strategy and ticker. To re-run the run you are viewing with the same saved
             settings, use the <strong>Recalculate</strong> button on the results page (no configuration step).
           </p>
           <label className="block text-sm">
-            <span className="text-gray-600">Run name</span>
+            <span className="text-ink-secondary">Run name</span>
             <input
               type="text"
               value={runName}
               onChange={(e) => setRunName(e.target.value)}
               placeholder={`${strategy.name} — ${ticker}`}
-              className="mt-1 w-full border border-gray-300 rounded px-2 py-1.5"
+              className="mt-1 w-full border border-border-strong rounded px-2 py-1.5"
             />
-            <span className="text-xs text-gray-500 mt-1 block">
+            <span className="text-xs text-ink-tertiary mt-1 block">
               Shown in the &quot;Run to view&quot; list so you can tell runs apart.
             </span>
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm">
-              <span className="text-gray-600">Split ratio</span>
+              <span className="text-ink-secondary">Split ratio</span>
               <input
                 type="number"
                 step="0.05"
@@ -135,7 +135,7 @@ export default function StrategySymbolBacktestRunModal({ open, onClose, strategy
               />
             </label>
             <label className="text-sm">
-              <span className="text-gray-600">Initial capital</span>
+              <span className="text-ink-secondary">Initial capital</span>
               <input
                 type="number"
                 min={0}
@@ -145,7 +145,7 @@ export default function StrategySymbolBacktestRunModal({ open, onClose, strategy
               />
             </label>
             <label className="text-sm col-span-2">
-              <span className="text-gray-600">Bet size %</span>
+              <span className="text-ink-secondary">Bet size %</span>
               <input
                 type="number"
                 min={0.1}
@@ -176,11 +176,11 @@ export default function StrategySymbolBacktestRunModal({ open, onClose, strategy
           </div>
           {strategy.default_parameters && Object.keys(strategy.default_parameters).length > 0 && (
             <div>
-              <h3 className="text-sm font-medium text-gray-800 mb-2">Strategy parameters</h3>
+              <h3 className="text-sm font-medium text-ink mb-2">Strategy parameters</h3>
               <div className="grid grid-cols-2 gap-2">
                 {Object.keys(strategy.default_parameters).map((key) => (
                   <label key={key} className="text-sm">
-                    <span className="text-gray-600 capitalize">{key.replace(/_/g, ' ')}</span>
+                    <span className="text-ink-secondary capitalize">{key.replace(/_/g, ' ')}</span>
                     <input
                       type="text"
                       value={strategyParameters[key] ?? ''}
@@ -219,7 +219,7 @@ export default function StrategySymbolBacktestRunModal({ open, onClose, strategy
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+            className="px-4 py-2 rounded-lg border border-border-strong text-ink-secondary hover:bg-bg"
           >
             Cancel
           </button>
@@ -227,7 +227,7 @@ export default function StrategySymbolBacktestRunModal({ open, onClose, strategy
             type="button"
             onClick={handleSubmit}
             disabled={submitting}
-            className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50"
           >
             {submitting ? 'Starting…' : 'Run'}
           </button>

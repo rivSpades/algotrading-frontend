@@ -4,8 +4,10 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, DollarSign, Search, TrendingUp, Activity, Loader, CheckCircle2, XCircle, Edit, Link as LinkIcon, Plus, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { DollarSign, Search, TrendingUp, Activity, Loader, CheckCircle2, XCircle, Edit, Link as LinkIcon, Plus, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import BackButton from '../components/BackButton';
+import { withReturnState } from '../lib/navigation';
 import { getBroker, linkSymbolsToBroker } from '../data/liveTrading';
 import { liveTradingAPI } from '../data/liveTrading';
 import { marketDataAPI } from '../data/api';
@@ -15,6 +17,7 @@ import TaskProgress from '../components/TaskProgress';
 export default function BrokerDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   
   const [broker, setBroker] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -375,7 +378,7 @@ export default function BrokerDetail() {
   if (!broker) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <p className="text-gray-600">Broker not found</p>
+        <p className="text-ink-secondary">Broker not found</p>
       </div>
     );
   }
@@ -396,26 +399,18 @@ export default function BrokerDetail() {
       
       {/* Header */}
       <div className="mb-6">
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => navigate('/brokers')}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back to Brokers
-        </motion.button>
+        <BackButton to="/brokers" label="Back to Brokers" className="flex items-center gap-2 text-ink-secondary hover:text-ink mb-4" />
         
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{broker.name}</h1>
-            <p className="text-gray-600 mt-1">Code: {broker.code}</p>
+            <h1 className="text-3xl font-bold text-ink">{broker.name}</h1>
+            <p className="text-ink-secondary mt-1">Code: {broker.code}</p>
           </div>
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigate(`/brokers/${id}/edit`)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            onClick={() => navigate(`/brokers/${id}/edit`, { state: withReturnState(location) })}
+            className="flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-lg hover:bg-accent-hover transition-colors"
           >
             <Edit className="w-5 h-5" />
             Edit
@@ -424,8 +419,8 @@ export default function BrokerDetail() {
       </div>
       
       {/* Deployment Type Selector */}
-      <div className="mb-6 bg-white rounded-lg shadow-md p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Deployment Type</label>
+      <div className="mb-6 bg-surface rounded-lg shadow-md p-4">
+        <label className="block text-sm font-medium text-ink-secondary mb-2">Deployment Type</label>
         <div className="flex gap-4">
           <label className="flex items-center gap-2">
             <input
@@ -434,9 +429,9 @@ export default function BrokerDetail() {
               checked={deploymentType === 'paper'}
               onChange={(e) => setDeploymentType(e.target.value)}
               disabled={!isPaperActive}
-              className="w-4 h-4 text-blue-600"
+              className="w-4 h-4 text-accent"
             />
-            <span className={isPaperActive ? 'text-gray-900' : 'text-gray-400'}>
+            <span className={isPaperActive ? 'text-ink' : 'text-ink-tertiary'}>
               Paper Trading {isPaperActive ? '(Active)' : '(Not Active)'}
             </span>
           </label>
@@ -447,15 +442,15 @@ export default function BrokerDetail() {
               checked={deploymentType === 'real_money'}
               onChange={(e) => setDeploymentType(e.target.value)}
               disabled={!isRealMoneyActive}
-              className="w-4 h-4 text-blue-600"
+              className="w-4 h-4 text-accent"
             />
-            <span className={isRealMoneyActive ? 'text-gray-900' : 'text-gray-400'}>
+            <span className={isRealMoneyActive ? 'text-ink' : 'text-ink-tertiary'}>
               Real Money {isRealMoneyActive ? '(Active)' : '(Not Active)'}
             </span>
           </label>
         </div>
         {(!isPaperActive && !isRealMoneyActive) && (
-          <p className="text-sm text-yellow-600 mt-2">
+          <p className="text-sm text-status-pending mt-2">
             Please configure and test credentials before using broker functions.
           </p>
         )}
@@ -467,11 +462,11 @@ export default function BrokerDetail() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-lg shadow-md p-6"
+          className="bg-surface rounded-lg shadow-md p-6"
         >
           <div className="flex items-center gap-3 mb-4">
-            <DollarSign className="w-6 h-6 text-green-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Account Balance</h2>
+            <DollarSign className="w-6 h-6 text-profit" />
+            <h2 className="text-xl font-semibold text-ink">Account Balance</h2>
           </div>
           
           <button
@@ -491,15 +486,15 @@ export default function BrokerDetail() {
           
           {accountBalance && (
             <div className="space-y-3">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-600 mb-1">Cash Balance</div>
-                <div className="text-2xl font-bold text-gray-900">
+              <div className="p-4 bg-bg rounded-lg">
+                <div className="text-sm text-ink-secondary mb-1">Cash Balance</div>
+                <div className="text-2xl font-bold text-ink">
                   {formatCurrency(accountBalance.balance)}
                 </div>
               </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-600 mb-1">Total Equity</div>
-                <div className="text-2xl font-bold text-gray-900">
+              <div className="p-4 bg-bg rounded-lg">
+                <div className="text-sm text-ink-secondary mb-1">Total Equity</div>
+                <div className="text-2xl font-bold text-ink">
                   {formatCurrency(accountBalance.equity)}
                 </div>
               </div>
@@ -511,11 +506,11 @@ export default function BrokerDetail() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-lg shadow-md p-6"
+          className="bg-surface rounded-lg shadow-md p-6"
         >
           <div className="flex items-center gap-3 mb-4">
-            <Search className="w-6 h-6 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Check Symbol</h2>
+            <Search className="w-6 h-6 text-accent" />
+            <h2 className="text-xl font-semibold text-ink">Check Symbol</h2>
           </div>
           
           <div className="flex gap-2 mb-4">
@@ -524,13 +519,13 @@ export default function BrokerDetail() {
               value={symbolCheckInput}
               onChange={(e) => setSymbolCheckInput(e.target.value.toUpperCase())}
               placeholder="Enter symbol (e.g., AAPL)"
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
               onKeyPress={(e) => e.key === 'Enter' && handleCheckSymbol()}
             />
             <button
               onClick={handleCheckSymbol}
               disabled={loadingSymbol || (!isPaperActive && !isRealMoneyActive)}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-accent text-white px-6 py-2 rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loadingSymbol ? (
                 <Loader className="w-4 h-4 animate-spin" />
@@ -542,44 +537,44 @@ export default function BrokerDetail() {
           
           {symbolResult && (
             <div className="space-y-3">
-              <div className="p-4 bg-gray-50 rounded-lg">
+              <div className="p-4 bg-bg rounded-lg">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Symbol</span>
-                  <span className="text-lg font-bold text-gray-900">{symbolResult.symbol}</span>
+                  <span className="text-sm text-ink-secondary">Symbol</span>
+                  <span className="text-lg font-bold text-ink">{symbolResult.symbol}</span>
                 </div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Current Price</span>
-                  <span className="text-lg font-bold text-gray-900">
+                  <span className="text-sm text-ink-secondary">Current Price</span>
+                  <span className="text-lg font-bold text-ink">
                     {symbolResult.current_price ? formatCurrency(symbolResult.current_price) : 'N/A'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Tradable</span>
+                  <span className="text-sm text-ink-secondary">Tradable</span>
                   {symbolResult.is_tradable ? (
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    <CheckCircle2 className="w-5 h-5 text-profit" />
                   ) : (
-                    <XCircle className="w-5 h-5 text-red-600" />
+                    <XCircle className="w-5 h-5 text-loss" />
                   )}
                 </div>
               </div>
               
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-600 mb-2">Trading Capabilities</div>
+              <div className="p-4 bg-bg rounded-lg">
+                <div className="text-sm text-ink-secondary mb-2">Trading Capabilities</div>
                 <div className="flex gap-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Long</span>
+                    <span className="text-sm text-ink-secondary">Long</span>
                     {symbolResult.capabilities.long_supported ? (
-                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      <CheckCircle2 className="w-4 h-4 text-profit" />
                     ) : (
-                      <XCircle className="w-4 h-4 text-red-600" />
+                      <XCircle className="w-4 h-4 text-loss" />
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Short</span>
+                    <span className="text-sm text-ink-secondary">Short</span>
                     {symbolResult.capabilities.short_supported ? (
-                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      <CheckCircle2 className="w-4 h-4 text-profit" />
                     ) : (
-                      <XCircle className="w-4 h-4 text-red-600" />
+                      <XCircle className="w-4 h-4 text-loss" />
                     )}
                   </div>
                 </div>
@@ -592,11 +587,11 @@ export default function BrokerDetail() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-lg shadow-md p-6 lg:col-span-2"
+          className="bg-surface rounded-lg shadow-md p-6 lg:col-span-2"
         >
           <div className="flex items-center gap-3 mb-4">
             <Activity className="w-6 h-6 text-purple-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Current Positions</h2>
+            <h2 className="text-xl font-semibold text-ink">Current Positions</h2>
           </div>
           
           <button
@@ -617,62 +612,62 @@ export default function BrokerDetail() {
           {positions && (
             <div>
               {positions.count === 0 ? (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-ink-tertiary">
                   No open positions
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-border">
+                    <thead className="bg-bg">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase tracking-wider">
                           Symbol
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase tracking-wider">
                           Type
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase tracking-wider">
                           Quantity
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase tracking-wider">
                           Avg Price
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase tracking-wider">
                           Current Price
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase tracking-wider">
                           Unrealized P&L
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-surface divide-y divide-border">
                       {positions.positions.map((position, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <tr key={idx} className="hover:bg-bg">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-ink">
                             {position.symbol}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <span className={`px-2 py-1 rounded text-xs font-medium ${
                               position.position_type === 'long'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
+                                ? 'bg-profit-soft text-profit-ink'
+                                : 'bg-loss-soft text-loss-ink'
                             }`}>
                               {position.position_type.toUpperCase()}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-ink">
                             {position.quantity}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-ink">
                             {formatCurrency(position.average_price)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-ink">
                             {formatCurrency(position.current_price)}
                           </td>
                           <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
                             parseFloat(position.unrealized_pnl) >= 0
-                              ? 'text-green-600'
-                              : 'text-red-600'
+                              ? 'text-profit'
+                              : 'text-loss'
                           }`}>
                             {formatCurrency(position.unrealized_pnl)}
                           </td>
@@ -690,16 +685,16 @@ export default function BrokerDetail() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-lg shadow-md p-6 lg:col-span-2"
+          className="bg-surface rounded-lg shadow-md p-6 lg:col-span-2"
         >
           <div className="flex items-center gap-3 mb-4">
             <LinkIcon className="w-6 h-6 text-indigo-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Link Symbols</h2>
+            <h2 className="text-xl font-semibold text-ink">Link Symbols</h2>
           </div>
           
           {/* Link Mode Selector */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Link Mode</label>
+            <label className="block text-sm font-medium text-ink-secondary mb-2">Link Mode</label>
             <div className="flex gap-4">
               <label className="flex items-center gap-2">
                 <input
@@ -707,7 +702,7 @@ export default function BrokerDetail() {
                   value="individual"
                   checked={linkMode === 'individual'}
                   onChange={(e) => setLinkMode(e.target.value)}
-                  className="w-4 h-4 text-blue-600"
+                  className="w-4 h-4 text-accent"
                 />
                 <span>Individual Symbol</span>
               </label>
@@ -717,7 +712,7 @@ export default function BrokerDetail() {
                   value="list"
                   checked={linkMode === 'list'}
                   onChange={(e) => setLinkMode(e.target.value)}
-                  className="w-4 h-4 text-blue-600"
+                  className="w-4 h-4 text-accent"
                 />
                 <span>List of Symbols</span>
               </label>
@@ -727,7 +722,7 @@ export default function BrokerDetail() {
                   value="exchange"
                   checked={linkMode === 'exchange'}
                   onChange={(e) => setLinkMode(e.target.value)}
-                  className="w-4 h-4 text-blue-600"
+                  className="w-4 h-4 text-accent"
                 />
                 <span>By Exchange</span>
               </label>
@@ -737,7 +732,7 @@ export default function BrokerDetail() {
                   value="all_available"
                   checked={linkMode === 'all_available'}
                   onChange={(e) => setLinkMode(e.target.value)}
-                  className="w-4 h-4 text-blue-600"
+                  className="w-4 h-4 text-accent"
                 />
                 <span>All Available (from broker)</span>
               </label>
@@ -752,7 +747,7 @@ export default function BrokerDetail() {
                 value={symbolInput}
                 onChange={(e) => setSymbolInput(e.target.value.toUpperCase())}
                 placeholder="Enter symbol (e.g., AAPL)"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             )}
             {linkMode === 'list' && (
@@ -760,7 +755,7 @@ export default function BrokerDetail() {
                 value={symbolListInput}
                 onChange={(e) => setSymbolListInput(e.target.value.toUpperCase())}
                 placeholder="Enter symbols separated by commas (e.g., AAPL, MSFT, GOOGL)"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 rows={3}
               />
             )}
@@ -768,7 +763,7 @@ export default function BrokerDetail() {
               <select
                 value={exchangeCode}
                 onChange={(e) => setExchangeCode(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               >
                 <option value="">Select an exchange</option>
                 {availableExchanges.map(exchange => (
@@ -779,19 +774,19 @@ export default function BrokerDetail() {
               </select>
             )}
             {linkMode === 'all_available' && (
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800 font-medium mb-2">
+              <div className="p-4 bg-accent-soft border border-accent-soft rounded-lg">
+                <p className="text-sm text-accent-ink font-medium mb-2">
                   Link All Available Symbols from Broker
                 </p>
-                <p className="text-sm text-blue-700 mb-2">
+                <p className="text-sm text-accent-ink mb-2">
                   This will link all symbols that are:
                 </p>
-                <ul className="text-sm text-blue-700 mb-2 list-disc list-inside space-y-1">
+                <ul className="text-sm text-accent-ink mb-2 list-disc list-inside space-y-1">
                   <li>Available on the broker (tradable)</li>
                   <li>Exist in the database</li>
                   <li>Have no broker association yet</li>
                 </ul>
-                <p className="text-xs text-blue-600 mt-2">
+                <p className="text-xs text-accent mt-2">
                   Note: This may take a few moments as it fetches all tradable symbols from the broker API and verifies their capabilities.
                 </p>
               </div>
@@ -824,7 +819,7 @@ export default function BrokerDetail() {
           {/* Linked Symbols List */}
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Linked Symbols</h3>
+              <h3 className="text-lg font-semibold text-ink">Linked Symbols</h3>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -836,19 +831,19 @@ export default function BrokerDetail() {
                     (!isPaperActive && !isRealMoneyActive)
                   }
                   title="Re-fetch long/short tradability from the broker API for every linked symbol and update this list"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-ink-secondary bg-surface border border-border-strong rounded-lg hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <RefreshCw className={`w-4 h-4 ${reverifyBusy || symbolAsyncTaskId ? 'animate-spin' : ''}`} />
                   Re-verify from broker
                 </button>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-ink-tertiary" />
                   <input
                     type="text"
                     value={symbolsSearchTerm}
                     onChange={handleSymbolsSearch}
                     placeholder="Search symbols by ticker or name..."
-                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-64"
+                    className="pl-10 pr-4 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-64"
                   />
                 </div>
               </div>
@@ -858,50 +853,50 @@ export default function BrokerDetail() {
                 <Loader className="w-6 h-6 animate-spin text-indigo-500 mx-auto" />
               </div>
             ) : linkedSymbols.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-ink-tertiary">
                 No symbols linked yet
               </div>
             ) : (
               <>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-border">
+                    <thead className="bg-bg">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase tracking-wider">
                           Symbol
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase tracking-wider">
                           Long Active
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase tracking-wider">
                           Short Active
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-ink-tertiary uppercase tracking-wider">
                           Verified At
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-surface divide-y divide-border">
                       {linkedSymbols.map((assoc) => (
-                        <tr key={assoc.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <tr key={assoc.id} className="hover:bg-bg">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-ink">
                             {assoc.symbol_info?.ticker || assoc.symbol}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             {assoc.long_active ? (
-                              <CheckCircle2 className="w-5 h-5 text-green-600" />
+                              <CheckCircle2 className="w-5 h-5 text-profit" />
                             ) : (
-                              <XCircle className="w-5 h-5 text-red-600" />
+                              <XCircle className="w-5 h-5 text-loss" />
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             {assoc.short_active ? (
-                              <CheckCircle2 className="w-5 h-5 text-green-600" />
+                              <CheckCircle2 className="w-5 h-5 text-profit" />
                             ) : (
-                              <XCircle className="w-5 h-5 text-red-600" />
+                              <XCircle className="w-5 h-5 text-loss" />
                             )}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-ink-tertiary">
                             {assoc.verified_at ? new Date(assoc.verified_at).toLocaleDateString() : 'Not verified'}
                           </td>
                         </tr>
@@ -913,7 +908,7 @@ export default function BrokerDetail() {
                 {/* Pagination Controls */}
                 {(symbolsCount > 0 || symbolsNext || symbolsPrevious) && (
                   <div className="mt-4 flex items-center justify-between">
-                    <div className="text-sm text-gray-700">
+                    <div className="text-sm text-ink-secondary">
                       Showing {linkedSymbols.length > 0 ? ((symbolsPage - 1) * 20) + 1 : 0} to{' '}
                       {Math.min((symbolsPage - 1) * 20 + linkedSymbols.length, symbolsCount)} of {symbolsCount} symbols
                     </div>
@@ -923,13 +918,13 @@ export default function BrokerDetail() {
                         disabled={!symbolsPrevious}
                         className={`px-3 py-1 rounded-lg border transition-colors ${
                           symbolsPrevious
-                            ? 'border-gray-300 hover:bg-gray-50 text-gray-700'
-                            : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                            ? 'border-border-strong hover:bg-bg text-ink-secondary'
+                            : 'border-border text-ink-tertiary cursor-not-allowed'
                         }`}
                       >
                         <ChevronLeft className="w-4 h-4" />
                       </button>
-                      <span className="text-sm text-gray-700 px-2">
+                      <span className="text-sm text-ink-secondary px-2">
                         Page {symbolsPage}
                       </span>
                       <button
@@ -937,8 +932,8 @@ export default function BrokerDetail() {
                         disabled={!symbolsNext}
                         className={`px-3 py-1 rounded-lg border transition-colors ${
                           symbolsNext
-                            ? 'border-gray-300 hover:bg-gray-50 text-gray-700'
-                            : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                            ? 'border-border-strong hover:bg-bg text-ink-secondary'
+                            : 'border-border text-ink-tertiary cursor-not-allowed'
                         }`}
                       >
                         <ChevronRight className="w-4 h-4" />

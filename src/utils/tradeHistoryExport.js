@@ -20,7 +20,7 @@ export function exportTradesToCsvFile(trades, filename, options = {}) {
   if (!trades?.length) return;
 
   const { hedgeEnabled = false } = options;
-  const chronological = buildChronologicalTradeTableRows(trades);
+  const chronological = buildChronologicalTradeTableRows(trades, { newestFirst: false });
   const baseHeaders = [
     'event_date',
     'row_type',

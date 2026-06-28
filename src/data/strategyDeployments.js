@@ -225,7 +225,7 @@ export const deploymentEventsAPI = {
       since = null,
       pageSize = null,
       search = null,
-      ordering = null,
+      ordering = '-created_at',
     } = {},
   ) {
     const params = new URLSearchParams();
@@ -237,7 +237,7 @@ export const deploymentEventsAPI = {
     if (since) params.append('since', since);
     if (pageSize) params.append('page_size', pageSize);
     if (search) params.append('search', search);
-    if (ordering) params.append('ordering', ordering);
+    params.append('ordering', ordering || '-created_at');
     const qs = params.toString();
     return apiRequest(`${EVENTS_BASE}${qs ? `?${qs}` : ''}`);
   },
@@ -253,6 +253,16 @@ export const liveTradesAPI = {
       status = null,
       deploymentType = null,
       omitHedgeLegs = false,
+      openOnly = false,
+      closedOnly = false,
+      entryAfter = null,
+      entryBefore = null,
+      exitAfter = null,
+      exitBefore = null,
+      hedgeOnly = false,
+      mainOnly = false,
+      /** Explicit default so newest activity is always page 1 (matches API OrderingFilter default). */
+      ordering = '-activity_ts',
     } = {},
   ) {
     const params = new URLSearchParams();
@@ -263,6 +273,15 @@ export const liveTradesAPI = {
     if (status) params.append('status', status);
     if (deploymentType) params.append('deployment_type', deploymentType);
     if (omitHedgeLegs) params.append('omit_hedge_legs', 'true');
+    if (openOnly) params.append('open_only', 'true');
+    if (closedOnly) params.append('closed_only', 'true');
+    if (entryAfter) params.append('entry_after', entryAfter);
+    if (entryBefore) params.append('entry_before', entryBefore);
+    if (exitAfter) params.append('exit_after', exitAfter);
+    if (exitBefore) params.append('exit_before', exitBefore);
+    if (hedgeOnly) params.append('hedge_only', 'true');
+    if (mainOnly) params.append('main_only', 'true');
+    if (ordering) params.append('ordering', ordering);
     const qs = params.toString();
     return apiRequest(`/live-trades/${qs ? `?${qs}` : ''}`);
   },

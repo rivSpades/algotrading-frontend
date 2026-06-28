@@ -195,16 +195,16 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <p className="text-gray-500">Loading tools...</p>
+      <div className="bg-surface rounded-lg shadow-lg p-6">
+        <p className="text-ink-tertiary">Loading tools...</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className="bg-surface rounded-lg shadow-lg p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-gray-900">Analytical Tools</h2>
+        <h2 className="text-xl font-bold text-ink">Analytical Tools</h2>
         <div className="flex gap-2">
           <button
             onClick={() => setShowAddModal(true)}
@@ -218,7 +218,7 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
 
       {/* Assignments List */}
       {assignments.length === 0 ? (
-        <p className="text-gray-500 text-center py-8">No tools assigned. Click "Add Tool" to get started.</p>
+        <p className="text-ink-tertiary text-center py-8">No tools assigned. Click "Add Tool" to get started.</p>
       ) : (
         <div className="space-y-3">
           {assignments.map((assignment) => (
@@ -228,33 +228,33 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
             >
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  <h3 className="font-semibold text-gray-900">{assignment.tool.name}</h3>
+                  <h3 className="font-semibold text-ink">{assignment.tool.name}</h3>
                   {!assignment.symbol && (
-                    <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800">
+                    <span className="text-xs px-2 py-1 rounded bg-status-running-soft text-accent-ink">
                       Global
                     </span>
                   )}
                   <button
                     onClick={() => handleToggleEnabled(assignment)}
-                    className="text-gray-500 hover:text-gray-700"
+                    className="text-ink-tertiary hover:text-ink-secondary"
                   >
                     {assignment.enabled ? (
-                      <ToggleRight className="w-5 h-5 text-green-600" />
+                      <ToggleRight className="w-5 h-5 text-profit" />
                     ) : (
-                      <ToggleLeft className="w-5 h-5 text-gray-400" />
+                      <ToggleLeft className="w-5 h-5 text-ink-tertiary" />
                     )}
                   </button>
                   <span className={`text-sm px-2 py-1 rounded ${
-                    assignment.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                    assignment.enabled ? 'bg-profit-soft text-profit-ink' : 'bg-surface-sunken text-ink-secondary'
                   }`}>
                     {assignment.enabled ? 'Enabled' : 'Disabled'}
                   </span>
                 </div>
                 {assignment.tool.description && (
-                  <p className="text-sm text-gray-600 mt-1">{assignment.tool.description}</p>
+                  <p className="text-sm text-ink-secondary mt-1">{assignment.tool.description}</p>
                 )}
                 {Object.keys(assignment.parameters || {}).length > 0 && (
-                  <div className="text-xs text-gray-500 mt-2">
+                  <div className="text-xs text-ink-tertiary mt-2">
                     Parameters: {JSON.stringify(assignment.parameters)}
                   </div>
                 )}
@@ -277,14 +277,14 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
                     setSubchart(assignment.subchart || false);
                     setShowEditModal(true);
                   }}
-                  className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                  className="p-2 text-accent hover:bg-accent-soft rounded"
                   title="Edit tool settings"
                 >
                   <Settings className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => handleDeleteAssignment(assignment.id)}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded"
+                  className="p-2 text-loss hover:bg-loss-soft rounded"
                   title="Remove tool"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -298,25 +298,25 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
       {/* Edit Tool Modal */}
       {showEditModal && editingAssignment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-surface rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-xl font-bold mb-4">Edit {editingAssignment.tool.name} Settings</h3>
             
             {/* Parameters */}
             {editingAssignment.tool.default_parameters && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   Parameters
                 </label>
                 {Object.entries(editingAssignment.tool.default_parameters).map(([key, defaultValue]) => (
                   <div key={key} className="mb-2">
-                    <label className="block text-xs text-gray-600 mb-1 capitalize">
+                    <label className="block text-xs text-ink-secondary mb-1 capitalize">
                       {key.replace(/_/g, ' ')}
                     </label>
                     <input
                       type="number"
                       value={parameters[key] !== undefined ? parameters[key] : defaultValue}
                       onChange={(e) => updateParameter(key, parseInt(e.target.value) || defaultValue)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                      className="w-full border border-border-strong rounded-lg px-3 py-2"
                     />
                   </div>
                 ))}
@@ -326,82 +326,82 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
             {/* Color Pickers */}
             {editingAssignment?.tool.name === 'BollingerBands' ? (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   Band Colors
                 </label>
                 <div className="space-y-3">
                   {/* Upper Band Color */}
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Upper Band</label>
+                    <label className="block text-xs text-ink-secondary mb-1">Upper Band</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
                         value={upperColor}
                         onChange={(e) => setUpperColor(e.target.value)}
-                        className="w-16 h-10 border border-gray-300 rounded cursor-pointer"
+                        className="w-16 h-10 border border-border-strong rounded cursor-pointer"
                       />
                       <input
                         type="text"
                         value={upperColor}
                         onChange={(e) => setUpperColor(e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        className="flex-1 border border-border-strong rounded-lg px-3 py-2"
                         placeholder="#EF4444"
                       />
                     </div>
                   </div>
                   {/* Middle Band Color */}
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Middle Band</label>
+                    <label className="block text-xs text-ink-secondary mb-1">Middle Band</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
                         value={middleColor}
                         onChange={(e) => setMiddleColor(e.target.value)}
-                        className="w-16 h-10 border border-gray-300 rounded cursor-pointer"
+                        className="w-16 h-10 border border-border-strong rounded cursor-pointer"
                       />
                       <input
                         type="text"
                         value={middleColor}
                         onChange={(e) => setMiddleColor(e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        className="flex-1 border border-border-strong rounded-lg px-3 py-2"
                         placeholder="#3B82F6"
                       />
                     </div>
                   </div>
                   {/* Lower Band Color */}
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Lower Band</label>
+                    <label className="block text-xs text-ink-secondary mb-1">Lower Band</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
                         value={lowerColor}
                         onChange={(e) => setLowerColor(e.target.value)}
-                        className="w-16 h-10 border border-gray-300 rounded cursor-pointer"
+                        className="w-16 h-10 border border-border-strong rounded cursor-pointer"
                       />
                       <input
                         type="text"
                         value={lowerColor}
                         onChange={(e) => setLowerColor(e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        className="flex-1 border border-border-strong rounded-lg px-3 py-2"
                         placeholder="#10B981"
                       />
                     </div>
                   </div>
                   {/* Bandwidth Color */}
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Bandwidth</label>
+                    <label className="block text-xs text-ink-secondary mb-1">Bandwidth</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
                         value={bandwidthColor}
                         onChange={(e) => setBandwidthColor(e.target.value)}
-                        className="w-16 h-10 border border-gray-300 rounded cursor-pointer"
+                        className="w-16 h-10 border border-border-strong rounded cursor-pointer"
                       />
                       <input
                         type="text"
                         value={bandwidthColor}
                         onChange={(e) => setBandwidthColor(e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        className="flex-1 border border-border-strong rounded-lg px-3 py-2"
                         placeholder="#8B5CF6"
                       />
                     </div>
@@ -410,7 +410,7 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
               </div>
             ) : (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   Line Color
                 </label>
                 <div className="flex items-center gap-3">
@@ -418,13 +418,13 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
                     type="color"
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
-                    className="w-16 h-10 border border-gray-300 rounded cursor-pointer"
+                    className="w-16 h-10 border border-border-strong rounded cursor-pointer"
                   />
                   <input
                     type="text"
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                    className="flex-1 border border-border-strong rounded-lg px-3 py-2"
                     placeholder="#3B82F6"
                   />
                 </div>
@@ -438,13 +438,13 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
                   type="checkbox"
                   checked={subchart}
                   onChange={(e) => setSubchart(e.target.checked)}
-                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  className="w-4 h-4 text-accent border-border-strong rounded focus:ring-accent"
                 />
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-ink-secondary">
                   Display in subchart (below main chart)
                 </span>
               </label>
-              <p className="text-xs text-gray-500 mt-1 ml-6">
+              <p className="text-xs text-ink-tertiary mt-1 ml-6">
                 Recommended for indicators like RSI (0-100 range) that need separate scale
               </p>
             </div>
@@ -464,13 +464,13 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
                   setLowerColor('#10B981');
                   setBandwidthColor('#8B5CF6');
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 border border-border-strong rounded-lg hover:bg-bg"
               >
                 Cancel
               </button>
               <button
                 onClick={handleUpdateAssignment}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover"
               >
                 Save Changes
               </button>
@@ -482,12 +482,12 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
       {/* Add Tool Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-surface rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-xl font-bold mb-4">Add Analytical Tool</h3>
             
             {/* Tool Selection */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-ink-secondary mb-2">
                 Select Tool
               </label>
               <select
@@ -496,7 +496,7 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
                   const tool = tools.find(t => t.name === e.target.value);
                   handleToolSelect(tool);
                 }}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-border-strong rounded-lg px-3 py-2"
               >
                 <option value="">Choose a tool...</option>
                 {tools
@@ -512,19 +512,19 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
             {/* Parameters */}
             {selectedTool && selectedTool.default_parameters && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   Parameters
                 </label>
                 {Object.entries(selectedTool.default_parameters).map(([key, defaultValue]) => (
                   <div key={key} className="mb-2">
-                    <label className="block text-xs text-gray-600 mb-1 capitalize">
+                    <label className="block text-xs text-ink-secondary mb-1 capitalize">
                       {key.replace(/_/g, ' ')}
                     </label>
                     <input
                       type="number"
                       value={parameters[key] || defaultValue}
                       onChange={(e) => updateParameter(key, parseInt(e.target.value) || defaultValue)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                      className="w-full border border-border-strong rounded-lg px-3 py-2"
                     />
                   </div>
                 ))}
@@ -534,82 +534,82 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
             {/* Color Pickers */}
             {selectedTool && selectedTool.name === 'BollingerBands' ? (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   Band Colors
                 </label>
                 <div className="space-y-3">
                   {/* Upper Band Color */}
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Upper Band</label>
+                    <label className="block text-xs text-ink-secondary mb-1">Upper Band</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
                         value={upperColor}
                         onChange={(e) => setUpperColor(e.target.value)}
-                        className="w-16 h-10 border border-gray-300 rounded cursor-pointer"
+                        className="w-16 h-10 border border-border-strong rounded cursor-pointer"
                       />
                       <input
                         type="text"
                         value={upperColor}
                         onChange={(e) => setUpperColor(e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        className="flex-1 border border-border-strong rounded-lg px-3 py-2"
                         placeholder="#EF4444"
                       />
                     </div>
                   </div>
                   {/* Middle Band Color */}
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Middle Band</label>
+                    <label className="block text-xs text-ink-secondary mb-1">Middle Band</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
                         value={middleColor}
                         onChange={(e) => setMiddleColor(e.target.value)}
-                        className="w-16 h-10 border border-gray-300 rounded cursor-pointer"
+                        className="w-16 h-10 border border-border-strong rounded cursor-pointer"
                       />
                       <input
                         type="text"
                         value={middleColor}
                         onChange={(e) => setMiddleColor(e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        className="flex-1 border border-border-strong rounded-lg px-3 py-2"
                         placeholder="#3B82F6"
                       />
                     </div>
                   </div>
                   {/* Lower Band Color */}
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Lower Band</label>
+                    <label className="block text-xs text-ink-secondary mb-1">Lower Band</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
                         value={lowerColor}
                         onChange={(e) => setLowerColor(e.target.value)}
-                        className="w-16 h-10 border border-gray-300 rounded cursor-pointer"
+                        className="w-16 h-10 border border-border-strong rounded cursor-pointer"
                       />
                       <input
                         type="text"
                         value={lowerColor}
                         onChange={(e) => setLowerColor(e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        className="flex-1 border border-border-strong rounded-lg px-3 py-2"
                         placeholder="#10B981"
                       />
                     </div>
                   </div>
                   {/* Bandwidth Color */}
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Bandwidth</label>
+                    <label className="block text-xs text-ink-secondary mb-1">Bandwidth</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
                         value={bandwidthColor}
                         onChange={(e) => setBandwidthColor(e.target.value)}
-                        className="w-16 h-10 border border-gray-300 rounded cursor-pointer"
+                        className="w-16 h-10 border border-border-strong rounded cursor-pointer"
                       />
                       <input
                         type="text"
                         value={bandwidthColor}
                         onChange={(e) => setBandwidthColor(e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        className="flex-1 border border-border-strong rounded-lg px-3 py-2"
                         placeholder="#8B5CF6"
                       />
                     </div>
@@ -618,7 +618,7 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
               </div>
             ) : selectedTool && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   Line Color
                 </label>
                 <div className="flex items-center gap-3">
@@ -626,13 +626,13 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
                     type="color"
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
-                    className="w-16 h-10 border border-gray-300 rounded cursor-pointer"
+                    className="w-16 h-10 border border-border-strong rounded cursor-pointer"
                   />
                   <input
                     type="text"
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                    className="flex-1 border border-border-strong rounded-lg px-3 py-2"
                     placeholder="#3B82F6"
                   />
                 </div>
@@ -647,13 +647,13 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
                     type="checkbox"
                     checked={subchart}
                     onChange={(e) => setSubchart(e.target.checked)}
-                    className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                    className="w-4 h-4 text-accent border-border-strong rounded focus:ring-accent"
                   />
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-ink-secondary">
                     Display in subchart (below main chart)
                   </span>
                 </label>
-                <p className="text-xs text-gray-500 mt-1 ml-6">
+                <p className="text-xs text-ink-tertiary mt-1 ml-6">
                   Recommended for indicators like RSI (0-100 range) that need separate scale
                 </p>
               </div>
@@ -668,14 +668,14 @@ export default function ToolAssignmentManager({ symbolTicker, onAssignmentChange
                   setParameters({});
                   setSubchart(false);
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 border border-border-strong rounded-lg hover:bg-bg"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddAssignment}
                 disabled={!selectedTool}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50"
               >
                 Add Tool
               </button>

@@ -3,33 +3,35 @@
  * Displays symbol information in a card format
  */
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Calendar, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { withReturnState } from '../lib/navigation';
 
 export default function SymbolCard({ symbol, onClick, footer = null }) {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleClick = () => {
     if (onClick) {
       onClick(symbol);
     } else {
-      navigate(`/symbols/${symbol.ticker}`);
+      navigate(`/symbols/${symbol.ticker}`, { state: withReturnState(location) });
     }
   };
 
-  const statusColor = symbol.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
+  const statusColor = symbol.status === 'active' ? 'bg-profit-soft text-profit-ink' : 'bg-surface-sunken text-ink';
 
   return (
     <motion.div
       whileHover={{ y: -4 }}
-      className="bg-white rounded-lg shadow-md p-6 cursor-pointer hover:shadow-lg transition-shadow"
+      className="bg-surface rounded-lg shadow-md p-6 cursor-pointer hover:shadow-lg transition-shadow"
       onClick={handleClick}
     >
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h3 className="text-xl font-bold text-gray-900 mb-1">{symbol.ticker}</h3>
-          <p className="text-sm text-gray-600">
+          <h3 className="text-xl font-bold text-ink mb-1">{symbol.ticker}</h3>
+          <p className="text-sm text-ink-secondary">
             {symbol.exchange_name || symbol.exchange}
           </p>
         </div>
@@ -38,7 +40,7 @@ export default function SymbolCard({ symbol, onClick, footer = null }) {
         </span>
       </div>
 
-      <div className="space-y-2 text-sm text-gray-600">
+      <div className="space-y-2 text-sm text-ink-secondary">
         <div className="flex items-center gap-2">
           <span className="font-medium">Exchange:</span>
           <span>{symbol.exchange}</span>
@@ -48,7 +50,7 @@ export default function SymbolCard({ symbol, onClick, footer = null }) {
           <span className="capitalize">{symbol.type}</span>
         </div>
         {symbol.name && symbol.name !== symbol.ticker && (
-          <div className="text-xs text-gray-500 truncate" title={symbol.name}>
+          <div className="text-xs text-ink-tertiary truncate" title={symbol.name}>
             {symbol.name}
           </div>
         )}
@@ -61,7 +63,7 @@ export default function SymbolCard({ symbol, onClick, footer = null }) {
               : '—'}
           </span>
         </div>
-        {footer ? <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-600">{footer}</div> : null}
+        {footer ? <div className="mt-3 pt-3 border-t border-border text-xs text-ink-secondary">{footer}</div> : null}
       </div>
     </motion.div>
   );

@@ -3,13 +3,12 @@
  * Displays symbol search and list
  */
 
-import { useLoaderData, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLoaderData, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
-import { Search, Download, ChevronLeft, ChevronRight, Trash2, BarChart3, X } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, BarChart3, Settings, X } from 'lucide-react';
 import SymbolCard from '../components/SymbolCard';
-import FetchSymbolsModal from '../components/FetchSymbolsModal';
 import FetchOHLCVModal from '../components/FetchOHLCVModal';
-import DeleteOHLCVModal from '../components/DeleteOHLCVModal';
+import MarketDataManageModal from '../components/MarketDataManageModal';
 import TaskProgress from '../components/TaskProgress';
 import { marketDataAPI } from '../data/api';
 import { fetchOHLCVData } from '../data/symbols';
@@ -23,14 +22,10 @@ export default function Home() {
   const [selectedStatus, setSelectedStatus] = useState(initialStatus || '');
   const [exchanges, setExchanges] = useState([]);
   const [loadingExchanges, setLoadingExchanges] = useState(false);
-  const navigate = useNavigate();
-  const [showFetchModal, setShowFetchModal] = useState(false);
   const [showFetchOHLCVModal, setShowFetchOHLCVModal] = useState(false);
-  const [showDeleteOHLCVModal, setShowDeleteOHLCVModal] = useState(false);
+  const [showManageModal, setShowManageModal] = useState(false);
   const [taskId, setTaskId] = useState(null);
   const [showProgress, setShowProgress] = useState(false);
-  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const isUserTypingRef = useRef(false);
 
   // Load exchanges on mount
@@ -138,18 +133,6 @@ export default function Home() {
 
   const hasActiveFilters = selectedExchange || selectedStatus || searchTerm.trim();
 
-  const handleFetchSymbols = async (exchangeCodes, fetchAll) => {
-    try {
-      const response = await marketDataAPI.fetchSymbols(exchangeCodes, fetchAll);
-      if (response.success) {
-        setTaskId(response.data.task_id);
-        setShowProgress(true);
-      }
-    } catch (error) {
-      alert(`Failed to start symbol fetch: ${error.message}`);
-    }
-  };
-
   const handleFetchOHLCV = async (fetchData) => {
     try {
       const result = await fetchOHLCVData(fetchData);
@@ -160,18 +143,9 @@ export default function Home() {
     }
   };
 
-  const handleDeleteOHLCV = async (deleteData) => {
-    try {
-      const response = await marketDataAPI.deleteOHLCVData(deleteData);
-      if (response.success) {
-        setTaskId(response.data.task_id);
-        setShowProgress(true);
-      } else {
-        alert(`Failed to start OHLCV data deletion: ${response.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      alert(`Failed to start OHLCV data deletion: ${error.message}`);
-    }
+  const handleTaskStarted = (newTaskId) => {
+    setTaskId(newTaskId);
+    setShowProgress(true);
   };
 
   const handleTaskComplete = (data) => {
@@ -187,40 +161,6 @@ export default function Home() {
     setTaskId(null);
   };
 
-  const handleDeleteAll = async () => {
-    if (!window.confirm(
-      `Are you absolutely sure you want to delete ALL symbols?\n\n` +
-      `This will permanently delete:\n` +
-      `- All ${count || 0} symbols\n` +
-      `- All related OHLCV data\n\n` +
-      `This action cannot be undone!`
-    )) {
-      return;
-    }
-
-    // Double confirmation
-    if (!window.confirm('This is your last chance. Are you REALLY sure?')) {
-      return;
-    }
-
-    setDeleting(true);
-    try {
-      const response = await marketDataAPI.deleteAllSymbols();
-      if (response.success) {
-        alert(`Successfully deleted ${response.data.deleted_symbols || response.data.symbol_count || 0} symbols and all related data.`);
-        // Reload the page to show empty state
-        window.location.reload();
-      } else {
-        alert(`Failed to delete all symbols: ${response.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      alert(`Failed to delete all symbols: ${error.message}`);
-    } finally {
-      setDeleting(false);
-      setShowDeleteAllConfirm(false);
-    }
-  };
-
   return (
     <>
       {/* Task Progress Overlay */}
@@ -232,13 +172,6 @@ export default function Home() {
         />
       )}
 
-      {/* Fetch Symbols Modal */}
-      <FetchSymbolsModal
-        isOpen={showFetchModal}
-        onClose={() => setShowFetchModal(false)}
-        onFetch={handleFetchSymbols}
-      />
-
       {/* Fetch OHLCV Data Modal */}
       <FetchOHLCVModal
         isOpen={showFetchOHLCVModal}
@@ -246,55 +179,37 @@ export default function Home() {
         onFetch={handleFetchOHLCV}
       />
 
-      {/* Delete OHLCV Data Modal */}
-      <DeleteOHLCVModal
-        isOpen={showDeleteOHLCVModal}
-        onClose={() => setShowDeleteOHLCVModal(false)}
-        onDelete={handleDeleteOHLCV}
+      <MarketDataManageModal
+        isOpen={showManageModal}
+        onClose={() => setShowManageModal(false)}
+        onTaskStarted={handleTaskStarted}
+        symbolCount={count}
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Market Data</h1>
-          <p className="text-gray-600">Search and manage trading symbols</p>
+          <h1 className="text-3xl font-bold text-ink mb-2">Market Data</h1>
+          <p className="text-ink-secondary">Search and manage trading symbols</p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="mb-6 flex gap-3 items-center justify-between flex-wrap">
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowFetchModal(true)}
-              className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2"
-            >
-              <Download className="w-5 h-5" />
-              Fetch Symbols
-            </button>
-            <button
-              onClick={() => setShowFetchOHLCVModal(true)}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center gap-2"
-            >
-              <BarChart3 className="w-5 h-5" />
-              Fetch OHLCV Data
-            </button>
-            <button
-              onClick={() => setShowDeleteOHLCVModal(true)}
-              className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium flex items-center gap-2"
-            >
-              <Trash2 className="w-5 h-5" />
-              Delete OHLCV Data
-            </button>
-          </div>
-          {count > 0 && (
-            <button
-              onClick={handleDeleteAll}
-              disabled={deleting}
-              className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Trash2 className="w-5 h-5" />
-              {deleting ? 'Deleting...' : 'Delete All Symbols'}
-            </button>
-          )}
+        <div className="mb-6 flex gap-3 items-center flex-wrap">
+          <button
+            type="button"
+            onClick={() => setShowFetchOHLCVModal(true)}
+            className="px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors font-medium flex items-center gap-2"
+          >
+            <BarChart3 className="w-5 h-5" />
+            Fetch OHLCV Data
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowManageModal(true)}
+            className="px-6 py-3 bg-surface border border-border-strong text-ink rounded-lg hover:bg-surface-sunken transition-colors font-medium flex items-center gap-2"
+          >
+            <Settings className="w-5 h-5" />
+            Manage
+          </button>
         </div>
 
 
@@ -303,7 +218,7 @@ export default function Home() {
           <form onSubmit={handleSearch} className="mb-4">
             <div className="flex gap-4 flex-wrap">
               <div className="flex-1 min-w-[200px] relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary w-5 h-5" />
                 <input
                   type="text"
                   value={searchTerm}
@@ -318,14 +233,14 @@ export default function Home() {
                     }, 100);
                   }}
                   placeholder="Search symbols by ticker..."
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                 />
               </div>
               <div className="flex gap-3">
                 <select
                   value={selectedExchange}
                   onChange={handleExchangeChange}
-                  className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white min-w-[150px]"
+                  className="px-4 py-3 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent bg-surface min-w-[150px]"
                 >
                   <option value="">All Exchanges</option>
                   {loadingExchanges ? (
@@ -341,7 +256,7 @@ export default function Home() {
                 <select
                   value={selectedStatus}
                   onChange={handleStatusChange}
-                  className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white min-w-[120px]"
+                  className="px-4 py-3 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent bg-surface min-w-[120px]"
                 >
                   <option value="">All Status</option>
                   <option value="active">Active</option>
@@ -351,7 +266,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 text-gray-700"
+                    className="px-4 py-3 border border-border-strong rounded-lg hover:bg-bg transition-colors flex items-center gap-2 text-ink-secondary"
                     title="Clear all filters"
                   >
                     <X className="w-5 h-5" />
@@ -362,20 +277,20 @@ export default function Home() {
             </div>
           </form>
           {hasActiveFilters && (
-            <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div className="flex items-center gap-2 text-sm text-ink-secondary">
               <span>Active filters:</span>
               {selectedExchange && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                <span className="px-2 py-1 bg-status-running-soft text-accent-ink rounded">
                   Exchange: {exchanges.find(e => e.code === selectedExchange)?.name || selectedExchange}
                 </span>
               )}
               {selectedStatus && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                <span className="px-2 py-1 bg-status-running-soft text-accent-ink rounded">
                   Status: {selectedStatus}
                 </span>
               )}
               {searchTerm.trim() && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                <span className="px-2 py-1 bg-status-running-soft text-accent-ink rounded">
                   Search: {searchTerm.trim()}
                 </span>
               )}
@@ -385,12 +300,12 @@ export default function Home() {
 
         {/* Results Count and Pagination Info */}
         <div className="mb-4 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-ink-secondary">
             {count !== undefined ? (
               <>
                 Found {count} symbol{count !== 1 ? 's' : ''}
                 {symbols.length > 0 && count > 0 && (
-                  <span className="text-gray-500">
+                  <span className="text-ink-tertiary">
                     {' '}(Showing {((currentPage - 1) * 20) + 1}-{Math.min(currentPage * 20, count)})
                   </span>
                 )}
@@ -417,12 +332,12 @@ export default function Home() {
                   }
                 }}
                 disabled={!previous}
-                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                className="px-3 py-2 border border-border-strong rounded-lg hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Previous
               </button>
-              <span className="text-sm text-gray-600 px-2">
+              <span className="text-sm text-ink-secondary px-2">
                 Page {currentPage}
               </span>
               <button
@@ -441,7 +356,7 @@ export default function Home() {
                   }
                 }}
                 disabled={!next}
-                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                className="px-3 py-2 border border-border-strong rounded-lg hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
@@ -465,9 +380,9 @@ export default function Home() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 bg-white rounded-lg shadow">
-            <p className="text-gray-500 text-lg">No symbols found</p>
-            <p className="text-gray-400 text-sm mt-2">
+          <div className="text-center py-12 bg-surface rounded-lg shadow">
+            <p className="text-ink-tertiary text-lg">No symbols found</p>
+            <p className="text-ink-tertiary text-sm mt-2">
               Try a different search term or add a new symbol
             </p>
           </div>
