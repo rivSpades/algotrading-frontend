@@ -1,0 +1,12 @@
+---
+description: Design system — ler antes de criar ou alterar UI
+globs: src/**/*
+alwaysApply: false
+---
+# Design system
+
+> Full spec in `design.md`. Summary in `AGENTS.md` and `.ai/context/charts-ui.md`.
+
+- CSS tokens only (`--bg`, `--surface`, `--positive`, `--negative`) — no raw hex.
+- Green/red reserved for P&L; status uses `--status-*`.
+- Mobile-first, both themes, touch targets ≥ 44px.

@@ -1,0 +1,14 @@
+---
+alwaysApply: true
+---
+# Frontend — agent rules
+
+> Canonical context is in `AGENTS.md`. Read it first.
+
+- Stack, commands, conventions, Don'ts → `AGENTS.md`
+- Design system → `design.md` (read in full before UI changes)
+- Data layer → `.ai/context/data-layer.md`
+- Routing → `.ai/context/routing.md`
+- Charts / P&L → `.ai/context/charts-ui.md`
+
+No business calculations in the frontend — backend computes, UI displays.
