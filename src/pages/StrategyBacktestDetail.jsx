@@ -4,11 +4,10 @@
  * URL: /strategies/:id/backtests/:backtestId
  */
 
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown, BarChart3, Loader, ChevronLeft, ChevronRight, Search, List } from 'lucide-react';
-import BackButton from '../components/BackButton';
 import { useNavigateBack } from '../lib/navigation';
 import { getStrategy } from '../data/strategies';
 import {
@@ -20,9 +19,8 @@ import {
 } from '../data/backtests';
 import { marketDataAPI } from '../data/api';
 import StatisticsCard from '../components/StatisticsCard';
-import Chart from 'react-apexcharts';
 import { getChartTheme } from '../lib/chartTheme';
-import EquityCurveChart from '../components/charts/EquityCurveChart';
+import ApexEquityChart, { equityPointsToApexData } from '../components/charts/ApexEquityChart';
 import TaskProgress from '../components/TaskProgress';
 import TopPerformersChart from '../components/TopPerformersChart';
 import { buildChronologicalTradeTableRows } from '../utils/chronologicalTradeTableRows';
@@ -38,8 +36,43 @@ import {
   HedgeTradePnlBodyCells,
 } from '../components/BacktestHedgeTradeTableCols';
 import BacktestParametersPanel from '../components/BacktestParametersPanel';
+import PortfolioVarianceSection from '../components/PortfolioVarianceSection';
 import SymbolCard from '../components/SymbolCard';
-import { positionModesAvailable, positionModeRunLabel } from '../utils/backtestPositionMode';
+import { positionModesAvailable, positionModeRunLabel, monteCarloPositionMode } from '../utils/backtestPositionMode';
+
+function extractEquityCurve(portfolioOrSymbol, mode) {
+  if (!portfolioOrSymbol) return null;
+
+  const statsByMode = portfolioOrSymbol.stats_by_mode || {};
+  const modeStats = statsByMode[mode];
+  if (!modeStats) return null;
+
+  if (modeStats.equity_curve_x && modeStats.equity_curve_y) {
+    const x = modeStats.equity_curve_x;
+    const y = modeStats.equity_curve_y;
+    if (x.length === 0 || y.length === 0) return null;
+    return x
+      .map((timestamp, index) => ({ timestamp, equity: y[index] }))
+      .filter((point) => point.timestamp && point.equity !== null && point.equity !== undefined);
+  }
+
+  if (modeStats.equity_curve && Array.isArray(modeStats.equity_curve)) {
+    return modeStats.equity_curve.filter(
+      (point) => point && point.timestamp && point.equity !== null && point.equity !== undefined,
+    );
+  }
+
+  if (mode === 'long') {
+    const x = portfolioOrSymbol.equity_curve_x || [];
+    const y = portfolioOrSymbol.equity_curve_y || [];
+    if (x.length === 0 || y.length === 0) return null;
+    return x
+      .map((timestamp, index) => ({ timestamp, equity: y[index] }))
+      .filter((point) => point.timestamp && point.equity !== null && point.equity !== undefined);
+  }
+
+  return null;
+}
 
 export default function StrategyBacktestDetail() {
   const chartTheme = getChartTheme();
@@ -59,6 +92,7 @@ export default function StrategyBacktestDetail() {
   const [tradesPageInput, setTradesPageInput] = useState('1');
   const pollingIntervalRef = useRef(null);
   const [exportingTrades, setExportingTrades] = useState(false);
+  const [activeTab, setActiveTab] = useState('results');
 
   /** Symbols included in this portfolio backtest (paginated + searchable) */
   const SYMBOL_PAGE_SIZE = 20;
@@ -356,51 +390,28 @@ export default function StrategyBacktestDetail() {
   // Must be before early returns (React hooks rules)
   const equityCurveForMode = useMemo(() => {
     const portfolioOrSymbol = selectedSymbol
-      ? statistics.symbols?.find(s => s.symbol_ticker === selectedSymbol)
+      ? statistics.symbols?.find((s) => s.symbol_ticker === selectedSymbol)
       : statistics.portfolio;
-    
-    if (!portfolioOrSymbol) return null;
-    
-    // Get stats_by_mode for the selected mode
-    const statsByMode = portfolioOrSymbol.stats_by_mode || {};
-    const modeStats = statsByMode[selectedMode];
-    
-    if (!modeStats) return null;
-    
-    // Try to get equity curve from mode stats (now includes equity_curve_x and equity_curve_y)
-    if (modeStats.equity_curve_x && modeStats.equity_curve_y) {
-      const x = modeStats.equity_curve_x;
-      const y = modeStats.equity_curve_y;
-      if (x.length === 0 || y.length === 0) return null;
-      
-      // Convert x/y arrays to array of {timestamp, equity} objects
-      return x.map((timestamp, index) => ({
-        timestamp: timestamp,
-        equity: y[index]
-      })).filter(point => point.timestamp && point.equity !== null && point.equity !== undefined);
-    }
-    
-    // Fallback: use equity_curve array directly if available
-    if (modeStats.equity_curve && Array.isArray(modeStats.equity_curve)) {
-      return modeStats.equity_curve.filter(point => 
-        point && point.timestamp && point.equity !== null && point.equity !== undefined
-      );
-    }
-    
-    // Last fallback: top-level equity_curve_x/y match long-mode (main stats row)
-    if (selectedMode === 'long') {
-      const x = portfolioOrSymbol.equity_curve_x || [];
-      const y = portfolioOrSymbol.equity_curve_y || [];
-      if (x.length === 0 || y.length === 0) return null;
-      
-      return x.map((timestamp, index) => ({
-        timestamp: timestamp,
-        equity: y[index]
-      })).filter(point => point.timestamp && point.equity !== null && point.equity !== undefined);
-    }
-    
-    return null;
+    return extractEquityCurve(portfolioOrSymbol, selectedMode);
   }, [selectedSymbol, selectedMode, statistics]);
+
+  /** Same mode as order-variance backend (long when available) */
+  const equityCurveForMonteCarlo = useMemo(() => {
+    if (!statistics.portfolio || !backtest) return null;
+    return extractEquityCurve(statistics.portfolio, monteCarloPositionMode(backtest));
+  }, [statistics.portfolio, backtest]);
+
+  const referenceStatsForMonteCarlo = useMemo(() => {
+    if (!statistics.portfolio || !backtest) return null;
+    const mode = monteCarloPositionMode(backtest);
+    const statsByMode = statistics.portfolio.stats_by_mode || {};
+    return statsByMode[mode] || null;
+  }, [statistics.portfolio, backtest]);
+
+  const monteCarloModeLabel = useMemo(() => {
+    if (!backtest) return 'LONG';
+    return monteCarloPositionMode(backtest).toUpperCase();
+  }, [backtest]);
 
   /** S&P 500 buy-and-hold benchmark (portfolio view only); same window as strategy equity curve */
   const benchmarkSeriesForChart = useMemo(() => {
@@ -451,6 +462,46 @@ export default function StrategyBacktestDetail() {
       .filter(Boolean);
     return data.length > 1 ? data : null;
   }, [selectedSymbol, selectedMode, statistics?.portfolio, statistics?.symbols]);
+
+  const equityChartSeries = useMemo(() => {
+    if (!equityCurveForMode?.length) return [];
+    const hedgedLabel =
+      backtest?.hedge_enabled && strategyOnlySeriesForChart
+        ? 'Strategy + hedge'
+        : selectedSymbol
+          ? 'Equity'
+          : 'Portfolio';
+    const series = [{
+      name: hedgedLabel,
+      data: equityPointsToApexData(equityCurveForMode),
+      color: chartTheme.accent,
+      strokeWidth: 2,
+    }];
+    if (strategyOnlySeriesForChart) {
+      series.push({
+        name: 'Strategy only',
+        data: strategyOnlySeriesForChart,
+        color: chartTheme.inkSecondary,
+        strokeWidth: 2,
+      });
+    }
+    if (benchmarkSeriesForChart) {
+      series.push({
+        name: 'S&P 500 (buy & hold)',
+        data: benchmarkSeriesForChart,
+        color: chartTheme.series[3],
+        strokeWidth: 2,
+      });
+    }
+    return series;
+  }, [
+    equityCurveForMode,
+    strategyOnlySeriesForChart,
+    benchmarkSeriesForChart,
+    backtest?.hedge_enabled,
+    selectedSymbol,
+    chartTheme,
+  ]);
 
   // Get current stats for display
   // On the main backtest detail page, always show portfolio stats (not symbol-specific)
@@ -515,7 +566,19 @@ export default function StrategyBacktestDetail() {
         />
       )}
       
-      <BackButton to={`/strategies/${id}`} label="Back to Strategy" className="mb-6 flex items-center gap-2 text-ink-secondary hover:text-ink" iconClassName="w-4 h-4" />
+      <nav className="mb-6 text-sm text-ink-secondary flex flex-wrap items-center gap-2">
+        <Link to="/strategies" className="hover:text-ink">Strategies</Link>
+        <span>→</span>
+        <Link to={`/strategies/${id}`} className="hover:text-ink">{strategy.name}</Link>
+        {backtest.parameter_set_label ? (
+          <>
+            <span>→</span>
+            <Link to={`/strategies/${id}`} className="hover:text-ink">{backtest.parameter_set_label}</Link>
+          </>
+        ) : null}
+        <span>→</span>
+        <span className="text-ink font-medium">Portfolio</span>
+      </nav>
 
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-ink mb-2">
@@ -545,6 +608,52 @@ export default function StrategyBacktestDetail() {
         </div>
       </div>
 
+      <div className="mb-6 border-b border-border">
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('results')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === 'results'
+                ? 'border-accent text-accent'
+                : 'border-transparent text-ink-secondary hover:text-ink'
+            }`}
+          >
+            Results
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('variance')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === 'variance'
+                ? 'border-accent text-accent'
+                : 'border-transparent text-ink-secondary hover:text-ink'
+            }`}
+          >
+            Order variance
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'variance' ? (
+        <PortfolioVarianceSection
+          backtestId={backtestId}
+          backtestStatus={backtest.status}
+          monteCarloNumPaths={backtest.monte_carlo_num_paths ?? 500}
+          symbolCount={
+            Array.isArray(backtest.symbol_priority_order)
+              ? backtest.symbol_priority_order.length
+              : 0
+          }
+          resultsEquityCurve={equityCurveForMonteCarlo ?? equityCurveForMode}
+          referenceStats={referenceStatsForMonteCarlo}
+          positionModeLabel={monteCarloModeLabel}
+          initialCapital={backtest?.initial_capital ? Number(backtest.initial_capital) : null}
+          hasParameterSet={Boolean(backtest.parameter_set || backtest.parameter_set_signature)}
+          onViewPortfolioResults={() => setActiveTab('results')}
+        />
+      ) : (
+        <>
       {/* Mode Selector */}
       <div className="mb-6 bg-surface rounded-lg shadow-lg p-4">
         <h2 className="text-lg font-bold text-ink mb-3">Position Mode</h2>
@@ -608,6 +717,16 @@ export default function StrategyBacktestDetail() {
           }
           return null;
         })()
+      )}
+
+      {backtest?.parameter_set && (
+        <div className="mb-6 bg-accent-soft border border-accent-soft rounded-lg p-4">
+          <p className="text-sm text-accent-ink">
+            Parameters locked to global test
+            {backtest.parameter_set_label ? `: ${backtest.parameter_set_label}` : ''}.
+            Portfolio config is derived from the parent single-symbol test.
+          </p>
+        </div>
       )}
 
       {backtest && <BacktestParametersPanel backtest={backtest} title="Backtest parameters" />}
@@ -922,103 +1041,11 @@ export default function StrategyBacktestDetail() {
               Benchmark (^GSPC) unavailable: {benchmarkErrorPortfolio}
             </p>
           )}
-          {!benchmarkSeriesForChart && !strategyOnlySeriesForChart ? (
-            <EquityCurveChart
-              data={equityCurveForMode.map((point) => ({
-                date: point.timestamp,
-                equity: parseFloat(point.equity),
-              }))}
-              xKey="date"
-              yKey="equity"
-              height={360}
-              initialCapital={backtest?.initial_capital ? Number(backtest.initial_capital) : null}
-            />
-          ) : (
-          <Chart
-            options={{
-              chart: {
-                type: 'line',
-                toolbar: { show: true },
-                zoom: { enabled: false },
-              },
-              xaxis: {
-                type: 'datetime',
-                title: { text: 'Date' },
-              },
-              yaxis: {
-                title: { text: 'Equity ($)' },
-              },
-              title: {
-                text: selectedSymbol 
-                  ? `Equity Curve - ${selectedSymbol} (${selectedMode.toUpperCase()})` 
-                  : `Portfolio Equity Curve (${selectedMode.toUpperCase()})`,
-                align: 'left',
-              },
-              colors: (() => {
-                const c = [chartTheme.accent];
-                if (strategyOnlySeriesForChart) c.push(chartTheme.inkSecondary);
-                if (benchmarkSeriesForChart) c.push(chartTheme.series[3]);
-                return c;
-              })(),
-              stroke: {
-                width: (() => {
-                  let n = 1;
-                  if (strategyOnlySeriesForChart) n += 1;
-                  if (benchmarkSeriesForChart) n += 1;
-                  return Array(n).fill(2);
-                })(),
-                curve: 'straight',
-              },
-              legend: {
-                show: !!(benchmarkSeriesForChart || strategyOnlySeriesForChart),
-                position: 'top',
-              },
-              tooltip: {
-                x: {
-                  format: 'dd MMM yyyy'
-                },
-              },
-            }}
-            series={(() => {
-              const strategyData = equityCurveForMode
-                .filter(point => point && point.timestamp && point.equity !== null && point.equity !== undefined)
-                .map(point => {
-                  const timestamp = new Date(point.timestamp).getTime();
-                  const equity = parseFloat(point.equity);
-                  if (isNaN(timestamp) || isNaN(equity)) {
-                    return null;
-                  }
-                  return {
-                    x: timestamp,
-                    y: equity,
-                  };
-                })
-                .filter(point => point !== null);
-              const hedgedLabel =
-                backtest.hedge_enabled && strategyOnlySeriesForChart
-                  ? 'Strategy + hedge'
-                  : selectedSymbol
-                    ? 'Equity'
-                    : 'Strategy';
-              const seriesList = [{ name: hedgedLabel, data: strategyData }];
-              if (strategyOnlySeriesForChart) {
-                seriesList.push({
-                  name: 'Strategy only',
-                  data: strategyOnlySeriesForChart,
-                });
-              }
-              if (benchmarkSeriesForChart) {
-                seriesList.push({
-                  name: 'S&P 500 (buy & hold)',
-                  data: benchmarkSeriesForChart,
-                });
-              }
-              return seriesList;
-            })()}
-            type="line"
-            height={350}
+          <ApexEquityChart
+            series={equityChartSeries}
+            height={400}
+            initialCapital={backtest?.initial_capital ? Number(backtest.initial_capital) : null}
           />
-          )}
         </div>
       )}
 
@@ -1249,6 +1276,8 @@ export default function StrategyBacktestDetail() {
           </>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

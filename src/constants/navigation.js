@@ -8,7 +8,6 @@ import {
   Rocket,
   Shield,
   FileText,
-  FlaskConical,
   MoreHorizontal,
 } from 'lucide-react';
 
@@ -16,7 +15,6 @@ export const primaryNavItems = [
   { name: 'Live', path: '/', icon: LayoutDashboard, mobileLabel: 'Live' },
   { name: 'Market Data', path: '/market-data', icon: BarChart3, mobileLabel: 'Mercado' },
   { name: 'Strategies', path: '/strategies', icon: TrendingUp, mobileLabel: 'Estratégias' },
-  { name: 'Backtests', path: '/backtests', icon: FlaskConical, mobileLabel: 'Backtests' },
 ];
 
 export const secondaryNavItems = [

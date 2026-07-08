@@ -196,6 +196,22 @@ export const backtestsAPI = {
   async getSymbolRunStatisticsOptimized(runId) {
     return apiRequest(`/symbol-runs/${runId}/statistics/optimized/`);
   },
+
+  async getPortfolioMonteCarlo(backtestId) {
+    return apiRequest(`/backtests/${backtestId}/monte-carlo/`);
+  },
+
+  async runPortfolioMonteCarlo(backtestId, body = {}) {
+    return apiRequest(`/backtests/${backtestId}/monte-carlo/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  },
+
+  async getPortfolioMonteCarloPaths(backtestId, page = 1, pageSize = 100) {
+    return apiRequest(`/backtests/${backtestId}/monte-carlo/paths/?page=${page}&page_size=${pageSize}`);
+  },
 };
 
 /**
@@ -467,5 +483,29 @@ export async function getBacktestSymbols(backtestId, page = 1, pageSize = 20, se
   } catch (error) {
     return { results: [], count: 0, next: null, previous: null };
   }
+}
+
+export async function getPortfolioMonteCarlo(backtestId) {
+  const response = await backtestsAPI.getPortfolioMonteCarlo(backtestId);
+  if (response.success && response.data) {
+    return response.data;
+  }
+  return { simulation: null };
+}
+
+export async function runPortfolioMonteCarlo(backtestId, { numPaths = 500 } = {}) {
+  const response = await backtestsAPI.runPortfolioMonteCarlo(backtestId, { num_paths: numPaths });
+  if (response.success && response.data) {
+    return response.data;
+  }
+  throw new Error(response.error || 'Failed to start Monte Carlo simulation');
+}
+
+export async function getPortfolioMonteCarloPaths(backtestId, page = 1, pageSize = 100) {
+  const response = await backtestsAPI.getPortfolioMonteCarloPaths(backtestId, page, pageSize);
+  if (response.success && response.data) {
+    return response.data;
+  }
+  return { results: [], count: 0, next: null, previous: null };
 }
 

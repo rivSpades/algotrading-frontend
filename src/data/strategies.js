@@ -130,6 +130,25 @@ export const strategiesAPI = {
     );
   },
 
+  /** Latest portfolio backtest for a global test (parameter set). */
+  async getPortfolioBacktestForParameterSet(strategyId, signature) {
+    return apiRequest(
+      `/strategies/${strategyId}/symbol-run-parameter-sets/${encodeURIComponent(signature)}/portfolio-backtest/`,
+    );
+  },
+
+/** Create portfolio backtest locked to global test params. */
+  async runPortfolioBacktestFromParameterSet(strategyId, signature, body = {}) {
+    return apiRequest(
+      `/strategies/${strategyId}/symbol-run-parameter-sets/${encodeURIComponent(signature)}/portfolio-backtest/`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
+  },
+
   /** Delete all single-symbol runs for this strategy (all symbols). */
   async deleteAllStrategySymbolSnapshots(strategyId) {
     return apiRequest(`/strategies/${strategyId}/symbol-runs/`, {
@@ -377,5 +396,21 @@ export async function deleteAllStrategySymbolSnapshots(strategyId) {
     return response.data;
   }
   throw new Error(response.error || 'Failed to delete snapshot runs');
+}
+
+export async function getPortfolioBacktestForParameterSet(strategyId, signature) {
+  const response = await strategiesAPI.getPortfolioBacktestForParameterSet(strategyId, signature);
+  if (response.success && response.data) {
+    return response.data;
+  }
+  throw new Error(response.error || 'Failed to load portfolio backtest');
+}
+
+export async function runPortfolioBacktestFromParameterSet(strategyId, signature, body = {}) {
+  const response = await strategiesAPI.runPortfolioBacktestFromParameterSet(strategyId, signature, body);
+  if (response.success && response.data) {
+    return response.data;
+  }
+  throw new Error(response.error || 'Failed to start portfolio backtest');
 }
 

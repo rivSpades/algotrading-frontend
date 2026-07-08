@@ -3,7 +3,7 @@
  * Uses React Router DOM v6+ with loaders and actions
  */
 
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Home from './pages/Home';
@@ -16,8 +16,6 @@ import StrategySymbolDetail from './pages/StrategySymbolDetail';
 import StrategyBacktestSymbols from './pages/StrategyBacktestSymbols';
 import StrategyBacktestDetail from './pages/StrategyBacktestDetail';
 import StrategyBacktestSymbolDetail from './pages/StrategyBacktestSymbolDetail';
-import Backtests from './pages/Backtests';
-import BacktestDetail from './pages/BacktestDetail';
 import Brokers from './pages/Brokers';
 import BrokerForm from './pages/BrokerForm';
 import BrokerDetail from './pages/BrokerDetail';
@@ -138,11 +136,11 @@ const router = createBrowserRouter([
       },
       {
         path: 'backtests',
-        element: <Backtests />,
+        element: <Navigate to="/strategies" replace />,
       },
       {
         path: 'backtests/:id',
-        element: <BacktestDetail />,
+        element: <Navigate to="/strategies" replace />,
       },
       {
         path: 'brokers',

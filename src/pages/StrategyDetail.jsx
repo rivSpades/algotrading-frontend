@@ -3,7 +3,7 @@
  * Shows strategy details and allows backtesting
  */
 
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Chart from 'react-apexcharts';
@@ -11,9 +11,6 @@ import {
   TrendingUp,
   Code,
   Settings,
-  Clock,
-  CheckCircle,
-  XCircle,
   ChevronLeft,
   ChevronRight,
   Rocket,
@@ -29,11 +26,14 @@ import {
   deleteStrategySymbolRunParameterSet,
   deleteAllStrategySymbolSnapshots,
   getStrategySymbolRunSharpeHeatmap,
+  getPortfolioBacktestForParameterSet,
+  runPortfolioBacktestFromParameterSet,
 } from '../data/strategies';
-import { getBacktests, deleteBacktest } from '../data/backtests';
 import BacktestConfig from '../components/BacktestConfig';
 import SymbolCard from '../components/SymbolCard';
 import DeployStrategyModal from '../components/DeployStrategyModal';
+import PortfolioRunModal from '../components/PortfolioRunModal';
+import TaskProgress from '../components/TaskProgress';
 import BackButton from '../components/BackButton';
 import { useNavigateBack } from '../lib/navigation';
 
@@ -41,15 +41,7 @@ export default function StrategyDetail() {
   const { id } = useParams();
   const { goBack, navigateWithReturn } = useNavigateBack('/strategies');
   const [strategy, setStrategy] = useState(null);
-  const [backtests, setBacktests] = useState([]);
-  const [backtestsCount, setBacktestsCount] = useState(0);
-  const [backtestsNext, setBacktestsNext] = useState(null);
-  const [backtestsPrevious, setBacktestsPrevious] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [backtestsLoading, setBacktestsLoading] = useState(true);
-  const [deleting, setDeleting] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
   const [snapshotSymbols, setSnapshotSymbols] = useState([]);
   const [snapshotSymbolsCount, setSnapshotSymbolsCount] = useState(0);
   const [snapshotSymbolsLoading, setSnapshotSymbolsLoading] = useState(false);
@@ -63,6 +55,12 @@ export default function StrategyDetail() {
   const SNAPSHOT_PAGE_SIZE = 20;
   const [deletingAllSnapshots, setDeletingAllSnapshots] = useState(false);
   const [deployModalOpen, setDeployModalOpen] = useState(false);
+  const [portfolioBacktest, setPortfolioBacktest] = useState(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
+  const [portfolioRunning, setPortfolioRunning] = useState(false);
+  const [portfolioTaskId, setPortfolioTaskId] = useState(null);
+  const [showPortfolioTaskProgress, setShowPortfolioTaskProgress] = useState(false);
+  const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
   const riskScatterLoadedForRef = useRef('');
   const didInitSnapshotsRef = useRef(false);
   /** Prevents a slow in-flight snapshot request from overwriting a newer search/page result. */
@@ -165,12 +163,70 @@ export default function StrategyDetail() {
     [loadSnapshotParameterSets, loadSnapshotSymbolsPage, loadRiskScatter],
   );
 
+  const loadPortfolioBacktest = useCallback(
+    async (parameterSet) => {
+      const ps = parameterSet ? String(parameterSet) : '';
+      if (!ps || !id) {
+        setPortfolioBacktest(null);
+        return;
+      }
+      setPortfolioLoading(true);
+      try {
+        const data = await getPortfolioBacktestForParameterSet(id, ps);
+        setPortfolioBacktest(data?.portfolio_backtest || null);
+      } catch (e) {
+        console.error(e);
+        setPortfolioBacktest(null);
+      } finally {
+        setPortfolioLoading(false);
+      }
+    },
+    [id],
+  );
+
+  const handlePortfolioModalSubmit = async ({ name, num_monte_carlo_paths }) => {
+    if (!selectedSnapshotParameterSet) return;
+    setPortfolioRunning(true);
+    setPortfolioModalOpen(false);
+    try {
+      const data = await runPortfolioBacktestFromParameterSet(id, selectedSnapshotParameterSet, {
+        name,
+        num_monte_carlo_paths,
+      });
+      const bt = data?.portfolio_backtest;
+      setPortfolioBacktest(bt || null);
+      const tid = bt?.task_id;
+      if (tid) {
+        setPortfolioTaskId(tid);
+        setShowPortfolioTaskProgress(true);
+      } else if (bt?.id) {
+        navigateWithReturn(`/strategies/${id}/backtests/${bt.id}`);
+      }
+    } catch (e) {
+      alert(e.message || 'Failed to start portfolio backtest');
+    } finally {
+      setPortfolioRunning(false);
+    }
+  };
+
+  const selectedParameterSetMeta = useMemo(
+    () => snapshotParameterSets.find((ps) => ps.signature === selectedSnapshotParameterSet),
+    [snapshotParameterSets, selectedSnapshotParameterSet],
+  );
+
+  const portfolioConfigSummary = useMemo(() => {
+    if (!portfolioBacktest) return null;
+    return {
+      initial_capital: portfolioBacktest.initial_capital,
+      bet_size_percentage: portfolioBacktest.bet_size_percentage,
+      split_ratio: portfolioBacktest.split_ratio,
+      position_modes: portfolioBacktest.position_modes,
+    };
+  }, [portfolioBacktest]);
+
   useEffect(() => {
     loadStrategy();
-    const page = parseInt(searchParams.get('page') || '1');
-    setCurrentPage(page);
-    loadBacktests(page);
-  }, [id, searchParams]);
+  }, [id]);
 
   useEffect(() => {
     // Strategy changed: reset snapshots UI to defaults, then fetch page 1.
@@ -220,6 +276,22 @@ export default function StrategyDetail() {
     });
   }, [id, snapshotPage, snapshotSearch, selectedSnapshotParameterSet, loadSnapshotSymbolsPage]);
 
+  useEffect(() => {
+    if (!selectedSnapshotParameterSet) {
+      setPortfolioBacktest(null);
+      return;
+    }
+    loadPortfolioBacktest(selectedSnapshotParameterSet);
+  }, [selectedSnapshotParameterSet, loadPortfolioBacktest]);
+
+  useEffect(() => {
+    if (!portfolioBacktest || !['pending', 'running'].includes(portfolioBacktest.status)) return undefined;
+    const interval = setInterval(() => {
+      loadPortfolioBacktest(selectedSnapshotParameterSet);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [portfolioBacktest?.status, portfolioBacktest?.id, selectedSnapshotParameterSet, loadPortfolioBacktest]);
+
   const snapshotTotalPages = Math.max(1, Math.ceil((snapshotSymbolsCount || 0) / SNAPSHOT_PAGE_SIZE));
 
   const handleSnapshotSearchChange = (e) => {
@@ -241,55 +313,6 @@ export default function StrategyDetail() {
     }
   };
 
-  const loadBacktests = async (page = 1) => {
-    setBacktestsLoading(true);
-    try {
-      const response = await getBacktests(page, parseInt(id));
-      if (Array.isArray(response)) {
-        // Fallback for non-paginated response
-        const strategyBacktests = response.filter(bt => bt.strategy_info?.id === parseInt(id) || bt.strategy === parseInt(id));
-        setBacktests(strategyBacktests);
-        setBacktestsCount(strategyBacktests.length);
-        setBacktestsNext(null);
-        setBacktestsPrevious(null);
-      } else {
-        // Paginated response
-        const strategyBacktests = (response.results || []).filter(bt => bt.strategy_info?.id === parseInt(id) || bt.strategy === parseInt(id));
-        setBacktests(strategyBacktests);
-        setBacktestsCount(response.count || 0);
-        setBacktestsNext(response.next || null);
-        setBacktestsPrevious(response.previous || null);
-      }
-    } catch (error) {
-      console.error('Error loading backtests:', error);
-      setBacktests([]);
-      setBacktestsCount(0);
-      setBacktestsNext(null);
-      setBacktestsPrevious(null);
-    } finally {
-      setBacktestsLoading(false);
-    }
-  };
-
-  const handleDeleteBacktest = async (backtestId) => {
-    if (!window.confirm('Are you sure you want to delete this backtest? This action cannot be undone.')) {
-      return;
-    }
-
-    setDeleting(true);
-    try {
-      await deleteBacktest(backtestId);
-      // Reload backtests after deletion
-      const page = parseInt(searchParams.get('page') || '1');
-      await loadBacktests(page);
-    } catch (error) {
-      console.error('Error deleting backtest:', error);
-      alert('Failed to delete backtest: ' + (error.message || 'Unknown error'));
-    } finally {
-      setDeleting(false);
-    }
-  };
-
   const handleStrategyBacktestCreated = (backtest, ctx) => {
     if (ctx?.runMode === 'single_symbol_bulk') {
       const ps = ctx?.parameterSet ? String(ctx.parameterSet) : '';
@@ -299,7 +322,6 @@ export default function StrategyDetail() {
       const q = Array.isArray(ctx?.queued)
         ? ctx.queued.find((x) => x && x.ticker && (x.run_id || x.id))
         : null;
-      loadBacktests();
       riskScatterLoadedForRef.current = '';
       setSnapshotPage(1);
       refreshAllSnapshotPanels({ preferParameterSet: ps || null });
@@ -311,19 +333,16 @@ export default function StrategyDetail() {
       return;
     }
     if (ctx?.runMode === 'single_symbol' && ctx?.ticker && backtest?.id) {
-      loadBacktests();
       refreshAllSnapshotPanels();
       navigateWithReturn(`/strategies/${id}/${ctx.ticker}?run=${backtest.id}`);
       return;
     }
     if (backtest?.id) {
       navigateWithReturn(`/strategies/${id}/backtests/${backtest.id}`);
-      loadBacktests();
       refreshAllSnapshotPanels();
       return;
     }
     navigateWithReturn(`/strategies/${id}`);
-    loadBacktests();
     refreshAllSnapshotPanels();
   };
 
@@ -371,25 +390,6 @@ export default function StrategyDetail() {
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-5 h-5 text-profit" />;
-      case 'failed':
-        return <XCircle className="w-5 h-5 text-loss" />;
-      case 'running':
-        return <Clock className="w-5 h-5 text-status-pending animate-spin" />;
-      default:
-        return <Clock className="w-5 h-5 text-ink-secondary" />;
-    }
-  };
-
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -434,11 +434,6 @@ export default function StrategyDetail() {
             </span>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center shrink-0">
-            <BacktestConfig
-              runMode="portfolio"
-              defaultStrategyId={strategy.id}
-              onBacktestCreated={handleStrategyBacktestCreated}
-            />
             <BacktestConfig
               runMode="single_symbol"
               defaultStrategyId={strategy.id}
@@ -519,20 +514,25 @@ export default function StrategyDetail() {
         )}
       </div>
 
-      {/* Single-symbol snapshots (card grid + search); portfolio runs also list symbols on each backtest detail page */}
+      {/* Global tests hub */}
       <div className="mb-6 bg-surface rounded-lg shadow-lg p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
-          <h2 className="text-xl font-bold text-ink flex items-center gap-2">
-            <List className="w-5 h-5 shrink-0" />
-            Single-symbol snapshots ({snapshotSymbolsCount || 0})
-          </h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-ink flex items-center gap-2">
+              <List className="w-5 h-5 shrink-0" />
+              Global tests
+            </h2>
+            <p className="text-sm text-ink-secondary mt-1">
+              Single-symbol runs first, then portfolio with shared capital and order-variance simulation.
+            </p>
+          </div>
           <div className="flex flex-wrap gap-2 shrink-0">
             {selectedSnapshotParameterSet && (
               <button
                 type="button"
                 onClick={() => setDeployModalOpen(true)}
                 disabled={snapshotSymbolsLoading}
-                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-accent-soft text-accent-ink bg-accent-soft hover:bg-status-running-soft disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-accent-soft text-accent-ink bg-accent-soft hover:bg-status-running-soft disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
               >
                 <Rocket className="w-4 h-4" />
                 Deploy
@@ -543,27 +543,19 @@ export default function StrategyDetail() {
                 type="button"
                 onClick={handleDeleteAllSnapshots}
                 disabled={deletingAllSnapshots || snapshotSymbolsLoading}
-                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-loss text-loss-ink bg-loss-soft hover:bg-loss-soft disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-loss text-loss-ink bg-loss-soft hover:bg-loss-soft disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
               >
                 <Trash2 className="w-4 h-4" />
-                {deletingAllSnapshots
-                  ? 'Deleting…'
-                  : selectedSnapshotParameterSet
-                    ? 'Delete this test'
-                    : 'Delete all snapshots'}
+                {deletingAllSnapshots ? 'Deleting…' : 'Delete test'}
               </button>
             )}
           </div>
         </div>
-        <p className="text-sm text-ink-secondary mb-4">
-          Click a card to open the symbol page for this strategy (latest run is pre-selected). Use{' '}
-          <strong>Delete all snapshots</strong> to remove every stored single-symbol run for this strategy; portfolio
-          backtests stay.
-        </p>
 
-        <div className="mb-6 space-y-3">
+        {/* Step 1 — Config */}
+        <div className="mb-6">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-tertiary mb-2">Step 1 — Select global test</p>
           <label className="text-sm block">
-            <span className="text-ink-secondary">Global test</span>
             <select
               value={selectedSnapshotParameterSet}
               onChange={(e) => {
@@ -573,8 +565,11 @@ export default function StrategyDetail() {
                 riskScatterLoadedForRef.current = '';
                 loadRiskScatter({ parameterSet: next, force: true });
               }}
-              className="mt-1 w-full px-3 py-3 border border-border-strong rounded-lg bg-surface focus:ring-2 focus:ring-accent focus:border-transparent"
+              className="w-full px-3 py-3 border border-border-strong rounded-lg bg-surface focus:ring-2 focus:ring-accent focus:border-transparent"
             >
+              {snapshotParameterSets.length === 0 && (
+                <option value="">No global tests yet — run single-symbol backtest</option>
+              )}
               {snapshotParameterSets.map((ps) => (
                 <option key={ps.signature} value={ps.signature}>
                   {String(ps.label).trim()}
@@ -582,8 +577,69 @@ export default function StrategyDetail() {
               ))}
             </select>
           </label>
+        </div>
 
-          <div className="relative">
+        {/* Step 3 — Portfolio (before symbol grid for visibility) */}
+        {selectedSnapshotParameterSet && (
+          <div className="mb-6 rounded-lg border border-border bg-bg p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink-tertiary mb-2">Step 3 — Portfolio backtest</p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <p className="text-sm text-ink-secondary">
+                  Shared bankroll across {snapshotSymbolsCount || 0} symbol(s). Params locked to this global test.
+                </p>
+                {portfolioLoading ? (
+                  <p className="text-sm text-ink-secondary flex items-center gap-2 mt-2">
+                    <Loader className="w-4 h-4 animate-spin" />
+                    Loading…
+                  </p>
+                ) : portfolioBacktest ? (
+                  <p className="text-sm text-ink mt-2">
+                    Status: <span className="font-medium capitalize">{portfolioBacktest.status}</span>
+                    {portfolioBacktest.monte_carlo_num_paths != null
+                      ? ` · MC paths: ${portfolioBacktest.monte_carlo_num_paths}`
+                      : ''}
+                  </p>
+                ) : (
+                  <p className="text-sm text-ink-tertiary mt-2">
+                    {snapshotSymbolsCount < 2
+                      ? 'Need at least 2 completed single-symbol runs.'
+                      : 'Not run yet.'}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                {portfolioBacktest?.id && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigateWithReturn(`/strategies/${id}/backtests/${portfolioBacktest.id}`)
+                    }
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-border-strong text-ink bg-surface hover:bg-surface-sunken min-h-[44px]"
+                  >
+                    View results
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPortfolioModalOpen(true)}
+                  disabled={portfolioRunning || portfolioLoading || snapshotSymbolsCount < 2}
+                  className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg bg-accent text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+                >
+                  {portfolioRunning ? <Loader className="w-4 h-4 animate-spin" /> : null}
+                  {portfolioBacktest ? 'Retest portfolio' : 'Run portfolio'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2 — Singles */}
+        <div className="mb-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-tertiary mb-2">
+            Step 2 — Single-symbol runs ({snapshotSymbolsCount || 0})
+          </p>
+          <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-tertiary w-5 h-5" />
             <input
               type="text"
@@ -954,134 +1010,32 @@ export default function StrategyDetail() {
         )}
       </div>
 
-      {/* Backtest History */}
-      <div className="bg-surface rounded-lg shadow-lg p-6">
-        <h2 className="text-2xl font-bold text-ink mb-4 flex items-center gap-2">
-          <Clock className="w-6 h-6" />
-          Backtest History
-        </h2>
-        
-        {backtestsLoading ? (
-          <div className="text-center py-8 text-ink-tertiary">Loading backtest history...</div>
-        ) : backtests.length === 0 ? (
-          <div className="text-center py-8 text-ink-tertiary">No backtests yet. Run a backtest to see results here.</div>
-        ) : (
-          <>
-            {/* Results Count and Pagination Info */}
-            {backtestsCount > 0 && (
-              <div className="mb-4 flex items-center justify-between">
-                <div className="text-sm text-ink-secondary">
-                  Found {backtestsCount} backtest{backtestsCount !== 1 ? 's' : ''}
-                  {backtests.length > 0 && backtestsCount > 0 && (
-                    <span className="text-ink-tertiary">
-                      {' '}(Showing {((currentPage - 1) * 20) + 1}-{Math.min(currentPage * 20, backtestsCount)})
-                    </span>
-                  )}
-                </div>
-                {(backtestsNext || backtestsPrevious) && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        if (backtestsPrevious) {
-                          const url = new URL(backtestsPrevious);
-                          const page = url.searchParams.get('page') || '1';
-                          setSearchParams({ page });
-                        }
-                      }}
-                      disabled={!backtestsPrevious}
-                      className="px-3 py-2 border border-border-strong rounded-lg hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                      Previous
-                    </button>
-                    <span className="text-sm text-ink-secondary px-2">
-                      Page {currentPage}
-                    </span>
-                    <button
-                      onClick={() => {
-                        if (backtestsNext) {
-                          const url = new URL(backtestsNext);
-                          const page = url.searchParams.get('page') || '1';
-                          setSearchParams({ page });
-                        }
-                      }}
-                      disabled={!backtestsNext}
-                      className="px-3 py-2 border border-border-strong rounded-lg hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                    >
-                      Next
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+      {showPortfolioTaskProgress && portfolioTaskId && (
+        <TaskProgress
+          taskId={portfolioTaskId}
+          onComplete={() => {
+            setShowPortfolioTaskProgress(false);
+            setPortfolioTaskId(null);
+            loadPortfolioBacktest(selectedSnapshotParameterSet);
+          }}
+          onClose={() => {
+            setShowPortfolioTaskProgress(false);
+            setPortfolioTaskId(null);
+            loadPortfolioBacktest(selectedSnapshotParameterSet);
+          }}
+        />
+      )}
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-border">
-                <thead className="bg-bg">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Name</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Date Range</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Symbols</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Created</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-tertiary uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-surface divide-y divide-border">
-                  {backtests.map((backtest) => (
-                    <tr key={backtest.id} className="hover:bg-bg">
-                      <td className="px-4 py-3 text-sm font-medium text-ink">
-                        {backtest.name || `Backtest #${backtest.id}`}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-ink-secondary">
-                        {formatDate(backtest.start_date)} - {formatDate(backtest.end_date)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-ink-secondary">
-                        {backtest.symbols_count ?? backtest.symbols_info?.length ?? backtest.symbols?.length ?? 0} symbol(s)
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          {getStatusIcon(backtest.status)}
-                          <span className={`font-medium capitalize ${
-                            backtest.status === 'completed' ? 'text-profit' :
-                            backtest.status === 'failed' ? 'text-loss' :
-                            backtest.status === 'running' ? 'text-status-pending' :
-                            'text-ink-secondary'
-                          }`}>
-                            {backtest.status}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-ink-secondary">
-                        {formatDate(backtest.created_at)}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={() => navigateWithReturn(`/strategies/${id}/backtests/${backtest.id}`)}
-                            className="text-accent hover:text-accent-ink font-medium"
-                          >
-                            View Symbols
-                          </button>
-                          <button
-                            onClick={() => handleDeleteBacktest(backtest.id)}
-                            disabled={deleting || backtest.status === 'running'}
-                            className="text-loss hover:text-loss-ink disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                            title={backtest.status === 'running' ? 'Cannot delete running backtest' : 'Delete backtest'}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </div>
+      <PortfolioRunModal
+        open={portfolioModalOpen}
+        onClose={() => setPortfolioModalOpen(false)}
+        onSubmit={handlePortfolioModalSubmit}
+        parameterSetLabel={selectedParameterSetMeta?.label || ''}
+        configSummary={portfolioConfigSummary}
+        symbolCount={snapshotSymbolsCount}
+        isRetest={Boolean(portfolioBacktest)}
+        submitting={portfolioRunning}
+      />
 
       <DeployStrategyModal
         open={deployModalOpen}

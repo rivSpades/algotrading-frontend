@@ -22,3 +22,9 @@ export function positionModeRunLabel(backtest) {
   if (m[0] === 'long') return 'Long only';
   return 'Short only';
 }
+
+/** Position mode used by order-variance (Monte Carlo) re-simulations */
+export function monteCarloPositionMode(backtest) {
+  const m = positionModesAvailable(backtest);
+  return m.includes('long') ? 'long' : m[0];
+}
