@@ -237,6 +237,25 @@ export async function linkSymbolsToBroker(brokerId, symbolTickers = [], exchange
   }
 }
 
+/** Count of symbols linked to a broker (from paginated /brokers/:id/symbols/). */
+export async function getBrokerLinkedSymbolCount(brokerId) {
+  const response = await liveTradingAPI.brokers.getBrokerSymbols(brokerId, 1, '', 1);
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to load broker linked symbols');
+  }
+  const data = response.data;
+  if (data && typeof data.count === 'number') {
+    return data.count;
+  }
+  if (Array.isArray(data)) {
+    return data.length;
+  }
+  if (Array.isArray(data?.results)) {
+    return data.count ?? data.results.length;
+  }
+  return 0;
+}
+
 export async function reverifyBrokerLinkedSymbols(brokerId) {
   const response = await liveTradingAPI.brokers.reverifyBrokerSymbols(brokerId);
   if (response.success && response.data) {

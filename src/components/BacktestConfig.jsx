@@ -15,7 +15,7 @@ import {
   parseHedgeField,
 } from '../data/hedgeConfig';
 import { marketDataAPI } from '../data/api';
-import { getBrokers } from '../data/liveTrading';
+import { getBrokers, getBrokerLinkedSymbolCount } from '../data/liveTrading';
 import TaskProgress from './TaskProgress';
 
 /**
@@ -60,8 +60,12 @@ export default function BacktestConfig({
   const [brokers, setBrokers] = useState([]);
   const [selectedBroker, setSelectedBroker] = useState(null);
   const [brokerExchangeCode, setBrokerExchangeCode] = useState('');
+  const [brokerLinkedCount, setBrokerLinkedCount] = useState(null);
+  const [brokerLinkedCountLoading, setBrokerLinkedCountLoading] = useState(false);
 
   const isSingleSymbol = runMode === 'single_symbol';
+  const brokerHasNoLinks =
+    useBrokerFilter && selectedBroker && brokerLinkedCount === 0 && !brokerLinkedCountLoading;
   const defaultTriggerLabel = isSingleSymbol
     ? 'Single-symbol backtest'
     : defaultStrategyId != null
@@ -78,7 +82,38 @@ export default function BacktestConfig({
     }
   }, [showModal, isSingleSymbol]);
 
-  // (No longer used) Previously: client-side loading of broker-linked tickers for single-symbol picker.
+  useEffect(() => {
+    let cancelled = false;
+    if (!useBrokerFilter || !selectedBroker?.id) {
+      setBrokerLinkedCount(null);
+      setBrokerLinkedCountLoading(false);
+      return undefined;
+    }
+    setBrokerLinkedCountLoading(true);
+    getBrokerLinkedSymbolCount(selectedBroker.id)
+      .then((count) => {
+        if (!cancelled) {
+          setBrokerLinkedCount(count);
+          if (count === 0) {
+            setSelectAllActive(false);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Error loading broker linked symbol count:', err);
+        if (!cancelled) {
+          setBrokerLinkedCount(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setBrokerLinkedCountLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [useBrokerFilter, selectedBroker?.id]);
 
 
   const loadData = async () => {
@@ -185,6 +220,12 @@ export default function BacktestConfig({
           alert('To select all for snapshots, turn on "Filter by Broker" and choose a broker first.');
           return;
         }
+      }
+      if (useBrokerFilter && selectedBroker && brokerLinkedCount === 0) {
+        alert(
+          `No symbols linked to ${selectedBroker.name}. Link symbols on the broker page first.`,
+        );
+        return;
       }
       setSelectAllActive(true);
       setRandomCountMode(false);
@@ -326,6 +367,12 @@ export default function BacktestConfig({
         alert('Random selection is not used for single-symbol backtest. Turn off Random.');
         return;
       }
+      if (useBrokerFilter && selectedBroker && brokerLinkedCount === 0) {
+        alert(
+          `No symbols linked to ${selectedBroker.name}. Link symbols on the broker page first, or turn off Filter by Broker.`,
+        );
+        return;
+      }
       if (!selectAllActive && selectedSymbols.length === 0) {
         alert('Add at least one ticker, or enable "Select All Active" (broker-linked).');
         return;
@@ -407,6 +454,13 @@ export default function BacktestConfig({
     let symbolTickers = [];
     let brokerId = null;
     let exchangeCode = null;
+
+    if (useBrokerFilter && selectedBroker && brokerLinkedCount === 0) {
+      alert(
+        `No symbols linked to ${selectedBroker.name}. Link symbols on the broker page first, or turn off Filter by Broker.`,
+      );
+      return;
+    }
 
     // Determine which symbols to use based on selection mode
     // All symbol filtering and validation is done in the backend using ORM
@@ -538,6 +592,8 @@ export default function BacktestConfig({
     setUseBrokerFilter(false);
     setSelectedBroker(null);
     setBrokerExchangeCode('');
+    setBrokerLinkedCount(null);
+    setBrokerLinkedCountLoading(false);
   };
 
   return (
@@ -717,13 +773,28 @@ export default function BacktestConfig({
                               className="w-full px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent"
                             />
                           </div>
-                          
-                          {/* Info message */}
-                          {selectedBroker && (
-                            <div className="text-sm text-ink-secondary">
-                              Symbol filtering will be handled by the backend when creating the backtest.
-                            </div>
-                          )}
+
+                          <div className="text-sm text-ink-secondary">
+                            {brokerLinkedCountLoading ? (
+                              <span>Checking linked symbols…</span>
+                            ) : brokerLinkedCount === 0 ? (
+                              <span className="text-loss">
+                                No symbols linked to {selectedBroker.name}. Link symbols on the broker
+                                page before using broker filter or Select All Active.
+                              </span>
+                            ) : brokerLinkedCount != null ? (
+                              <span>
+                                {brokerLinkedCount} symbol{brokerLinkedCount === 1 ? '' : 's'} linked
+                                to {selectedBroker.name}. Filtering is applied when you start the
+                                backtest.
+                              </span>
+                            ) : (
+                              <span>
+                                Symbol filtering will be handled by the backend when creating the
+                                backtest.
+                              </span>
+                            )}
+                          </div>
                         </>
                       )}
                     </div>
@@ -746,11 +817,14 @@ export default function BacktestConfig({
                     </label>
                     {!isSingleSymbol && (
                       <div className="flex items-center gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
+                        <label
+                          className={`flex items-center gap-2 ${brokerHasNoLinks ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                        >
                           <input
                             type="checkbox"
                             checked={selectAllActive}
                             onChange={handleSelectAllActive}
+                            disabled={!!brokerHasNoLinks}
                             className="w-4 h-4 text-accent border-border-strong rounded focus:ring-accent"
                           />
                           <span className="text-sm text-ink-secondary font-medium">Select All Active</span>
@@ -767,11 +841,14 @@ export default function BacktestConfig({
                       </div>
                     )}
                     {isSingleSymbol && (
-                      <label className="flex items-center gap-2 cursor-pointer">
+                      <label
+                        className={`flex items-center gap-2 ${brokerHasNoLinks ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                      >
                         <input
                           type="checkbox"
                           checked={selectAllActive}
                           onChange={handleSelectAllActive}
+                          disabled={!!brokerHasNoLinks}
                           className="w-4 h-4 text-accent border-border-strong rounded focus:ring-accent"
                         />
                         <span className="text-sm text-ink-secondary font-medium">
@@ -903,20 +980,17 @@ export default function BacktestConfig({
                       <p className="text-sm text-accent-ink">
                         {useBrokerFilter && selectedBroker ? (
                           <>
-                            <strong>All available symbols</strong> from the selected broker
-                            {brokerExchangeCode ? ` on exchange ${brokerExchangeCode}` : ''} will be included in the
-                            backtest.
+                            A <strong>single-symbol snapshot</strong> will be queued for each active symbol
+                            linked to {selectedBroker.name}
+                            {brokerExchangeCode ? ` on exchange ${brokerExchangeCode}` : ''}
+                            {brokerLinkedCount != null ? ` (${brokerLinkedCount} linked)` : ''}.
                           </>
                         ) : (
                           <>
-                            <strong>All active symbols</strong> will be included in the backtest. Active tickers will
-                            be fetched when you start the backtest.
+                            Select a broker first — Select All Active for snapshots expands
+                            broker-linked symbols only.
                           </>
                         )}
-                      </p>
-                      <p className="text-xs text-accent-ink mt-1">
-                        Note: this runs a <strong>portfolio backtest</strong> (multi-symbol) even if you opened the
-                        single-symbol launcher.
                       </p>
                     </div>
                   )}
@@ -925,9 +999,10 @@ export default function BacktestConfig({
                       <p className="text-sm text-accent-ink">
                         {useBrokerFilter && selectedBroker ? (
                           <>
-                            <strong>All available symbols</strong> from the selected broker
-                            {brokerExchangeCode ? ` on exchange ${brokerExchangeCode}` : ''} will be included in the
-                            backtest.
+                            <strong>All available symbols</strong> from {selectedBroker.name}
+                            {brokerExchangeCode ? ` on exchange ${brokerExchangeCode}` : ''}
+                            {brokerLinkedCount != null ? ` (${brokerLinkedCount} linked)` : ''} will be
+                            included in the portfolio backtest.
                           </>
                         ) : (
                           <>
@@ -1130,6 +1205,7 @@ export default function BacktestConfig({
                     disabled={
                       creating ||
                       !selectedStrategy ||
+                      !!brokerHasNoLinks ||
                       (isSingleSymbol
                         ? selectAllActive
                           ? !(useBrokerFilter && selectedBroker)
