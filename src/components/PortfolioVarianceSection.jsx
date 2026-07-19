@@ -262,7 +262,7 @@ export default function PortfolioVarianceSection({
     xaxis: {
       categories: histogram.map((b) => fmtMoney((Number(b.bin_start) + Number(b.bin_end)) / 2)),
       labels: { rotate: -45, style: { colors: getChartTheme().inkTertiary } },
-      title: { text: 'Profit (variants only)', style: { color: getChartTheme().inkSecondary } },
+      title: { text: 'Profit (all runs)', style: { color: getChartTheme().inkSecondary } },
     },
     yaxis: {
       labels: { style: { colors: getChartTheme().inkTertiary } },
@@ -351,7 +351,7 @@ export default function PortfolioVarianceSection({
             </div>
             <div className="bg-surface border border-border rounded-lg p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">
-                Mean across {variantCount} order variants
+                Mean across {sortedPaths.length || variantCount + 1} runs
               </p>
               <p className="text-2xl font-mono font-semibold text-ink mt-2">{fmtMoney(simulation.mean_profit)}</p>
               <p className="text-xs text-ink-secondary mt-2">
@@ -363,10 +363,10 @@ export default function PortfolioVarianceSection({
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             {[
-              { label: 'P(broke) variants', value: fmtPct(simulation.prob_broke) },
-              { label: 'P(profitable) variants', value: fmtPct(simulation.prob_profit_positive) },
-              { label: 'Best variant', value: fmtMoney(simulation.best_path?.profit) },
-              { label: 'Worst variant', value: fmtMoney(simulation.worst_path?.profit) },
+              { label: 'P(broke) all runs', value: fmtPct(simulation.prob_broke) },
+              { label: 'P(profitable) all runs', value: fmtPct(simulation.prob_profit_positive) },
+              { label: 'Best run', value: fmtMoney(simulation.best_path?.profit) },
+              { label: 'Worst run', value: fmtMoney(simulation.worst_path?.profit) },
             ].map((kpi) => (
               <div key={kpi.label} className="bg-bg rounded-lg p-3 border border-border">
                 <p className="text-xs text-ink-tertiary">{kpi.label}</p>
@@ -381,7 +381,7 @@ export default function PortfolioVarianceSection({
               <PortfolioPerformanceMetricsGrid
                 stats={simulation.mean_performance_metrics}
                 title={`Mean Performance Metrics (${positionModeLabel})`}
-                subtitle={`Average across ${variantCount} order variants (Run 0 excluded)`}
+                subtitle={`Average across all ${sortedPaths.length || variantCount + 1} runs (Run 0 + order variants)`}
               />
             </div>
           )}
@@ -445,7 +445,7 @@ export default function PortfolioVarianceSection({
 
           {histogram.length > 0 && (
             <div className="bg-surface rounded-lg border border-border p-4">
-              <h3 className="text-base font-semibold text-ink mb-3">Variant profit distribution</h3>
+              <h3 className="text-base font-semibold text-ink mb-3">Profit distribution (all runs)</h3>
               <Chart options={histOptions} series={histSeries} type="bar" height={260} />
             </div>
           )}
