@@ -8,7 +8,7 @@
 React SPA for the algorithmic trading platform: market data management, strategy
 configuration, backtest visualization (equity curves, trade tables, statistics),
 broker management, and live-trading deployments. Consumes the Django REST API at
-`REACT_APP_API_URL` (default `http://localhost:8000/api`). **No business
+`REACT_APP_API_URL` (Docker default `http://localhost:8001/api`). **No business
 calculations** — only presentation of backend-computed data.
 
 ## Stack
@@ -27,7 +27,7 @@ calculations** — only presentation of backend-computed data.
 | Command | Purpose |
 |---------|---------|
 | `npm install` | Install dependencies |
-| `npm start` | Dev server (port 3000) |
+| `npm start` | Dev server (port **3001** via `.env` `PORT`) |
 | `npm run build` | Production build |
 | `npm test` | Jest test runner |
 
